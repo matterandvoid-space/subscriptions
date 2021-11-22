@@ -1,4 +1,4 @@
-(ns re-frame.loggers
+(ns re-frame-subs.loggers
   (:require
    [clojure.set :refer [difference]]
    #?@(:clj [[clojure.string :as str]

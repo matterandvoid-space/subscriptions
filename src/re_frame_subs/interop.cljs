@@ -1,10 +1,7 @@
-(ns re-frame.interop
+(ns re-frame-subs.interop
   (:require [goog.async.nextTick]
-            [goog.events :as events]
             [reagent.core]
             [reagent.ratom]))
-
-(def empty-queue #queue [])
 
 ;; Make sure the Google Closure compiler sees this as a boolean constant,
 ;; otherwise Dead Code Elimination won't happen in `:advanced` builds.
@@ -12,9 +9,18 @@
 ;; https://developers.google.com/closure/compiler/docs/js-for-compiler
 (def ^boolean debug-enabled? "@define {boolean}" ^boolean goog/DEBUG)
 
+(defn ratom [x]
+  (reagent.core/atom x))
+
+(defn ratom? [x]
+  ;; ^:js suppresses externs inference warnings by forcing the compiler to
+  ;; generate proper externs. Although not strictly required as
+  ;; reagent.ratom/IReactiveAtom is not JS interop it appears to be harmless.
+  ;; See https://shadow-cljs.github.io/docs/UsersGuide.html#infer-externs
+  (satisfies? reagent.ratom/IReactiveAtom ^js x))
+
 (defn deref? [x]
   (satisfies? IDeref x))
-
 
 (defn make-reaction [f]
   (reagent.ratom/make-reaction f))

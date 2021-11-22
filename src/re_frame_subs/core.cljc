@@ -1,8 +1,6 @@
-(ns re-frame.core
+(ns re-frame-subs.core
   (:require
-    [re-frame.subs             :as subs]
-    [re-frame.loggers          :as loggers]
-    [re-frame.registrar        :as registrar] ))
+    [re-frame-subs.subs :as subs]))
 
 ;; -- subscriptions -----------------------------------------------------------
 
@@ -155,8 +153,8 @@
   See also: `subscribe`
   "
   {:api-docs/heading "Subscriptions"}
-  [query-id & args]
-  (apply subs/reg-sub query-id args))
+  [app query-id & args]
+  (apply subs/reg-sub app query-id args))
 
 (defn subscribe
   "Given a `query` vector, returns a Reagent `reaction` which will, over
@@ -232,11 +230,10 @@
 
   NOTE: Depending on the usecase, it may be necessary to call `clear-subscription-cache!` afterwards"
   {:api-docs/heading "Subscriptions"}
-  ([]
-   (registrar/clear-handlers subs/kind))
-  ([query-id]
-   (registrar/clear-handlers subs/kind query-id)))
-
+  ([registry]
+   (subs/clear-handlers registry))
+  ([registry query-id]
+   (subs/clear-handlers registry query-id)))
 
 (defn reg-sub-raw
   "This is a low level, advanced function.  You should probably be
@@ -245,9 +242,8 @@
   Some explanation is available in the docs at
   <a href=\"http://day8.github.io/re-frame/flow-mechanics/\" target=\"_blank\">http://day8.github.io/re-frame/flow-mechanics/</a>"
   {:api-docs/heading "Subscriptions"}
-  [query-id handler-fn]
-  (registrar/register-handler subs/kind query-id handler-fn))
-
+  [registry query-id handler-fn]
+  (subs/register-handler registry query-id handler-fn))
 
 ;; XXX
 (defn clear-subscription-cache!
@@ -262,54 +258,3 @@
   {:api-docs/heading "Subscriptions"}
   [registry]
   (subs/clear-subscription-cache! registry))
-
-
-;; -- interceptors ------------------------------------------------------------
-
-
-;; --  logging ----------------------------------------------------------------
-
-(defn set-loggers!
-  "re-frame outputs warnings and errors via the API function `console`
-   which, by default, delegates to `js/console`'s default implementation for
-  `log`, `error`, `warn`, `debug`, `group` and `groupEnd`. But, using this function,
-   you can override that behaviour with your own functions.
-
-  The argument `new-loggers` should be a map containing a subset of they keys
-  for the standard `loggers`, namely  `:log` `:error` `:warn` `:debug` `:group`
-  or `:groupEnd`.
-
-  Example Usage:
-
-      #!clj
-      (defn my-logger      ;; my alternative logging function
-        [& args]
-        (post-it-somewhere (apply str args)))
-
-      ;; now install my alternative loggers
-      (re-frame.core/set-loggers!  {:warn my-logger :log my-logger})
-   "
-  {:api-docs/heading "Logging"}
-  [new-loggers]
-  (loggers/set-loggers! new-loggers))
-
-
-(defn console
-  "A utility logging function which is used internally within re-frame to produce
-  warnings and other output. It can also be used by libraries which
-  extend re-frame, such as effect handlers.
-
-  By default, it will output the given `args` to `js/console` at the given log `level`.
-  However, an application using re-frame can redirect `console` output via `set-loggers!`.
-
-  `level` can be one of `:log`, `:error`, `:warn`, `:debug`, `:group` or `:groupEnd`.
-
-  Example usage:
-
-      #!clj
-      (console :error \"Sure enough it happened:\" a-var \"and\" another)
-      (console :warn \"Possible breach of containment wall at:\" dt)
-  "
-  {:api-docs/heading "Logging"}
-  [level & args]
-  (apply loggers/console level args))

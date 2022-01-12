@@ -4,10 +4,13 @@
     [re-frame-subs.loggers :refer [console]]
     [re-frame-subs.subs :as subs]))
 
-(defn get-input-db [app] (fulcro.app/current-state app))
+(defonce subs-cache (atom {}))
+(defn get-input-db [app] (if app (fulcro.app/current-state app) (console :info "APP IS NULL")))
 (defn get-input-db-signal [app] (::fulcro.app/state-atom app))
-(defn get-subscription-cache [app] (atom {}))
-(defn cache-lookup [app query-v] (get @(get-subscription-cache app) [query-v]))
+(defn get-subscription-cache [app] subs-cache #_(atom {}))
+(defn cache-lookup [app query-v]
+  (if app
+    (get @(get-subscription-cache app) [query-v])))
 
 (def debug-enabled? false)
 
@@ -15,7 +18,7 @@
 (defn get-handler
   "Fulcro app -> subscription handler function."
   ([app id]
-   (get-in (fulcro.app/current-state app) [subs-key id]))
+   (get-in @(::fulcro.app/runtime-atom app) [subs-key id]))
 
   ([app id required?]
    (let [handler (get-handler app id)]
@@ -27,8 +30,8 @@
 (defn register-handler!
   "Returns `handler-fn` after associng it in the map."
   [app id handler-fn]
-  (console :info "REGISTERING HANDLER for id: " id, " app: " app)
-  (swap! (get-input-db-signal app) assoc-in [subs-key id] handler-fn)
+  (console :info "IN register-handler")
+  (swap! (::fulcro.app/runtime-atom app) assoc-in [subs-key id] handler-fn)
   handler-fn)
 
 (defn clear-handlers
@@ -187,13 +190,18 @@
   For further understanding, read the tutorials, and look at the detailed comments in
   /examples/todomvc/src/subs.cljs.
 
-  See also: `subscribe`
-  "
-  {:api-docs/heading "Subscriptions"}
-  [app query-id & args]
-  (apply subs/reg-sub
-    get-input-db get-input-db-signal get-handler register-handler! cache-lookup
-    app query-id args))
+  See also: `subscribe`"
+  [app_ query-id & args]
+  ;; In some fulcro apps, the application is set asynchronously on boot of the application, this lets us capture its
+  ;; current value - requires passing a Var as app though.
+  #?(:cljs
+     (js/setTimeout
+       (fn []
+         (let [app (if (var? app_) @app_ app_)]
+           (assert app)
+           (apply subs/reg-sub
+             get-input-db get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
+             app query-id args))))))
 
 (defn subscribe
   "Given a `query` vector, returns a Reagent `reaction` which will, over
@@ -249,13 +257,12 @@
 
   Two, or more, concurrent subscriptions for the same query will
   source reactive updates from the one executing handler.
-
+::habits
   See also: `reg-sub`
   "
-  {:api-docs/heading "Subscriptions"}
-  ([app query]
-   (subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache
-     app query)))
+  [app query]
+  (subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache
+    app query))
 
 (defn clear-sub ;; think unreg-sub
   "Unregisters subscription handlers (presumably registered previously via the use of `reg-sub`).

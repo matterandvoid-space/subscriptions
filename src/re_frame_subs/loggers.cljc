@@ -17,6 +17,7 @@
    Use `set-loggers!` to change these defaults
   "
   (atom #?(:cljs {:log       (js/console.log.bind   js/console)
+                  :info      (js/console.log.bind   js/console)
                   :warn      (js/console.warn.bind  js/console)
                   :error     (js/console.error.bind js/console)
                   :debug     (js/console.debug.bind js/console)

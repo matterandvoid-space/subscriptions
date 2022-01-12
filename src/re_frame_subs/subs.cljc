@@ -101,7 +101,7 @@
 
 (defn- deref-input-signals
   [signals query-id]
-  (console :info "deref-input-signals: " query-id ", " signals)
+  ;(console :info "deref-input-signals: " query-id ", " signals)
   (let [dereffed-signals (map-signals deref signals)]
     (cond
       (sequential? signals) (map deref signals)

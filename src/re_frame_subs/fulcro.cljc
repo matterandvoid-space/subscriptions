@@ -4,9 +4,16 @@
     [re-frame-subs.loggers :refer [console]]
     [re-frame-subs.subs :as subs]))
 
-(defonce subs-cache (atom {}))
 (defn get-input-db [app] (if app (fulcro.app/current-state app) (console :info "APP IS NULL")))
-(defn get-input-db-signal [app] (::fulcro.app/state-atom app))
+
+(defn get-input-db-signal
+  "Given the storage for the subscriptions return an atom containing a map
+  (this it the 'db' in re-frame parlance)."
+  [app] (::fulcro.app/state-atom app))
+
+;; for other proxy interfaces (other than fulcro storage) this has to be an atom of a map.
+;; this is here for now just to inspect it at the repl
+(defonce subs-cache (atom {}))
 (defn get-subscription-cache [app] subs-cache #_(atom {}))
 (defn cache-lookup [app query-v]
   (if app
@@ -15,8 +22,11 @@
 (def debug-enabled? false)
 
 (def subs-key ::subs)
+
 (defn get-handler
-  "Fulcro app -> subscription handler function."
+  "Returns a \"handler\" function registered for the subscription with the given `id`.
+  Fulcro app and 'query-id' -> subscription handler function.
+  Lookup in the place where the query-id -> handler functions are stored."
   ([app id]
    (get-in @(::fulcro.app/runtime-atom app) [subs-key id]))
 

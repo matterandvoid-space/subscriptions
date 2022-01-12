@@ -274,6 +274,10 @@
   (subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache
     app query))
 
+(defn <sub
+  [app query]
+  @(subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache app query))
+
 (defn clear-sub ;; think unreg-sub
   "Unregisters subscription handlers (presumably registered previously via the use of `reg-sub`).
 

@@ -16,10 +16,18 @@
 (defonce subs-cache (atom {}))
 (defn get-subscription-cache [app] subs-cache #_(atom {}))
 (defn cache-lookup [app query-v]
-  (if app
-    (get @(get-subscription-cache app) [query-v])))
+  (when app
+    ;(console :error "subs. cache lookup: " query-v )
+    ;(console :info "subs. cache:  "  @(get-subscription-cache app) )
+    (def cache'  @(get-subscription-cache app) )
+    (get @(get-subscription-cache app) query-v)))
 
 (def debug-enabled? false)
+(comment
+
+  (get cache' [:pro.kala-app.habit-tracker.habit.ui.subs/base-habits]
+    )
+  )
 
 (def subs-key ::subs)
 

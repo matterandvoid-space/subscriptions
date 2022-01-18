@@ -24,7 +24,7 @@
   [get-subscription-cache app query-v reaction]
   (let [cache-key          query-v
         subscription-cache (get-subscription-cache app)]
-    (console :info "CACHING! subs cache: " subscription-cache)
+    ;(console :info "cache-and-return!" subscription-cache)
     ;; when this reaction is no longer being used, remove it from the cache
     (add-on-dispose! reaction #(trace/with-trace {:operation (first-in-vector query-v)
                                                   :op-type   :sub/dispose
@@ -40,8 +40,8 @@
                                 (when debug-enabled?
                                   (when (contains? query-cache cache-key)
                                     (console :warn "re-frame: Adding a new subscription to the cache while there is an existing subscription in the cache" cache-key)))
-                                (console :info "ABOUT TO ASSOC , cache key: " cache-key)
-                                (console :info "ABOUT TO ASSOC , cache is : " query-cache)
+                                ;(console :info "ABOUT TO ASSOC , cache key: " cache-key)
+                                ;(console :info "ABOUT TO ASSOC , cache is : " query-cache)
                                 (assoc query-cache cache-key reaction)))
     (trace/merge-trace! {:tags {:reaction (reagent-id reaction)}})
     reaction)) ;; return the actual reaction
@@ -55,15 +55,17 @@
     (trace/with-trace {:operation (first-in-vector query)
                        :op-type   :sub/create
                        :tags      {:query-v query}}
+      ;(console :info (str "subs. cache-lookup: " query))
       (if-let [cached (cache-lookup app query)]
         (do
           (trace/merge-trace! {:tags {:cached?  true
                                       :reaction (reagent-id cached)}})
-          (console :info "HAVE CACHED, returning")
+          ;(console :info (str "subs. returning cached " cached))
           cached)
         (let [query-id   (first-in-vector query)
               handler-fn (get-handler app query-id)]
-          (console :info "DO NOT HAVE CACHED")
+          ;(console :info "DO NOT HAVE CACHED")
+          ;(console :info (str "subs. computing subscription" ))
           (assert handler-fn "Handler for query missing")
 
           (trace/merge-trace! {:tags {:cached? false}})
@@ -71,7 +73,7 @@
             (do (trace/merge-trace! {:error true})
                 (console :error (str "re-frame: no subscription handler registered for: " query-id ". Returning a nil subscription.")))
             (do
-              (console :info "Have handler. invoking")
+              ;(console :info "Have handler. invoking")
               (cache-and-return! get-subscription-cache app query (handler-fn input-db query)))))))))
 
 ;; -- reg-sub -----------------------------------------------------------------
@@ -117,20 +119,20 @@
     [_db query-vec]
     (let [subscriptions (inputs-fn query-vec nil)
           reaction-id   (atom nil)
-          _             (console :info "IN SUBS HANDLER 1")
+          ;_             (console :info "IN SUBS HANDLER 1")
           reaction      (make-reaction
                           (fn []
                             (trace/with-trace {:operation (first-in-vector query-vec)
                                                :op-type   :sub/run
                                                :tags      {:query-v  query-vec
                                                            :reaction @reaction-id}}
-                              (console :info "IN the reaction callback")
+                              ;(console :info "IN the reaction callback")
                               (let [subscription-output (computation-fn (deref-input-signals subscriptions query-id) query-vec)]
-                                (console :info "IN the reaction callback 2 sub output: " subscription-output)
+                                ;(console :info "IN the reaction callback 2 sub output: " subscription-output)
                                 (trace/merge-trace! {:tags {:value subscription-output}})
                                 subscription-output))))]
 
-      _ (console :info "IN SUBS HANDLER 2, reagent id: " (reagent-id reaction))
+      ;_ (console :info "IN SUBS HANDLER 2, reagent id: " (reagent-id reaction))
       (reset! reaction-id (reagent-id reaction))
       reaction)))
 
@@ -147,21 +149,21 @@
                          ;; no `inputs` function provided - give the default
                          0
                          (do
-                           (console :info "CASE 0")
+                           ;(console :info "CASE 0")
                            (fn
                              ([_] (get-input-db-signal app))
                              ([_ _] (get-input-db-signal app))))
 
                          ;; a single `inputs` fn
                          1 (let [f (first input-args)]
-                             (console :info "CASE 1")
+                             ;(console :info "CASE 1")
                              (when-not (fn? f)
                                (console :error err-header "2nd argument expected to be an inputs function, got:" f))
                              f)
 
                          ;; one sugar pair
                          2 (let [[marker vec] input-args]
-                             (console :info "CASE 2")
+                             ;(console :info "CASE 2")
                              (when-not (= :<- marker)
                                (console :error err-header "expected :<-, got:" marker))
                              (fn inp-fn
@@ -172,7 +174,7 @@
                          (let [pairs   (partition 2 input-args)
                                markers (map first pairs)
                                vecs    (map second pairs)]
-                           (console :info "CASE 3")
+                           ;(console :info "CASE 3")
                            (when-not (and (every? #{:<-} markers) (every? vector? vecs))
                              (console :error err-header "expected pairs of :<- and vectors, got:" pairs))
                            (fn inp-fn

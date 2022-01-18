@@ -66,7 +66,7 @@
               handler-fn (get-handler app query-id)]
           ;(console :info "DO NOT HAVE CACHED")
           ;(console :info (str "subs. computing subscription" ))
-          (assert handler-fn "Handler for query missing")
+          (assert handler-fn (str "Handler for query missing, " (pr-str query-id)))
 
           (trace/merge-trace! {:tags {:cached? false}})
           (if (nil? handler-fn)
@@ -126,7 +126,7 @@
                                                :op-type   :sub/run
                                                :tags      {:query-v  query-vec
                                                            :reaction @reaction-id}}
-                              ;(console :info "IN the reaction callback")
+                              ;(console :info "IN the reaction callbak")
                               (let [subscription-output (computation-fn (deref-input-signals subscriptions query-id) query-vec)]
                                 ;(console :info "IN the reaction callback 2 sub output: " subscription-output)
                                 (trace/merge-trace! {:tags {:value subscription-output}})
@@ -142,7 +142,7 @@
   [get-input-db get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
    app query-id & args]
   (let [computation-fn (last args)
-        _              (assert (fn? computation-fn) "Last arg should be function - your computation function.")
+        _              (assert (ifn? computation-fn) "Last arg should be function - your computation function.")
         input-args     (butlast args) ;; may be empty, or one signal fn, or pairs of  :<- / vector
         err-header     (str "re-frame: reg-sub for " query-id ", ")
         inputs-fn      (case (count input-args)

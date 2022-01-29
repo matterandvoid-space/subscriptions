@@ -11,7 +11,7 @@
   "Given the storage for the subscriptions return an atom containing a map
   (this it the 'db' in re-frame parlance)."
   [app]
-  (.log js/console " GET INPUT SIGNAL" (type (::fulcro.app/state-atom app)))
+  ;(.log js/console " GET INPUT SIGNAL" (type (::fulcro.app/state-atom app)))
   (::fulcro.app/state-atom app))
 
 ;; for other proxy interfaces (other than fulcro storage) this has to be an atom of a map.
@@ -23,7 +23,7 @@
 (defn get-subscription-cache [app] subs-cache #_(atom {}))
 (defn cache-lookup [app query-v]
   (when app
-    (console :error "subs. cache lookup: " query-v )
+    ;(console :error "subs. cache lookup: " query-v )
     ;(console :info "subs. cache:  "  @(get-subscription-cache app) )
     (def cache'  @(get-subscription-cache app) )
     (get @(get-subscription-cache app) query-v)

@@ -1,6 +1,7 @@
 (ns re-frame-subs.fulcro
   (:require
     [com.fulcrologic.fulcro.application :as fulcro.app]
+    [com.fulcrologic.fulcro.components :as c]
     [re-frame-subs.loggers :refer [console]]
     [re-frame-subs.subs :as subs]))
 
@@ -9,24 +10,31 @@
 (defn get-input-db-signal
   "Given the storage for the subscriptions return an atom containing a map
   (this it the 'db' in re-frame parlance)."
-  [app] (::fulcro.app/state-atom app))
+  [app]
+  (.log js/console " GET INPUT SIGNAL" (type (::fulcro.app/state-atom app)))
+  (::fulcro.app/state-atom app))
 
 ;; for other proxy interfaces (other than fulcro storage) this has to be an atom of a map.
 ;; this is here for now just to inspect it at the repl
 (defonce subs-cache (atom {}))
+(comment #_(keys (deref subs-cache))
+  @(get (deref subs-cache) [:pro.kala-app.habit-tracker.habit.ui.subs/habits-sort-by])
+  )
 (defn get-subscription-cache [app] subs-cache #_(atom {}))
 (defn cache-lookup [app query-v]
   (when app
-    ;(console :error "subs. cache lookup: " query-v )
+    (console :error "subs. cache lookup: " query-v )
     ;(console :info "subs. cache:  "  @(get-subscription-cache app) )
     (def cache'  @(get-subscription-cache app) )
-    (get @(get-subscription-cache app) query-v)))
+    (get @(get-subscription-cache app) query-v)
+    ))
 
 (def debug-enabled? false)
 (comment
 
-  (get cache' [:pro.kala-app.habit-tracker.habit.ui.subs/base-habits]
-    )
+  (get cache' [:pro.kala-app.habit-tracker.habit.ui.subs/base-habits])
+  (get cache' [:pro.kala-app.habit-tracker.habit.ui.subs/habits-sort-by])
+  (get cache' [:pro.kala-app.habit-tracker.habit.ui.subs/sorted-habits])
   )
 
 (def subs-key ::subs)
@@ -284,7 +292,7 @@
 
 (defn <sub
   [app query]
-  @(subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache app query))
+  @(subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache (c/any->app app) query))
 
 (defn clear-sub ;; think unreg-sub
   "Unregisters subscription handlers (presumably registered previously via the use of `reg-sub`).

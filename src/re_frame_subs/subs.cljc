@@ -55,17 +55,17 @@
     (trace/with-trace {:operation (first-in-vector query)
                        :op-type   :sub/create
                        :tags      {:query-v query}}
-      ;(console :info (str "subs. cache-lookup: " query))
+      (console :info (str "subs. cache-lookup: " query))
       (if-let [cached (cache-lookup app query)]
         (do
           (trace/merge-trace! {:tags {:cached?  true
                                       :reaction (reagent-id cached)}})
-          ;(console :info (str "subs. returning cached " cached))
+          (console :info (str "subs. returning cached " query ", " (pr-str cached)))
           cached)
         (let [query-id   (first-in-vector query)
               handler-fn (get-handler app query-id)]
-          ;(console :info "DO NOT HAVE CACHED")
-          ;(console :info (str "subs. computing subscription" ))
+          (console :info "DO NOT HAVE CACHED")
+          (console :info (str "subs. computing subscription" ))
           (assert handler-fn (str "Handler for query missing, " (pr-str query-id)))
 
           (trace/merge-trace! {:tags {:cached? false}})
@@ -73,7 +73,7 @@
             (do (trace/merge-trace! {:error true})
                 (console :error (str "re-frame: no subscription handler registered for: " query-id ". Returning a nil subscription.")))
             (do
-              ;(console :info "Have handler. invoking")
+              (console :info "Have handler. invoking")
               (cache-and-return! get-subscription-cache app query (handler-fn input-db query)))))))))
 
 ;; -- reg-sub -----------------------------------------------------------------
@@ -126,7 +126,7 @@
                                                :op-type   :sub/run
                                                :tags      {:query-v  query-vec
                                                            :reaction @reaction-id}}
-                              ;(console :info "IN the reaction callbak")
+                              (console :info "IN the reaction callbak " query-vec)
                               (let [subscription-output (computation-fn (deref-input-signals subscriptions query-id) query-vec)]
                                 ;(console :info "IN the reaction callback 2 sub output: " subscription-output)
                                 (trace/merge-trace! {:tags {:value subscription-output}})
@@ -180,6 +180,7 @@
                            (fn inp-fn
                              ([_] (map #(subscribe get-input-db get-handler cache-lookup get-subscription-cache app %) vecs))
                              ([_ _] (map #(subscribe get-input-db get-handler cache-lookup get-subscription-cache app %) vecs)))))]
+    (console :info "registering subscription: " query-id)
     (register-handler! app query-id (make-subs-handler-fn inputs-fn computation-fn query-id))))
 
 (comment

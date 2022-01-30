@@ -145,51 +145,140 @@
       (reset! reaction-id (reagent-id reaction))
       reaction)))
 
+(comment
+  (.-arr r)
+  (.unshift r 5)
+  )
+
+(defn memoize-fn
+  "Returns a function which is memoized, with a policy.
+  For now it will retain the up to 'n' unique invocations of input to output. When buffer/cache of 'n' distinct input calls is full will
+  evict the oldest first."
+  [size f]
+  (let [cache           (atom {:data         {}
+                               :keys-history #queue[]})
+        ;; this might need to be smarter - because what about the scnenario where you call this 'size' times with the
+        ;; same input. then the last used will be the same as the recent and it will be dissoc'ed from the cache.
+        ;; the other way to do it is to store unique calls?
+        ;; you could store the keys history as a set? i think i'll just respect the degenerate case - and
+        ;; yes. you'll clear the cache if you call it with the same args.
+
+        ;; it is ugly though, how else to do it?
+
+        ;; you would have to have the keys-history as a queue, but also a unique history?
+        ;; i think this would require a linear scan of the queue though to check for uniqueness.
+        ;; In practice this is probably not a big deal.
+
+
+
+
+
+
+
+        ;; here's the thought:
+
+        ;; (count (keyset data)) is how you determine the size of the cache
+        ;; make keys-history a map from js/Date => key
+
+        ;; when count of keyset is at max,
+        ;; you want to take the key that was inserted earliest and remove it
+        ;; in order to do that you need to associate a date with each key
+        ;; this design will let you keep calling the function with the same arguments and not grow the history
+
+        ;; when full? => get-oldest key
+
+        ;; so the next step is how to design the storage to answer the query get-oldest-key
+
+        ;; maybe you still use a queue that drops the oldest where the items on the queue are the args,
+        ;; but the difference with the current design is the size is determined by the keyset of the data vs
+        ;; the length of the queue. boom.
+        ;; you can also then do different policies. One idea is when the cache is full to run frequencies on the queue
+        ;; and remove the item that has the smallest usage
+        ;; I think I'll do that, just for fun
+
+
+        lookup-sentinel (js-obj)]
+    (fn [& args]
+      ;; if the input is in the cache, return
+      (let [v (get (:data @cache) args lookup-sentinel)]
+        (if (identical? v lookup-sentinel)
+          ;; it is missing from cache
+          (let [out     (apply f args)
+                {:keys [keys-history data]} @cache
+                at-max? (= (count keys-history) size)]
+            ;; todo this is stale and you'll replace this.
+            (let [new-history (cond-> keys-history at-max? pop)
+                  new-data    (cond-> data at-max? (dissoc args))]
+              (swap! cache
+                (fn [c]
+                  (assoc c :data (assoc new-data args out)
+                           :keys-history (conj new-history args))) ) )
+
+            )
+          ;; else it is in cache
+          ;; update keys history and return it
+          ))
+      ;; if the input is not in the cache.
+      ;; 1. Compute new output
+      ;; if (> (count (keys @cache)) size)
+      ;;    evict oldest? how?
+
+      )))
+
+(def my-q #queue [])
+(def myq2 (conj my-q 10 11 12))
+(comment
+  (conj
+    (pop myq2)
+    13
+    )
+  )
+
 (defn reg-sub
   "db, fully qualified keyword for the query id
   optional positional args: "
   [get-input-db get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
    app query-id & args]
-  (let [computation-fn      (last args)
-        _                   (assert (ifn? computation-fn) "Last arg should be function - your computation function.")
+  (let [computation-fn          (last args)
+        _                       (assert (ifn? computation-fn) "Last arg should be function - your computation function.")
         memoized-computation-fn (memoize computation-fn)
-        input-args          (butlast args) ;; may be empty, or one signal fn, or pairs of  :<- / vector
-        err-header          (str "re-frame: reg-sub for " query-id ", ")
-        inputs-fn           (case (count input-args)
-                              ;; no `inputs` function provided - give the default
-                              0
-                              (do
-                                ;(console :info "CASE 0")
-                                (fn
-                                  ([_] (get-input-db-signal app))
-                                  ([_ _] (get-input-db-signal app))))
+        input-args              (butlast args) ;; may be empty, or one signal fn, or pairs of  :<- / vector
+        err-header              (str "re-frame: reg-sub for " query-id ", ")
+        inputs-fn               (case (count input-args)
+                                  ;; no `inputs` function provided - give the default
+                                  0
+                                  (do
+                                    ;(console :info "CASE 0")
+                                    (fn
+                                      ([_] (get-input-db-signal app))
+                                      ([_ _] (get-input-db-signal app))))
 
-                              ;; a single `inputs` fn
-                              1 (let [f (first input-args)]
-                                  ;(console :info "CASE 1")
-                                  (when-not (fn? f)
-                                    (console :error err-header "2nd argument expected to be an inputs function, got:" f))
-                                  f)
+                                  ;; a single `inputs` fn
+                                  1 (let [f (first input-args)]
+                                      ;(console :info "CASE 1")
+                                      (when-not (fn? f)
+                                        (console :error err-header "2nd argument expected to be an inputs function, got:" f))
+                                      f)
 
-                              ;; one sugar pair
-                              2 (let [[marker vec] input-args]
-                                  ;(console :info "CASE 2")
-                                  (when-not (= :<- marker)
-                                    (console :error err-header "expected :<-, got:" marker))
-                                  (fn inp-fn
-                                    ([_] (subscribe get-input-db get-handler cache-lookup get-subscription-cache app vec))
-                                    ([_ _] (subscribe get-input-db get-handler cache-lookup get-subscription-cache app vec))))
+                                  ;; one sugar pair
+                                  2 (let [[marker vec] input-args]
+                                      ;(console :info "CASE 2")
+                                      (when-not (= :<- marker)
+                                        (console :error err-header "expected :<-, got:" marker))
+                                      (fn inp-fn
+                                        ([_] (subscribe get-input-db get-handler cache-lookup get-subscription-cache app vec))
+                                        ([_ _] (subscribe get-input-db get-handler cache-lookup get-subscription-cache app vec))))
 
-                              ;; multiple sugar pairs
-                              (let [pairs   (partition 2 input-args)
-                                    markers (map first pairs)
-                                    vecs    (map second pairs)]
-                                ;(console :info "CASE 3")
-                                (when-not (and (every? #{:<-} markers) (every? vector? vecs))
-                                  (console :error err-header "expected pairs of :<- and vectors, got:" pairs))
-                                (fn inp-fn
-                                  ([_] (map #(subscribe get-input-db get-handler cache-lookup get-subscription-cache app %) vecs))
-                                  ([_ _] (map #(subscribe get-input-db get-handler cache-lookup get-subscription-cache app %) vecs)))))]
+                                  ;; multiple sugar pairs
+                                  (let [pairs   (partition 2 input-args)
+                                        markers (map first pairs)
+                                        vecs    (map second pairs)]
+                                    ;(console :info "CASE 3")
+                                    (when-not (and (every? #{:<-} markers) (every? vector? vecs))
+                                      (console :error err-header "expected pairs of :<- and vectors, got:" pairs))
+                                    (fn inp-fn
+                                      ([_] (map #(subscribe get-input-db get-handler cache-lookup get-subscription-cache app %) vecs))
+                                      ([_ _] (map #(subscribe get-input-db get-handler cache-lookup get-subscription-cache app %) vecs)))))]
     (console :info "registering subscription: " query-id)
     (register-handler! app query-id (make-subs-handler-fn inputs-fn memoized-computation-fn query-id))))
 

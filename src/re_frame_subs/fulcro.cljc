@@ -17,9 +17,6 @@
 ;; for other proxy interfaces (other than fulcro storage) this has to be an atom of a map.
 ;; this is here for now just to inspect it at the repl
 (defonce subs-cache (atom {}))
-(comment #_(keys (deref subs-cache))
-  @(get (deref subs-cache) [:pro.kala-app.habit-tracker.habit.ui.subs/habits-sort-by])
-  )
 (defn get-subscription-cache [app] subs-cache #_(atom {}))
 (defn cache-lookup [app query-v]
   (when app
@@ -30,12 +27,6 @@
     ))
 
 (def debug-enabled? false)
-(comment
-
-  (get cache' [:pro.kala-app.habit-tracker.habit.ui.subs/base-habits])
-  (get cache' [:pro.kala-app.habit-tracker.habit.ui.subs/habits-sort-by])
-  (get cache' [:pro.kala-app.habit-tracker.habit.ui.subs/sorted-habits])
-  )
 
 (def subs-key ::subs)
 
@@ -71,7 +62,9 @@
 ;; -- subscriptions -----------------------------------------------------------
 
 (defn reg-sub
-  "A call to `reg-sub` associates a `query-id` with two functions.
+  "A call to `reg-sub` associates a `query-id` with two functions ->
+  a function returning input signals and a function (the signals function)
+  taking the input-signals current value(s) as input and returning a value (the computation function).
 
   The two functions provide 'a mechanism' for creating a node
   in the Signal Graph. When a node of type `query-id` is needed,
@@ -85,13 +78,7 @@
   - a `computation function` which computes the value (output) of the
     node (from the input data flows)
 
-  Later, during app execution, a call to `(subscribe [:sub-id 3 :blue])`,
-  will trigger the need for a new `:sub-id` Signal Graph node (matching the
-  query `[:sub-id 3 :blue]`). And, to create that node the two functions
-  associated with `:sub-id` will be looked up and used.
-
-  Just to be clear: calling `reg-sub` does not immediately create a node.
-  It only registers 'a mechanism' (the two functions) by which nodes
+  It registers 'a mechanism' (the two functions) by which nodes
   can be created later, when a node is bought into existence by the
   use of `subscribe` in a `View Function`.
 

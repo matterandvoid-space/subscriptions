@@ -7,10 +7,6 @@
     [reagent.ratom]))
 
 ;; -- cache -------------------------------------------------------------------
-;;
-;; De-duplicate subscriptions. If two or more equal subscriptions
-;; are concurrently active, we want only one handler running.
-;; Two subscriptions are "equal" if their query vectors test "=".
 
 (defn clear-subscription-cache!
   "calls `on-dispose` for each cached item,
@@ -20,15 +16,20 @@
   (if (not-empty @(get-subscription-cache app))
     (console :warn "re-frame: The subscription cache isn't empty after being cleared")))
 
+;; De-duplicate subscriptions. If two or more equal subscriptions
+;; are concurrently active, we want only one handler running.
+;; Two subscriptions are "equal" if their query vectors test "=".
+
 (defn cache-and-return!
   "cache the reaction r"
   [get-subscription-cache app query-v reaction]
+  ;; this prevents memory leaks (caching subscription -> reaction) but still allows
+  ;; executing outside of a (reagent.reaction ) form, like in event handlers.
   (if (reagent.ratom/reactive?)
     (let [cache-key          query-v
           subscription-cache (get-subscription-cache app)]
       ;(console :info "cache-and-return!" subscription-cache)
       ;; when this reaction is no longer being used, remove it from the cache
-
       (add-on-dispose! reaction #(trace/with-trace {:operation (first-in-vector query-v)
                                                     :op-type   :sub/dispose
                                                     :tags      {:query-v  query-v
@@ -48,7 +49,7 @@
                                   (assoc query-cache cache-key reaction)))
       (trace/merge-trace! {:tags {:reaction (reagent-id reaction)}})
       reaction)
-    reaction)) ;; return the actual reaction
+    reaction))
 
 ;; -- subscribe ---------------------------------------------------------------
 
@@ -86,9 +87,7 @@
   "Returns a new version of 'm' in which 'f' has been applied to each value.
   (map-vals inc {:a 4, :b 2}) => {:a 5, :b 3}"
   [f m]
-  (into (empty m)
-    (map (fn [[k v]] [k (f v)]))
-    m))
+  (into {} (map (fn [[k v]] [k (f v)])) m))
 
 (defn map-signals
   "Runs f over signals. Signals may take several
@@ -130,109 +129,35 @@
                                                :op-type   :sub/run
                                                :tags      {:query-v  query-vec
                                                            :reaction @reaction-id}}
-                              ;(console :info "IN the reaction callbak " query-vec)
-                              ;; I think this is where we want to look up the cached values in the subscription cache - if they
-                              ;; haven't changed then just return their data - how to determine if they have changed?
-                              ;; maybe for each one look up it's reaction value in the cache.
-                              ;; then deref it and
-                              ;; some pseudo-code:
                               (let [subscription-output (computation-fn (deref-input-signals subscriptions query-id) query-vec)]
                                 ;(console :info "IN the reaction callback 2 sub output: " subscription-output)
                                 (trace/merge-trace! {:tags {:value subscription-output}})
                                 subscription-output))))]
-
       ;_ (console :info "IN SUBS HANDLER 2, reagent id: " (reagent-id reaction))
       (reset! reaction-id (reagent-id reaction))
       reaction)))
-
-(comment
-  (.-arr r)
-  (.unshift r 5)
-  )
 
 (defn memoize-fn
   "Returns a function which is memoized, with a policy.
   For now it will retain the up to 'n' unique invocations of input to output. When buffer/cache of 'n' distinct input calls is full will
   evict the oldest first."
-  [size f]
-  (let [cache           (atom {:data         {}
-                               :keys-history #queue[]})
-        ;; this might need to be smarter - because what about the scnenario where you call this 'size' times with the
-        ;; same input. then the last used will be the same as the recent and it will be dissoc'ed from the cache.
-        ;; the other way to do it is to store unique calls?
-        ;; you could store the keys history as a set? i think i'll just respect the degenerate case - and
-        ;; yes. you'll clear the cache if you call it with the same args.
-
-        ;; it is ugly though, how else to do it?
-
-        ;; you would have to have the keys-history as a queue, but also a unique history?
-        ;; i think this would require a linear scan of the queue though to check for uniqueness.
-        ;; In practice this is probably not a big deal.
-
-
-
-
-
-
-
-        ;; here's the thought:
-
-        ;; (count (keyset data)) is how you determine the size of the cache
-        ;; make keys-history a map from js/Date => key
-
-        ;; when count of keyset is at max,
-        ;; you want to take the key that was inserted earliest and remove it
-        ;; in order to do that you need to associate a date with each key
-        ;; this design will let you keep calling the function with the same arguments and not grow the history
-
-        ;; when full? => get-oldest key
-
-        ;; so the next step is how to design the storage to answer the query get-oldest-key
-
-        ;; maybe you still use a queue that drops the oldest where the items on the queue are the args,
-        ;; but the difference with the current design is the size is determined by the keyset of the data vs
-        ;; the length of the queue. boom.
-        ;; you can also then do different policies. One idea is when the cache is full to run frequencies on the queue
-        ;; and remove the item that has the smallest usage
-        ;; I think I'll do that, just for fun
-
-
-        lookup-sentinel (js-obj)]
-    (fn [& args]
-      ;; if the input is in the cache, return
-      (let [v (get (:data @cache) args lookup-sentinel)]
-        (if (identical? v lookup-sentinel)
-          ;; it is missing from cache
-          (let [out     (apply f args)
-                {:keys [keys-history data]} @cache
-                at-max? (= (count keys-history) size)]
-            ;; todo this is stale and you'll replace this.
-            (let [new-history (cond-> keys-history at-max? pop)
-                  new-data    (cond-> data at-max? (dissoc args))]
-              (swap! cache
-                (fn [c]
-                  (assoc c :data (assoc new-data args out)
-                           :keys-history (conj new-history args))) ) )
-
-            )
-          ;; else it is in cache
-          ;; update keys history and return it
-          ))
-      ;; if the input is not in the cache.
-      ;; 1. Compute new output
-      ;; if (> (count (keys @cache)) size)
-      ;;    evict oldest? how?
-
-      )))
-
-(def my-q #queue [])
-(def myq2 (conj my-q 10 11 12))
-(comment
-  (conj
-    (pop myq2)
-    13
-    )
-  )
+  ([f] (memoize-fn 100 50 f))
+  ([max-args-cached-length max-history-length f]
+   (let [cache_          (atom {:data         {}
+                                :args-history #queue[]})
+         lookup-sentinel (js-obj)]
+     (fn [& args]
+       (let [{:keys [args-history data]} @cache_
+             v (get data args lookup-sentinel)]
+         (swap! cache_
+           #(cond-> %
+              (and (= (count (keys data)) max-args-cached-length)
+                (not (contains? data args))) (update :data dissoc (peek args-history))
+              (= (count args-history) max-history-length) (update :args-history pop)
+              ;; cache miss
+              (identical? v lookup-sentinel) (update :data assoc args (apply f args))
+              true (update :args-history conj args)))
+         (get-in @cache_ [:data args]))))))
 
 (defn reg-sub
   "db, fully qualified keyword for the query id
@@ -241,7 +166,7 @@
    app query-id & args]
   (let [computation-fn          (last args)
         _                       (assert (ifn? computation-fn) "Last arg should be function - your computation function.")
-        memoized-computation-fn (memoize computation-fn)
+        memoized-computation-fn (memoize-fn 100 50 computation-fn)
         input-args              (butlast args) ;; may be empty, or one signal fn, or pairs of  :<- / vector
         err-header              (str "re-frame: reg-sub for " query-id ", ")
         inputs-fn               (case (count input-args)
@@ -281,9 +206,3 @@
                                       ([_ _] (map #(subscribe get-input-db get-handler cache-lookup get-subscription-cache app %) vecs)))))]
     (console :info "registering subscription: " query-id)
     (register-handler! app query-id (make-subs-handler-fn inputs-fn memoized-computation-fn query-id))))
-
-(comment
-  (def play-db {})
-  (reg-sub play-db
-    :my-query
-    ))

@@ -1,10 +1,10 @@
 (ns re-frame-subs.subs
   (:require
-    [re-frame-subs.interop :refer [add-on-dispose! debug-enabled? make-reaction ratom? deref? dispose! reagent-id]]
+    [re-frame-subs.interop :refer [add-on-dispose! debug-enabled? make-reaction ratom? deref? dispose! reagent-id
+                                   reactive-context?]]
     [re-frame-subs.loggers :refer [console]]
     [re-frame-subs.trace :as trace :include-macros true]
-    [re-frame-subs.utils :refer [first-in-vector]]
-    [reagent.ratom]))
+    [re-frame-subs.utils :refer [first-in-vector]]))
 
 ;; -- cache -------------------------------------------------------------------
 
@@ -25,7 +25,7 @@
   [get-subscription-cache app query-v reaction]
   ;; this prevents memory leaks (caching subscription -> reaction) but still allows
   ;; executing outside of a (reagent.reaction ) form, like in event handlers.
-  (if (reagent.ratom/reactive?)
+  (when (reactive-context?)
     (let [cache-key          query-v
           subscription-cache (get-subscription-cache app)]
       ;(console :info "cache-and-return!" subscription-cache)
@@ -47,9 +47,8 @@
                                   ;(console :info "ABOUT TO ASSOC , cache key: " cache-key)
                                   ;(console :info "ABOUT TO ASSOC , cache is : " query-cache)
                                   (assoc query-cache cache-key reaction)))
-      (trace/merge-trace! {:tags {:reaction (reagent-id reaction)}})
-      reaction)
-    reaction))
+      (trace/merge-trace! {:tags {:reaction (reagent-id reaction)}})))
+  reaction)
 
 ;; -- subscribe ---------------------------------------------------------------
 

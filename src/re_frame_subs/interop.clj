@@ -48,3 +48,5 @@
   "Doesn't make sense in a Clojure context currently."
   [reactive-val]
   "rx-clj")
+
+(defn ^boolean reactive-context? [] true)

@@ -1,15 +1,20 @@
 (ns re-frame-subs.fulcro
   (:require
     [com.fulcrologic.fulcro.application :as fulcro.app]
+    [com.fulcrologic.fulcro.rendering.ident-optimized-render :as fulcro.render]
     [com.fulcrologic.fulcro.components :as c]
     [re-frame-subs.loggers :refer [console]]
+    [taoensso.timbre :as log]
+    [goog.object :as gobj]
+    [reagent.ratom :as ratom]
     [re-frame-subs.subs :as subs]))
 
 (defn get-input-db [app] (if app (fulcro.app/current-state app) (console :info "APP IS NULL")))
 
 (defn get-input-db-signal
   "Given the storage for the subscriptions return an atom containing a map
-  (this it the 'db' in re-frame parlance)."
+  (this it the 'db' in re-frame parlance).
+  this assumes you've set your fulcro app's state-atom to be reagent reactive atom."
   [app]
   ;(.log js/console " GET INPUT SIGNAL" (type (::fulcro.app/state-atom app)))
   (::fulcro.app/state-atom app))
@@ -22,7 +27,7 @@
   (when app
     ;(console :error "subs. cache lookup: " query-v )
     ;(console :info "subs. cache:  "  @(get-subscription-cache app) )
-    (def cache'  @(get-subscription-cache app) )
+    (def cache' @(get-subscription-cache app))
     (get @(get-subscription-cache app) query-v)
     ))
 
@@ -96,125 +101,17 @@
   The argument(s) supplied to `reg-sub` between `query-id` and the `computation-function`
   can vary in 3 ways, but whatever is there defines the `input signals` part
   of `the mechanism`, specifying what input values \"flow into\" the
-  `computation function` (as the 1st argument) when it is called.
-
-  So, `reg-sub` can be called in one of three ways, because there are three ways
-  to define the input signals part. But note, the 2nd method, in which a
-  `signals function` is explicitly supplied, is the most canonical and
-  instructive. The other two are really just sugary variations.
-
-  **First variation** - no input signal function given:
-
-      #!clj
-      (reg-sub
-        :query-id
-        a-computation-fn)   ;; has signature:  (fn [db query-vec]  ... ret-value)
-
-     In the absence of an explicit `signals function`, the node's input signal defaults to `app-db`
-     and, as a result, the value within `app-db` (a map) is
-     given as the 1st argument when `a-computation-fn` is called.
-
-
-  **Second variation** - a signal function is explicitly supplied:
-
-      #!clj
-      (reg-sub
-        :query-id
-        signal-fn     ;; <-- here
-        computation-fn)
-
-  This is the most canonical and instructive of the three variations.
-
-  When a node is created from the template, the `signal function` will be called and it
-  is expected to return the input signal(s) as either a singleton, if there is only
-  one, or a sequence if there are many, or a map with the signals as the values.
-
-  The current values of the returned signals will be supplied as the 1st argument to
-  the `a-computation-fn` when it is called - and subject to what this `signal-fn` returns,
-  this value will be either a singleton, sequence or map of them (paralleling
-  the structure returned by the `signal function`).
-
-  This example `signal function` returns a 2-vector of input signals.
-
-      #!clj
-      (fn [query-vec dynamic-vec]
-         [(subscribe [:a-sub])
-          (subscribe [:b-sub])])
-
-  The associated computation function must be written
-  to expect a 2-vector of values for its first argument:
-
-      #!clj
-      (fn [[a b] query-vec]     ;; 1st argument is a seq of two values
-        ....)
-
-  If, on the other hand, the signal function was simpler and returned a singleton, like this:
-
-      #!clj
-      (fn [query-vec dynamic-vec]
-        (subscribe [:a-sub]))      ;; <-- returning a singleton
-
-  then the associated computation function must be written to expect a single value
-  as the 1st argument:
-
-      #!clj
-      (fn [a query-vec]       ;; 1st argument is a single value
-         ...)
-
-  Further Note: variation #1 above, in which an `input-fn` was not supplied, like this:
-
-      #!clj
-      (reg-sub
-        :query-id
-        a-computation-fn)   ;; has signature:  (fn [db query-vec]  ... ret-value)
-
-  is the equivalent of using this
-  2nd variation and explicitly supplying a `signal-fn` which returns `app-db`:
-
-      #!clj
-      (reg-sub
-        :query-id
-        (fn [_ _]  re-frame/app-db)   ;; <--- explicit signal-fn
-        a-computation-fn)             ;; has signature:  (fn [db query-vec]  ... ret-value)
-
-  **Third variation** - syntax Sugar
-
-      #!clj
-      (reg-sub
-        :a-b-sub
-        :<- [:a-sub]
-        :<- [:b-sub]
-        (fn [[a b] query-vec]    ;; 1st argument is a seq of two values
-          {:a a :b b}))
-
-  This 3rd variation is just syntactic sugar for the 2nd.  Instead of providing an
-  `signals-fn` you provide one or more pairs of `:<-` and a subscription vector.
-
-  If you supply only one pair a singleton will be supplied to the computation function,
-  as if you had supplied a `signal-fn` returning only a single value:
-
-      #!clj
-      (reg-sub
-        :a-sub
-        :<- [:a-sub]
-        (fn [a query-vec]      ;; only one pair, so 1st argument is a single value
-          ...))
-
-  For further understanding, read the tutorials, and look at the detailed comments in
-  /examples/todomvc/src/subs.cljs.
-
-  See also: `subscribe`"
+  `computation function` (as the 1st argument) when it is called."
   [app_ query-id & args]
   ;; In some fulcro apps, the application is set asynchronously on boot of the application, this lets us capture its
   ;; current value - requires passing a Var as app though.
-  #?(:cljs
-     (js/setTimeout
-       (fn []
-         (let [app (if (var? app_) @app_ app_)]
-           (assert app)
-           (apply subs/reg-sub
-             get-input-db get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
-             app query-id args))))))
+  (js/setTimeout
+    (fn []
+      (let [app (if (var? app_) @app_ app_)]
+        (assert app)
+        (apply subs/reg-sub
+          get-input-db get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
+          app query-id args)))))
 
 (defn subscribe
   "Given a `query` vector, returns a Reagent `reaction` which will, over
@@ -273,13 +170,58 @@
 ::habits
   See also: `reg-sub`
   "
-  [app query]
-  (subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache
-    app query))
+  [?app query]
+  (if (c/component-instance? ?app)
+    (let [^clj reactive-atom (gobj/get ?app "cljsRatom")
+          component          ?app
+          app                (c/any->app component)
+          reaction-opts      {:no-cache true}
+          orig-will-unmount  (.-componentWillUnmount component)
+          unmount-set-var    "fulcro.subscriptions.unmountSet?"
+          new-unmount
+                             (fn component-will-unmount []
+                               (when-not (gobj/get component unmount-set-var)
+                                 (gobj/set component unmount-set-var true)
+                                 (log/info "UNMOUNTING, calling dispose!")
+                                 (some-> (gobj/get component "cljsRatom") ratom/dispose!)
+                                 (when orig-will-unmount (orig-will-unmount))))]
+      (log/info "Is component instance, will unmount: " (js-keys ?app) (.-componentWillUnmount ?app))
+      (set! (.-componentWillUnmount component) new-unmount)
+      (if (nil? reactive-atom)
+        (let [out (ratom/run-in-reaction
+                    #(subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache app query)
+                    component "cljsRatom"
+                    #(binding [c/*blindly-render* false]
+                       (log/info "REACTIVE RENDERING OF COMPONENT: " component)
+                       (log/info "ident: " (c/get-ident component))
+                       (when-not (c/get-ident component)
+                         (def c' component))
+                       (comment (c/get-ident c')
+                         (c/props c')
+                         )
+                       (log/info "ident: " (c/get-ident component))
+                       (log/info "blindly render is: " c/*blindly-render*)
+                       ;(.forceUpdate component)
 
-(defn <sub
-  [app query]
-  @(subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache (c/any->app app) query))
+                       (c/tunnel-props! component (update (c/props component) ::counter inc))
+                       #_(fulcro.render/render-component! app (c/get-ident component) component))
+                    reaction-opts)
+              ]
+          (log/info "OUTPUT: " out)
+          out
+          )
+        (do
+          (log/info "in second branch")
+          (._run reactive-atom false)
+          (subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache app query))))
+    (do
+      (log/info "only have an app")
+      (subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache ?app query))))
+
+(defn <sub [app query]
+  (let [value (subscribe app query)]
+    (log/info "<sub value: " value)
+    @value))
 
 (defn clear-sub ;; think unreg-sub
   "Unregisters subscription handlers (presumably registered previously via the use of `reg-sub`).

@@ -2,6 +2,7 @@
   (:require
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [com.fulcrologic.fulcro.rendering.ident-optimized-render :as fulcro.render]
+    [com.fulcrologic.fulcro.algorithms.denormalize :as fdn]
     [com.fulcrologic.fulcro.components :as c]
     [re-frame-subs.loggers :refer [console]]
     [taoensso.timbre :as log]
@@ -191,25 +192,30 @@
         (let [out (ratom/run-in-reaction
                     #(subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache app query)
                     component "cljsRatom"
-                    #(binding [c/*blindly-render* false]
+                    ;; thinking over rendering strategies
+                    ;; I think just setting blindly-render to true and then calling (refresh-component component)
+                    ;; is probably easiest to avoid dealing with too many internal fulcro details or gotchas
+                    ;; with state getting out of sync.
+                    ;; so it seems like none of the options actually re-render the component except for forceUpdate..
+                    ;; even with blindly-render set to true
+                    #(binding [c/*blindly-render*     false
+                               ;fdn/*denormalize-time* (-> app ::fulcro.app/runtime-atom deref :com.fulcrologic.fulcro.application/basis-t)
+                               ]
                        (log/info "REACTIVE RENDERING OF COMPONENT: " component)
                        (log/info "ident: " (c/get-ident component))
                        (when-not (c/get-ident component)
                          (def c' component))
-                       (comment (c/get-ident c')
-                         (c/props c')
-                         )
+                       (comment (c/get-ident c') (c/props c') )
                        (log/info "ident: " (c/get-ident component))
                        (log/info "blindly render is: " c/*blindly-render*)
-                       ;(.forceUpdate component)
-
-                       (c/tunnel-props! component (update (c/props component) ::counter inc))
-                       #_(fulcro.render/render-component! app (c/get-ident component) component))
+                       (.forceUpdate component)
+                       ;(c/refresh-component! component)
+                       ;(c/tunnel-props! component (update (c/props component) ::counter inc))
+                       ;(fulcro.render/render-component! app (c/get-ident component) component)
+                       )
                     reaction-opts)
               ]
-          (log/info "OUTPUT: " out)
-          out
-          )
+          (log/info "OUTPUT: " out) out)
         (do
           (log/info "in second branch")
           (._run reactive-atom false)

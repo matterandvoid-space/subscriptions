@@ -113,116 +113,79 @@
         (apply subs/reg-sub
           get-input-db get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
           app query-id args)))))
+(comment
 
-(defn subscribe
-  "Given a `query` vector, returns a Reagent `reaction` which will, over
-  time, reactively deliver a stream of values. So, in FRP-ish terms,
-  it returns a `Signal`.
+  (run! println
+    (doto #js [1 2 3 4] (.push 100)))
 
-  To obtain the current value from the Signal, it must be dereferenced:
+  (.-length #js[1 23 3]))
 
-      #!clj
-      (let [signal (subscribe [:items])
-            value  (deref signal)]     ;; could be written as @signal
-        ...)
+(let [components-to-refresh #js[]]
+  (defn subscribe
+    "Given a `query` vector, returns a Reagent `reaction` which will, over
+    time, reactively deliver a stream of values. Also known as a `Signal`.
 
-   which is typically written tersely as simple:
+    To obtain the current value from the Signal, it must be dereferenced"
+    [?app query]
+    (if (c/component-instance? ?app)
+      (let [^clj reactive-atom (gobj/get ?app "cljsRatom")
+            component          ?app
+            app                (c/any->app component)
+            reaction-opts      {:no-cache true}
+            orig-will-unmount  (.-componentWillUnmount component)
+            unmount-set-var    "fulcro.subscriptions.unmountSet?"
+            new-unmount
+                               (fn component-will-unmount []
+                                 (when-not (gobj/get component unmount-set-var)
+                                   (gobj/set component unmount-set-var true)
+                                   ;(log/info "UNMOUNTING, calling dispose!")
+                                   (some-> (gobj/get component "cljsRatom") ratom/dispose!)
+                                   (when orig-will-unmount (orig-will-unmount))))]
+        ;(log/info "Is component instance, will unmount: " (js-keys ?app) (.-componentWillUnmount ?app))
+        (set! (.-componentWillUnmount component) new-unmount)
+        (if (nil? reactive-atom)
+          (let [out (ratom/run-in-reaction
+                      #(subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache app query)
+                      component "cljsRatom"
+                      ;; thinking over rendering strategies
+                      ;; I think just setting blindly-render to true and then calling (refresh-component component)
+                      ;; is probably easiest to avoid dealing with too many internal fulcro details or gotchas
+                      ;; with state getting out of sync.
+                      ;; so it seems like none of the options actually re-render the component except for forceUpdate..
+                      ;; even with blindly-render set to true
+                      ;(log/info "REACTIVE RENDERING OF COMPONENT: " component)
+                      ;(log/info "ident: " (c/get-ident component))
+                      ;(when-not (c/get-ident component) (def c' component))
+                      ;(comment (c/get-ident c') (c/props c') )
+                      ;(log/info "ident: " (c/get-ident component))
+                      ;(log/info "blindly render is: " c/*blindly-render*)
+                      (fn []
+                        ;(when (count components-to-refresh))
+                        ;(run! )
+                        ;; for each component call forceupdaet
+                        ;()
+                        (.log js/console "Pushing component for refresh")
+                        (.push components-to-refresh component)
+                        (js/requestAnimationFrame (fn []
+                                                    (when (> (.-length components-to-refresh) 0)
+                                                      (.log js/console "component to refresh: " components-to-refresh)
+                                                      (.log js/console "RUNNING COMP forceUpdate")
+                                                      (run! #(.forceUpdate %) components-to-refresh)
+                                                      (set! (.-length components-to-refresh) 0)))))
 
-      #!clj
-      (let [items  @(subscribe [:items])]
-        ...)
+                      ;(c/tunnel-props! component (update (c/props component) ::counter inc))
+                      ;(fulcro.render/render-component! app (c/get-ident component) component)
 
-
-  `query` is a vector of at least one element. The first element is the
-  `query-id`, typically a namespaced keyword. The rest of the vector's
-  elements are optional, additional values which parameterise the query
-  performed.
-
-  `dynv` is an optional 3rd argument, which is a vector of further input
-  signals (atoms, reactions, etc), NOT values. This argument exists for
-  historical reasons and is borderline deprecated these days.
-
-  **Example Usage**:
-
-      #!clj
-      (subscribe [:items])
-      (subscribe [:items \"blue\" :small])
-      (subscribe [:items {:colour \"blue\"  :size :small}])
-
-  Note: for any given call to `subscribe` there must have been a previous call
-  to `reg-sub`, registering the query handler (functions) associated with
-  `query-id`.
-
-  **Hint**
-
-  When used in a view function BE SURE to `deref` the returned value.
-  In fact, to avoid any mistakes, some prefer to define:
-
-      #!clj
-      (def <sub  (comp deref re-frame.core/subscribe))
-
-  And then, within their views, they call  `(<sub [:items :small])` rather
-  than using `subscribe` directly.
-
-  **De-duplication**
-
-  Two, or more, concurrent subscriptions for the same query will
-  source reactive updates from the one executing handler.
-::habits
-  See also: `reg-sub`
-  "
-  [?app query]
-  (if (c/component-instance? ?app)
-    (let [^clj reactive-atom (gobj/get ?app "cljsRatom")
-          component          ?app
-          app                (c/any->app component)
-          reaction-opts      {:no-cache true}
-          orig-will-unmount  (.-componentWillUnmount component)
-          unmount-set-var    "fulcro.subscriptions.unmountSet?"
-          new-unmount
-                             (fn component-will-unmount []
-                               (when-not (gobj/get component unmount-set-var)
-                                 (gobj/set component unmount-set-var true)
-                                 (log/info "UNMOUNTING, calling dispose!")
-                                 (some-> (gobj/get component "cljsRatom") ratom/dispose!)
-                                 (when orig-will-unmount (orig-will-unmount))))]
-      (log/info "Is component instance, will unmount: " (js-keys ?app) (.-componentWillUnmount ?app))
-      (set! (.-componentWillUnmount component) new-unmount)
-      (if (nil? reactive-atom)
-        (let [out (ratom/run-in-reaction
-                    #(subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache app query)
-                    component "cljsRatom"
-                    ;; thinking over rendering strategies
-                    ;; I think just setting blindly-render to true and then calling (refresh-component component)
-                    ;; is probably easiest to avoid dealing with too many internal fulcro details or gotchas
-                    ;; with state getting out of sync.
-                    ;; so it seems like none of the options actually re-render the component except for forceUpdate..
-                    ;; even with blindly-render set to true
-                    #(binding [c/*blindly-render*     false
-                               ;fdn/*denormalize-time* (-> app ::fulcro.app/runtime-atom deref :com.fulcrologic.fulcro.application/basis-t)
-                               ]
-                       (log/info "REACTIVE RENDERING OF COMPONENT: " component)
-                       (log/info "ident: " (c/get-ident component))
-                       (when-not (c/get-ident component)
-                         (def c' component))
-                       (comment (c/get-ident c') (c/props c') )
-                       (log/info "ident: " (c/get-ident component))
-                       (log/info "blindly render is: " c/*blindly-render*)
-                       (.forceUpdate component)
-                       ;(c/refresh-component! component)
-                       ;(c/tunnel-props! component (update (c/props component) ::counter inc))
-                       ;(fulcro.render/render-component! app (c/get-ident component) component)
-                       )
-                    reaction-opts)
-              ]
-          (log/info "OUTPUT: " out) out)
-        (do
-          (log/info "in second branch")
-          (._run reactive-atom false)
-          (subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache app query))))
-    (do
-      (log/info "only have an app")
-      (subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache ?app query))))
+                      reaction-opts)
+                ]
+            (log/info "OUTPUT: " out) out)
+          (do
+            (log/info "in second branch")
+            (._run reactive-atom false)
+            (subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache app query))))
+      (do
+        (log/info "only have an app")
+        (subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache ?app query)))))
 
 (defn <sub [app query]
   (let [value (subscribe app query)]

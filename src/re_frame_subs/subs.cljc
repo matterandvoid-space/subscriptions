@@ -26,8 +26,10 @@
   ;; this prevents memory leaks (caching subscription -> reaction) but still allows
   ;; executing outside of a (reagent.reaction ) form, like in event handlers.
   (when (reactive-context?)
+    (.log js/console "IN A REACTIVE CONtext")
     (let [cache-key          query-v
           subscription-cache (get-subscription-cache app)]
+      (.log js/console "subscription HAVE A CHACHED REACTION")
       ;(console :info "cache-and-return!" subscription-cache)
       ;; when this reaction is no longer being used, remove it from the cache
       (add-on-dispose! reaction #(trace/with-trace {:operation (first-in-vector query-v)
@@ -64,13 +66,15 @@
         (do
           (trace/merge-trace! {:tags {:cached?  true
                                       :reaction (reagent-id cached)}})
-          ;(console :info (str "subs. returning cached " query ", " #_(pr-str cached)))
+          (.log js/console (str "subs. returning cached " query ", " #_(pr-str cached)))
+          (console :info (str "subs. returning cached " query ", " #_(pr-str cached)))
           cached)
         (let [query-id   (first-in-vector query)
               handler-fn (get-handler app query-id)]
-          ;(console :info "DO NOT HAVE CACHED")
-          ;(console :info (str "subs. computing subscription"))
-          (assert handler-fn (str "Handler for query missing, " (pr-str query-id)))
+          (console :info "DO NOT HAVE CACHED")
+          (console :info (str "subs. computing subscription"))
+          ;(console :error (str "Subscription handler for the following query is missing\n\n" (pr-str query-id) "\n"))
+          ;(assert handler-fn (str "Subscription handler for the following query is missing\n\n" (pr-str query-id) "\n"))
 
           (trace/merge-trace! {:tags {:cached? false}})
           (if (nil? handler-fn)

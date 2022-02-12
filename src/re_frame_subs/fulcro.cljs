@@ -1,6 +1,7 @@
 (ns re-frame-subs.fulcro
   (:require
     [com.fulcrologic.fulcro.application :as fulcro.app]
+    [com.fulcrologic.fulcro.algorithms.normalized-state :refer [dissoc-in]]
     [com.fulcrologic.fulcro.rendering.ident-optimized-render :as fulcro.render]
     [com.fulcrologic.fulcro.algorithms.denormalize :as fdn]
     [com.fulcrologic.fulcro.components :as c]
@@ -34,14 +35,24 @@
 
 (def debug-enabled? false)
 
+(def state-key ::state)
 (def subs-key ::subs)
+(defn subs-state-path [k v] [state-key subs-key v])
+(defn state-path ([] [state-key]) ([k] [state-key k]) ([k v] [state-key k v]))
+
+(defn copy-subscription-state!
+  "Copy the subscriptions state in fulcro-app1 to fulcro-app2."
+  [fulcro-app1 fulcro-app2]
+  (swap! (::fulcro.app/runtime-atom fulcro-app2) assoc state-key
+    (get-in @(::fulcro.app/runtime-atom fulcro-app1) (state-path))))
 
 (defn get-handler
   "Returns a \"handler\" function registered for the subscription with the given `id`.
   Fulcro app and 'query-id' -> subscription handler function.
   Lookup in the place where the query-id -> handler functions are stored."
   ([app id]
-   (get-in @(::fulcro.app/runtime-atom app) [subs-key id]))
+   (log/info "GETTING HANDLER state is: " (get-in @(::fulcro.app/runtime-atom app) (state-path)))
+   (get-in @(::fulcro.app/runtime-atom app) (subs-state-path subs-key id)))
 
   ([app id required?]
    (let [handler (get-handler app id)]
@@ -54,7 +65,9 @@
   "Returns `handler-fn` after associng it in the map."
   [app id handler-fn]
   (console :info "IN register-handler")
-  (swap! (::fulcro.app/runtime-atom app) assoc-in [subs-key id] handler-fn)
+  (swap! (::fulcro.app/runtime-atom app) assoc-in (subs-state-path subs-key id) (fn [& args]
+                                                                                  (log/info "IN HANDLER " id " args: " args)
+                                                                                  (apply handler-fn args)))
   handler-fn)
 
 (defn clear-handlers
@@ -62,7 +75,8 @@
   ([db] (assoc db subs-key {}))
   ([db id]
    (if (get-handler db id)
-     (update db subs-key dissoc id)
+     (dissoc-in db (subs-state-path subs-key id))
+     ;(update db subs-key dissoc id)
      (console :warn "Subscriptions: can't clear handler for" (str id ". Handler not found.")))))
 
 ;; -- subscriptions -----------------------------------------------------------
@@ -86,7 +100,7 @@
 
   It registers 'a mechanism' (the two functions) by which nodes
   can be created later, when a node is bought into existence by the
-  use of `subscribe` in a `View Function`.
+  use of `subscribe` in a `View Function`reg-sub.
 
   The `computation function` is expected to take two arguments:
 
@@ -106,13 +120,24 @@
   [app_ query-id & args]
   ;; In some fulcro apps, the application is set asynchronously on boot of the application, this lets us capture its
   ;; current value - requires passing a Var as app though.
-  (js/setTimeout
-    (fn []
-      (let [app (if (var? app_) @app_ app_)]
-        (assert app)
-        (apply subs/reg-sub
-          get-input-db get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
-          app query-id args)))))
+  (if (var? app_)
+    (do
+      (log/info "IS A VAR")
+      (js/setTimeout
+        (fn []
+          (let [app (if (var? app_) @app_ app_)]
+            (assert app)
+            (apply subs/reg-sub
+              get-input-db get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
+              app query-id args)))))
+    (let [app app_]
+      (log/info "IS NOT A VAR")
+      (assert app)
+      (apply subs/reg-sub
+        get-input-db get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
+        app query-id args))
+    )
+  )
 (comment
 
   (run! println
@@ -120,79 +145,98 @@
 
   (.-length #js[1 23 3]))
 
-;; todo probably want to move this state to the passed in app as it is now global state, if you
-;; have multiple fulcro apps on the same page they will overlap, that's the whole point of passing in app
-(let [components-to-refresh #js[]]
-  (defn subscribe
-    "Given a `query` vector, returns a Reagent `reaction` which will, over
-    time, reactively deliver a stream of values. Also known as a `Signal`.
+(let [components-key ::components-to-update]
+  (letfn [(get-components-to-refresh [app]
+            (let [components (get-in @(::fulcro.app/runtime-atom app) (state-path components-key))]
+              (log/info "components: " components)
+              (if components components
+                             (let [empty-components #js[]]
+                               (swap! (::fulcro.app/runtime-atom app) update-in (state-path) assoc components-key empty-components)
+                               empty-components))))
+          (add-component-to-refresh! [app component]
+            (.push (get-components-to-refresh app) component))]
+    (defn subscribe
+      "Given a `query` vector, returns a Reagent `reaction` which will, over
+      time, reactively deliver a stream of values. Also known as a `Signal`.
 
-    To obtain the current value from the Signal, it must be dereferenced"
-    [?app query]
-    (if (c/component-instance? ?app)
-      (let [^clj reactive-atom (gobj/get ?app "cljsRatom")
-            component          ?app
-            app                (c/any->app component)
-            reaction-opts      {:no-cache true}
-            orig-will-unmount  (.-componentWillUnmount component)
-            unmount-set-var    "fulcro.subscriptions.unmountSet?"
-            new-unmount
-                               (fn component-will-unmount []
-                                 (when-not (gobj/get component unmount-set-var)
-                                   (gobj/set component unmount-set-var true)
-                                   ;(log/info "UNMOUNTING, calling dispose!")
-                                   (some-> (gobj/get component "cljsRatom") ratom/dispose!)
-                                   (when orig-will-unmount (orig-will-unmount))))]
-        ;(log/info "Is component instance, will unmount: " (js-keys ?app) (.-componentWillUnmount ?app))
-        (set! (.-componentWillUnmount component) new-unmount)
-        (if (nil? reactive-atom)
-          (let [out (ratom/run-in-reaction
-                      #(subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache app query)
-                      component "cljsRatom"
-                      ;; thinking over rendering strategies
-                      ;; I think just setting blindly-render to true and then calling (refresh-component component)
-                      ;; is probably easiest to avoid dealing with too many internal fulcro details or gotchas
-                      ;; with state getting out of sync.
-                      ;; so it seems like none of the options actually re-render the component except for forceUpdate..
-                      ;; even with blindly-render set to true
-                      ;(log/info "REACTIVE RENDERING OF COMPONENT: " component)
-                      ;(log/info "ident: " (c/get-ident component))
-                      ;(when-not (c/get-ident component) (def c' component))
-                      ;(comment (c/get-ident c') (c/props c') )
-                      ;(log/info "ident: " (c/get-ident component))
-                      ;(log/info "blindly render is: " c/*blindly-render*)
-                      (fn []
-                        ;(when (count components-to-refresh))
-                        ;(run! )
-                        ;; for each component call forceupdaet
-                        ;()
-                        (.log js/console "Pushing component for refresh")
-                        (.push components-to-refresh component)
-                        (js/requestAnimationFrame (fn []
-                                                    (when (> (.-length components-to-refresh) 0)
-                                                      (.log js/console "component to refresh: " components-to-refresh)
-                                                      (.log js/console "RUNNING COMP forceUpdate")
-                                                      (run! #(.forceUpdate %) components-to-refresh)
-                                                      (set! (.-length components-to-refresh) 0)))))
+      To obtain the current value from the Signal, it must be dereferenced"
+      [?app query]
+      (if false
+        ;(c/component-instance? ?app)
+        (let [^clj reactive-atom (gobj/get ?app "cljsRatom")
+              component          ?app
+              app                (c/any->app component)
+              reaction-opts      {:no-cache true}
+              orig-will-unmount  (.-componentWillUnmount component)
+              unmount-set-var    "fulcro.subscriptions.unmountSet?"
+              new-unmount
+                                 (fn component-will-unmount []
+                                   (when-not (gobj/get component unmount-set-var)
+                                     (gobj/set component unmount-set-var true)
+                                     (log/info "UNMOUNTING, calling dispose!")
+                                     (some-> (gobj/get component "cljsRatom") ratom/dispose!)
+                                     (when orig-will-unmount (orig-will-unmount))))]
+          ;(log/info "Is component instance, will unmount: " (js-keys ?app) (.-componentWillUnmount ?app))
+          (set! (.-componentWillUnmount component) new-unmount)
+          (if (nil? reactive-atom)
+            (let [out (ratom/run-in-reaction
+                        #(subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache app query)
+                        component "cljsRatom"
+                        ;; thinking over rendering strategies
+                        ;; I think just setting blindly-render to true and then calling (refresh-component component)
+                        ;; is probably easiest to avoid dealing with too many internal fulcro details or gotchas
+                        ;; with state getting out of sync.
+                        ;; so it seems like none of the options actually re-render the component except for forceUpdate..
+                        ;; even with blindly-render set to true
+                        ;(log/info "REACTIVE RENDERING OF COMPONENT: " component)
+                        ;(log/info "ident: " (c/get-ident component))
+                        ;(when-not (c/get-ident component) (def c' component))
+                        ;(comment (c/get-ident c') (c/props c') )
+                        ;(log/info "ident: " (c/get-ident component))
+                        ;(log/info "blindly render is: " c/*blindly-render*)
+                        (fn [component]
+                          ;(when (count components-to-refresh))
+                          ;(run! )
+                          ;; for each component call forceupdaet
+                          ;()
+                          (.log js/console "Pushing component for refresh")
+                          ;(add-component-to-refresh! app component)
+                          ;(.push components-to-refresh component)
+                          (js/requestAnimationFrame (fn []
+                                                      (.log js/console "IN RAF, refresh component: " component)
+                                                      (.log js/console "IN RAF, refresh component: " (c/get-ident component))
+                                                      ;(binding [c/*blindly-render* false] (c/refresh-component! component))
+                                                      (binding [c/*blindly-render* true] (c/refresh-component! component))
+                                                      ;#_(let [components (get-components-to-refresh app)]
+                                                      ;  (when (> (.-length components) 0)
+                                                      ;    (.log js/console "component to refresh: " components)
+                                                      ;    (.log js/console "RUNNING COMP forceUpdate")
+                                                      ;
+                                                      ;    (run! #(binding [c/*blindly-render* true] (c/refresh-component! %)) components)
+                                                      ;    ;(run! #(.forceUpdate %) components)
+                                                      ;    (set! (.-length components) 0)))
+                                                      )))
 
-                      ;(c/tunnel-props! component (update (c/props component) ::counter inc))
-                      ;(fulcro.render/render-component! app (c/get-ident component) component)
+                        ;(c/tunnel-props! component (update (c/props component) ::counter inc))
+                        ;(fulcro.render/render-component! app (c/get-ident component) component)
 
-                      reaction-opts)
-                ]
-            (log/info "OUTPUT: " out) out)
-          (do
-            (log/info "in second branch")
-            (._run reactive-atom false)
-            (subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache app query))))
-      (do
-        (log/info "only have an app")
-        (subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache ?app query)))))
+                        reaction-opts)
+                  ]
+              (log/info "OUTPUT: " out) out)
+            (do
+              (log/info "in second branch")
+              ;(._run reactive-atom false)
+              (subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache app query))))
+        (do
+          (log/info "only have an app")
+          (subs/subscribe get-input-db get-handler cache-lookup get-subscription-cache (c/any->app ?app) query))))))
 
 (defn <sub [app query]
   (let [value (subscribe app query)]
     (log/info "<sub value: " value)
-    @value))
+    (.log js/console "<sub value: " value)
+    (when value
+      @value)))
 
 (defn clear-sub ;; think unreg-sub
   "Unregisters subscription handlers (presumably registered previously via the use of `reg-sub`).

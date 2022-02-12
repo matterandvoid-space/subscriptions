@@ -120,6 +120,8 @@
 
   (.-length #js[1 23 3]))
 
+;; todo probably want to move this state to the passed in app as it is now global state, if you
+;; have multiple fulcro apps on the same page they will overlap, that's the whole point of passing in app
 (let [components-to-refresh #js[]]
   (defn subscribe
     "Given a `query` vector, returns a Reagent `reaction` which will, over

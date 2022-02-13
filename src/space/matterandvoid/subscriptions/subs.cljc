@@ -1,10 +1,9 @@
-(ns re-frame-subs.subs
+(ns space.matterandvoid.subscriptions.subs
   (:require
-    [re-frame-subs.interop :refer [add-on-dispose! debug-enabled? make-reaction ratom? deref? dispose! reagent-id
+    [space.matterandvoid.subscriptions.interop :refer [add-on-dispose! debug-enabled? make-reaction ratom? deref? dispose! reagent-id
                                    reactive-context?]]
-    [re-frame-subs.loggers :refer [console]]
-    [re-frame-subs.trace :as trace :include-macros true]
-    [re-frame-subs.utils :refer [first-in-vector]]))
+    [space.matterandvoid.subscriptions.loggers :refer [console]]
+    [space.matterandvoid.subscriptions.trace :as trace :include-macros true]))
 
 ;; -- cache -------------------------------------------------------------------
 
@@ -32,7 +31,7 @@
       (.log js/console "subscription HAVE A CHACHED REACTION")
       ;(console :info "cache-and-return!" subscription-cache)
       ;; when this reaction is no longer being used, remove it from the cache
-      (add-on-dispose! reaction #(trace/with-trace {:operation (first-in-vector query-v)
+      (add-on-dispose! reaction #(trace/with-trace {:operation (first query-v)
                                                     :op-type   :sub/dispose
                                                     :tags      {:query-v  query-v
                                                                 :reaction (reagent-id reaction)}}
@@ -58,7 +57,7 @@
   [get-input-db get-handler cache-lookup get-subscription-cache
    app query]
   (let [input-db (get-input-db app)]
-    (trace/with-trace {:operation (first-in-vector query)
+    (trace/with-trace {:operation (first query)
                        :op-type   :sub/create
                        :tags      {:query-v query}}
       ;(console :info (str "subs. cache-lookup: " query))
@@ -69,7 +68,7 @@
           (.log js/console (str "subs. returning cached " query ", " #_(pr-str cached)))
           (console :info (str "subs. returning cached " query ", " #_(pr-str cached)))
           cached)
-        (let [query-id   (first-in-vector query)
+        (let [query-id   (first query)
               handler-fn (get-handler app query-id)]
           (console :info "DO NOT HAVE CACHED")
           (console :info (str "subs. computing subscription"))
@@ -128,7 +127,7 @@
           ;_             (console :info "IN SUBS HANDLER 1")
           reaction      (make-reaction
                           (fn []
-                            (trace/with-trace {:operation (first-in-vector query-vec)
+                            (trace/with-trace {:operation (first query-vec)
                                                :op-type   :sub/run
                                                :tags      {:query-v  query-vec
                                                            :reaction @reaction-id}}

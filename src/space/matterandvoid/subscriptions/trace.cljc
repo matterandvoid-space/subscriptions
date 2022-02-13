@@ -1,10 +1,9 @@
-(ns re-frame-subs.trace
-  "Tracing for re-frame.
-  Alpha quality, subject to change/break at any time."
+(ns space.matterandvoid.subscriptions.trace
+  "Tracing copied from re-frame."
   #?(:cljs (:require-macros [net.cgrand.macrovich :as macros]
-                            [re-frame-subs.trace :refer [with-trace merge-trace!]]))
-  (:require [re-frame-subs.interop :as interop]
-            [re-frame-subs.loggers :refer [console]]
+                            [space.matterandvoid.subscriptions.trace :refer [with-trace merge-trace!]]))
+  (:require [space.matterandvoid.subscriptions.interop :as interop]
+            [space.matterandvoid.subscriptions.loggers :refer [console]]
             #?(:clj [net.cgrand.macrovich :as macros])
             #?(:cljs [goog.functions])))
 

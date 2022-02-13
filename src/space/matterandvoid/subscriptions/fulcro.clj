@@ -5,6 +5,7 @@
     [clojure.spec.alpha :as s]
     [com.fulcrologic.fulcro.components :as c]
 
+    ;; copied from fulcro.components:
     [edn-query-language.core :as eql]
     [clojure.spec.alpha :as s]
     [clojure.set :as set]
@@ -16,86 +17,21 @@
     [com.fulcrologic.fulcro.algorithms.lookup :as ah]
     [com.fulcrologic.fulcro.raw.components :as rc]
     [com.fulcrologic.guardrails.core :refer [>def]]
-    [clojure.walk :refer [prewalk]]
-    ))
-
-;(defmacro defsc [])
-
-
-;(defsc TestSignals
-;  [this {:task/keys [id description], :ui/keys [show-debug?] :as props}]
-;  {:query          []
-;   :ident          (fn [_ props] [:component/id ::test-item])
-;   ::subscriptions [[::habit.subs/test-value1-1]]}
-;  (let [my-data (sub/<sub this [::habit.subs/test-value1-1])]
-;    (log/info "RENDERING TEST ITEM")
-;    (dom/div :.ui.segment
-;      (dom/div "THIS IS TEST ITEM")
-;      (dom/div "data: ::habit.subs/test-value1-1---"
-;        my-data)))
-;  (setup-reaction reaction signals this client-render)
-;  (client-render))
-
-
-;; desired output:
-;; target defsc
-;
-;; in the macro:
-;; pull off subscriptions from the component
-;; setup (setup-reaction -> this happens in render)
-;; then pass the client-s
-
-
-;(defsc TestSignals
-;  [this {:task/keys [id description], :ui/keys [show-debug?] :as props}]
-;  {:query          []
-;   :ident          (fn [_ props] [:component/id ::test-item])
-;   ;; the idea here is that you could have a subscription that depends on props or the component instance
-;   ::subscriptions (fn [this props]
-;                     {:my-data [::habit.subs/test-value1-1]})}
-;  ;; this way you're not repeating the subscription logic - that happens up above
-;  ;; or you could wrap the render function in a let
-;  ;; (let [{:keys [:my-data]} {:my-data (sub/<sub [::habit.subs/test-value1-1])}]
-;  ;; }
-;  (let [my-data (helpers/get-subs :my-data)]
-;    (log/info "RENDERING TEST ITEM")
-;    (dom/div :.ui.segment
-;      (dom/div "THIS IS TEST ITEM")
-;      (dom/div "data: ::habit.subs/test-value1-1---"
-;        my-data))))
-
+    [clojure.walk :refer [prewalk]]))
 
 (defn- build-render [classsym thissym propsym compsym extended-args-sym body]
-  (let [computed-bindings (when compsym `[~compsym (com.fulcrologic.fulcro.components/get-computed ~thissym)])
-        extended-bindings (when extended-args-sym `[~extended-args-sym (com.fulcrologic.fulcro.components/get-extra-props ~thissym)])
-        render-fn-sym     (symbol (str "render-" (name classsym)))
-        client-render     `(fn [~thissym] (com.fulcrologic.fulcro.components/wrapped-render ~thissym
-                                         (fn []
-                                           (let [~propsym (com.fulcrologic.fulcro.components/props ~thissym)
-                                                 ~@computed-bindings
-                                                 ~@extended-bindings]
-                                             ~@body))))]
+  (let [computed-bindings  (when compsym `[~compsym (com.fulcrologic.fulcro.components/get-computed ~thissym)])
+        extended-bindings  (when extended-args-sym `[~extended-args-sym (com.fulcrologic.fulcro.components/get-extra-props ~thissym)])
+        render-fn-sym      (symbol (str "render-" (name classsym)))
+        client-render-form `(com.fulcrologic.fulcro.components/wrapped-render ~thissym
+                              (fn []
+                                (let [~propsym (com.fulcrologic.fulcro.components/props ~thissym)
+                                      ~@computed-bindings
+                                      ~@extended-bindings]
+                                  ~@body)))]
     `(~'fn ~render-fn-sym [~thissym]
-       (setup-reaction! ~thissym ~client-render)
-       (com.fulcrologic.fulcro.components/wrapped-render ~thissym
-         (fn []
-           (let [~propsym (com.fulcrologic.fulcro.components/props ~thissym)
-                 ~@computed-bindings
-                 ~@extended-bindings]
-             ~@body))))))
-
-;; original:
-(defn- build-render-original [classsym thissym propsym compsym extended-args-sym body]
-  (let [computed-bindings (when compsym `[~compsym (com.fulcrologic.fulcro.components/get-computed ~thissym)])
-        extended-bindings (when extended-args-sym `[~extended-args-sym (com.fulcrologic.fulcro.components/get-extra-props ~thissym)])
-        render-fn         (symbol (str "render-" (name classsym)))]
-    `(~'fn ~render-fn [~thissym]
-       (com.fulcrologic.fulcro.components/wrapped-render ~thissym
-         (fn []
-           (let [~propsym (com.fulcrologic.fulcro.components/props ~thissym)
-                 ~@computed-bindings
-                 ~@extended-bindings]
-             ~@body))))))
+       (setup-reaction! ~thissym (fn [] ~client-render-form))
+       ~client-render-form)))
 
 (defn component-will-unmount-form [client-component-willl-unmount]
   `(fn [this#]

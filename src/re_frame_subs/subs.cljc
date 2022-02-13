@@ -79,7 +79,7 @@
           (trace/merge-trace! {:tags {:cached? false}})
           (if (nil? handler-fn)
             (do (trace/merge-trace! {:error true})
-                (console :error (str "re-frame: no subscription handler registered for: " query-id ". Returning a nil subscription.")))
+                (console :error (str "No subscription handler registered for: " query-id "\n\nReturning a nil subscription.")))
             (do
               ;(console :info "Have handler. invoking")
               (cache-and-return! get-subscription-cache app query (handler-fn input-db query)))))))))

@@ -19,6 +19,15 @@
   (client-render))
 
 
+;; desired output:
+;; target defsc
+;
+;; in the macro:
+;; pull off subscriptions from the component
+;; setup (setup-reaction -> this happens in render)
+;; then pass the client-s
+
+
 (defsc TestSignals
   [this {:task/keys [id description], :ui/keys [show-debug?] :as props}]
   {:query          []

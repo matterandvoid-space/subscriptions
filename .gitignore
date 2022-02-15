@@ -16,3 +16,4 @@ node_modules/
 /.shadow-cljs/
 .cpcache
 test-output
+node-tests.js

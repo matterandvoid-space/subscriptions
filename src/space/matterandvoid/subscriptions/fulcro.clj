@@ -269,7 +269,6 @@
   [env args]
   (when-not (s/valid? ::c/args args)
     (throw (ana/error env (str "Invalid arguments. " (-> (s/explain-data ::c/args args) ::s/problems first :path) " is invalid."))))
-  (println "GENERATING COMponent")
   (let [{:keys [sym doc arglist options body]} (s/conform ::c/args args)
         [thissym propsym computedsym extra-args] arglist
         _                                (when (and options (not (s/valid? ::c/options options)))

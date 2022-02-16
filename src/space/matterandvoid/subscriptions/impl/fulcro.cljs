@@ -334,9 +334,3 @@
                                (client-render this)) this reaction-key
         (fn reactive-run [this] (reaction-callback client-signals-key this reaction-key))
         {:no-cache true}))))
-
-(defn component-will-unmount []
-  (this-as this
-    (let [{:keys [componentWillUnmount]} (c/component-options this)]
-      (cleanup! this)
-      (when componentWillUnmount (componentWillUnmount this)))))

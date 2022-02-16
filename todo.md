@@ -72,3 +72,8 @@ So you would:
 
 Then change the namespace currently called: re-frame-subs.subs to take in functions that 
 are passed in instead of a hashmap - this way you can abstract away the storage.
+
+
+# Enforce subscription schema invocation style of: `[::dispatch-key {:props 'map}]`
+
+[] Add type check that happen when you invoke (subscribe args)

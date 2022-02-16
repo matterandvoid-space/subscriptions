@@ -115,6 +115,10 @@
   [app_ query-id & args]
   ;; In some fulcro apps, the application is set asynchronously on boot of the application, this lets us capture its
   ;; current value - requires passing a Var as app though.
+
+  ;; The client code needs to deal with when they want to register subscriptions - it doesn't have to be in toplevel
+  ;; forms, they can be setup at will in a callback, like when you create a new fulcro app - then invoke
+  ;; register-subs! - they need to be present for the components to read them before you mount the app or
   (if (var? app_)
     (do
       (log/debug "IS A VAR")
@@ -182,7 +186,7 @@
   the subscriptions within those components won't have been cleaned up correctly. So this
   forces the issue."
   [registry]
-  (clear-subscription-cache! registry))
+  (subs/clear-subscription-cache! get-subscription-cache registry))
 
 ;; component rendering integrations
 

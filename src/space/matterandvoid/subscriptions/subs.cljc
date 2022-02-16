@@ -153,13 +153,17 @@
              v (get data args lookup-sentinel)]
          (swap! cache_
            #(cond-> %
+              ;;
               (and (= (count (keys data)) max-args-cached-length)
-                (not (contains? data args))) (update :data dissoc (peek args-history))
+                (not (contains? data args)))
+              (update :data dissoc (peek args-history))
+
               (= (count args-history) max-history-length) (update :args-history pop)
+
               ;; cache miss
               (identical? v lookup-sentinel) (update :data assoc args (apply f args))
               true (update :args-history conj args)))
-         (get-in @cache_ [:data args]))))))
+         (get (:data @cache_) args))))))
 
 (defn reg-sub
   "db, fully qualified keyword for the query id
@@ -188,13 +192,13 @@
                                       f)
 
                                   ;; one sugar pair
-                                  2 (let [[marker vec] input-args]
+                                  2 (let [[marker signal-vec] input-args]
                                       ;(console :info "CASE 2")
                                       (when-not (= :<- marker)
                                         (console :error err-header "expected :<-, got:" marker))
                                       (fn inp-fn
-                                        ([_] (subscribe get-input-db get-handler cache-lookup get-subscription-cache app vec))
-                                        ([_ _] (subscribe get-input-db get-handler cache-lookup get-subscription-cache app vec))))
+                                        ([_] (subscribe get-input-db get-handler cache-lookup get-subscription-cache app signal-vec))
+                                        ([_ _] (subscribe get-input-db get-handler cache-lookup get-subscription-cache app signal-vec))))
 
                                   ;; multiple sugar pairs
                                   (let [pairs   (partition 2 input-args)

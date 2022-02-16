@@ -20,24 +20,25 @@
     [clojure.walk :refer [prewalk]]))
 
 (defn- build-render [classsym thissym propsym compsym extended-args-sym body]
-  (let [computed-bindings  (when compsym `[~compsym (com.fulcrologic.fulcro.components/get-computed ~thissym)])
-        extended-bindings  (when extended-args-sym `[~extended-args-sym (com.fulcrologic.fulcro.components/get-extra-props ~thissym)])
-        render-fn-sym      (symbol (str "render-" (name classsym)))
-        client-render-form `(com.fulcrologic.fulcro.components/wrapped-render ~thissym
-                              (fn []
-                                (let [~propsym (com.fulcrologic.fulcro.components/props ~thissym)
-                                      ~@computed-bindings
-                                      ~@extended-bindings]
-                                  ~@body)))]
+  (let [computed-bindings  (when compsym `[~compsym (c/get-computed ~thissym)])
+        extended-bindings  (when extended-args-sym `[~extended-args-sym (c/get-extra-props ~thissym)])
+        render-fn-sym      (symbol (str "render-" (name classsym)))]
     `(~'fn ~render-fn-sym [~thissym]
-       (setup-reaction! ~thissym (fn [] ~client-render-form))
-       ~client-render-form)))
+       (let [render-fn#
+             (fn [] (c/wrapped-render ~thissym
+                       (fn []
+                         (let [~propsym (c/props ~thissym)
+                               ~@computed-bindings
+                               ~@extended-bindings]
+                           ~@body))))]
+         (setup-reaction! ~thissym render-fn#)
+         (render-fn#)))))
 
-(defn component-will-unmount-form [client-component-willl-unmount]
+(defn component-will-unmount-form [client-component-will-unmount]
   `(fn [this#]
      (.log js/console "IN UNMOUNT reaction: " this#)
      (space.matterandvoid.subscriptions.impl.fulcro/cleanup! this#)
-     ~(when client-component-willl-unmount `(~client-component-willl-unmount this#))))
+     ~(when client-component-will-unmount `(~client-component-will-unmount this#))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; this is all copied from fulcro.components because they are all marked private and thus compilation fails

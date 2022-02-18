@@ -302,8 +302,8 @@
   development and for dynamically changing the subscriptions the component subscribes to dynamically."
   [client-signals-key this]
   (let [cached (get-cached-user-signals-map this)]
-    (log/info "new user signals map " (get-user-signals-map client-signals-key this))
-    (log/info "cached user signals map" cached)
+    ;(log/info "new user signals map " (get-user-signals-map client-signals-key this))
+    ;(log/info "cached user signals map" cached)
     (and cached
       (not= (get-user-signals-map client-signals-key this) cached))))
 

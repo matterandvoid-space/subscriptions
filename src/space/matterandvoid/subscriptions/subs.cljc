@@ -11,6 +11,7 @@
   "calls `on-dispose` for each cached item,
    which will cause the value to be removed from the cache"
   [get-subscription-cache app]
+  (console :info "Clearing subscription cache")
   (doseq [[_ rxn] @(get-subscription-cache app)] (dispose! rxn))
   (if (not-empty @(get-subscription-cache app))
     (console :warn "re-frame: The subscription cache isn't empty after being cleared")))
@@ -167,7 +168,7 @@
 
 (defn reg-sub
   "db, fully qualified keyword for the query id
-  optional positional args: "
+  optional positional args."
   [get-input-db get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
    app query-id & args]
   (let [computation-fn          (last args)

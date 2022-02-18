@@ -200,10 +200,7 @@
 (def user-signals-key "user-signals")
 
 (defn refresh-component!* [reaction-key this]
-  (obj/set this "subscription-submit-for-refresh?" true)
   (log/info "Refreshing component" (obj/get this reaction-key))
-  (.log js/console "IN RAF, refresh component: " this)
-  (.log js/console "IN RAF, refresh component: " (c/get-ident this))
   (binding [c/*blindly-render* true] (c/refresh-component! this)))
 
 (def refresh-component! (debounce refresh-component!* 13))
@@ -223,16 +220,11 @@
 
 (defn get-user-signals-map
   "Invokes the client provided signals function this is expected to return a map of keywords to
-  vectors these represent subscriptions.
+  vectors that represent subscriptions.
 
   This function invokes that function and returns the map - it does not deref the subscription values."
   [client-signals-key this]
-  (let [signals-fn (client-signals-key (c/component-options (c/get-class this)))]
-    (when (nil? signals-fn)
-      (throw (js/Error. (str "Missing signals function on component:\n\n" (c/component-name this)
-                          "\n\nYou need to provide a function in the shape: (fn [this props] {:name-1 [::a-subscription]}}\n\n"
-                          "At the key: " (pr-str client-signals-key) " on your component options.\n"
-                          ))))
+  (when-let [signals-fn (client-signals-key (c/component-options (c/get-class this)))]
     (signals-fn this (c/props this))))
 
 (defn set-subscription-signals-values-map!
@@ -247,7 +239,11 @@
 
 (defn get-cached-signals-map
   "Return the map of values."
-  [this]
+  [client-signals-key this]
+  (when (nil? (get-user-signals-map client-signals-key this))
+    (throw (js/Error. (str "Missing signals function on component:\n\n" (c/component-name this)
+                        "\n\nYou need to provide a function in the shape: (fn [this props] {:a-property [::a-subscription]}}\n\n"
+                        "At the key: " (pr-str client-signals-key) " on your component options.\n"))))
   (obj/get (get-subscription-state this) signals-key))
 
 (defn get-cached-user-signals-map
@@ -258,10 +254,15 @@
 (defn get-component-reaction [this]
   (obj/get this reaction-key))
 
-(defn some-signals? [this user-signals-map]
+(defn some-signals?
+  "Returns boolean, true if the signals map is non-nil and if any of the current values are non-nil."
+  [this user-signals-map]
   ;; need to test - might need to use sub/subscribe for the filter check instead of with the deref
   ;; this might just be sub/subscribe is the filter instead
-  (-> (keep (partial <sub this) (vals user-signals-map)) seq boolean))
+  (and user-signals-map
+    (->
+      (->> (vals user-signals-map) (keep (partial <sub this)))
+      seq boolean)))
 
 (defn map-vals [f m] (into {} (map (juxt key (comp f val))) m))
 
@@ -270,7 +271,7 @@
 
 (defn reaction-callback* [client-signals-key this reaction-key]
   (let [new-signal-values-map (subscribe-and-deref-signals-map client-signals-key this)
-        current-signal-values (get-cached-signals-map this)]
+        current-signal-values (get-cached-signals-map client-signals-key this)]
     (def this' this)
     (log/info "IN Reactive callback")
     (log/info "signals curr: " current-signal-values)
@@ -282,7 +283,7 @@
         (log/info "!! SIGNALS ARE DIFFERENT")
         ;; store the new subscriptions - the map -
         (set-subscription-signals-values-map! client-signals-key this new-signal-values-map)
-        (js/requestAnimationFrame (fn [time] (refresh-component! reaction-key this)))))))
+        (js/requestAnimationFrame (fn [_] (refresh-component! reaction-key this)))))))
 
 ;; prevent multiple reactions triggering this callback in the same frame
 (def reaction-callback (debounce reaction-callback* 15))

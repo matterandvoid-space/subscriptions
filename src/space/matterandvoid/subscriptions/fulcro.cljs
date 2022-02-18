@@ -112,4 +112,4 @@
   of the provided component.
 
   The values of the map are the values of the subscriptions, not the vectors the user supplied."
-  [this] (impl/get-cached-signals-map this))
+  [this] (impl/get-cached-signals-map signals-key-on-component this))

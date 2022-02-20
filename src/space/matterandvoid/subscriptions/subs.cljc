@@ -90,7 +90,8 @@
   "Returns a new version of 'm' in which 'f' has been applied to each value.
   (map-vals inc {:a 4, :b 2}) => {:a 5, :b 3}"
   [f m]
-  (into {} (map (fn [[k v]] [k (f v)])) m))
+  (into {} (map (fn [[k v]]
+                  [k (if (sequential? v) (mapv f v) (f v))])) m))
 
 (defn map-signals
   "Runs f over signals. Signals may take several

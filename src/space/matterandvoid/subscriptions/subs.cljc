@@ -1,7 +1,7 @@
 (ns space.matterandvoid.subscriptions.subs
   (:require
     [space.matterandvoid.subscriptions.interop :refer [add-on-dispose! debug-enabled? make-reaction ratom? deref? dispose! reagent-id
-                                   reactive-context?]]
+                                                       reactive-context?]]
     [space.matterandvoid.subscriptions.loggers :refer [console]]
     [space.matterandvoid.subscriptions.trace :as trace :include-macros true]))
 
@@ -26,11 +26,10 @@
   ;; this prevents memory leaks (caching subscription -> reaction) but still allows
   ;; executing outside of a (reagent.reaction ) form, like in event handlers.
   (when (reactive-context?)
-    (.log js/console "IN A REACTIVE CONtext")
+    ;(console :debug "IN A REACTIVE CONTEXT")
     (let [cache-key          query-v
           subscription-cache (get-subscription-cache app)]
-      (.log js/console "subscription HAVE A CHACHED REACTION")
-      ;(console :info "cache-and-return!" subscription-cache)
+      ;(console :debug "cache-and-return!" #_subscription-cache)
       ;; when this reaction is no longer being used, remove it from the cache
       (add-on-dispose! reaction #(trace/with-trace {:operation (first query-v)
                                                     :op-type   :sub/dispose
@@ -66,13 +65,12 @@
         (do
           (trace/merge-trace! {:tags {:cached?  true
                                       :reaction (reagent-id cached)}})
-          (.log js/console (str "subs. returning cached " query ", " #_(pr-str cached)))
-          (console :info (str "subs. returning cached " query ", " #_(pr-str cached)))
+          ;(console :info (str "subs. returning cached " query ", " #_(pr-str cached)))
           cached)
         (let [query-id   (first query)
               handler-fn (get-handler app query-id)]
-          (console :info "DO NOT HAVE CACHED")
-          (console :info (str "subs. computing subscription"))
+          ;(console :info "DO NOT HAVE CACHED")
+          ;(console :info (str "subs. computing subscription"))
           ;(console :error (str "Subscription handler for the following query is missing\n\n" (pr-str query-id) "\n"))
           ;(assert handler-fn (str "Subscription handler for the following query is missing\n\n" (pr-str query-id) "\n"))
 
@@ -110,15 +108,10 @@
 
 (defn- deref-input-signals
   [signals query-id]
-  ;(console :info "deref-input-signals: " query-id ", " signals)
-  (let [dereffed-signals (map-signals deref signals)]
-    (cond
-      (sequential? signals) (map deref signals)
-      (map? signals) (map-vals deref signals)
-      (deref? signals) (deref signals)
-      :else (console :error "re-frame: in the reg-sub for" query-id ", the input-signals function returns:" signals))
-    (trace/merge-trace! {:tags {:input-signals (doall (to-seq (map-signals reagent-id signals)))}})
-    dereffed-signals))
+  (when-not ((some-fn sequential? map? deref?) signals)
+    (console :error "re-frame: in the reg-sub for" query-id ", the input-signals function returns:" signals))
+  (trace/merge-trace! {:tags {:input-signals (doall (to-seq (map-signals reagent-id signals)))}})
+  (map-signals deref signals))
 
 (defn make-subs-handler-fn
   [inputs-fn computation-fn query-id]

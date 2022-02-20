@@ -77,3 +77,15 @@ are passed in instead of a hashmap - this way you can abstract away the storage.
 # Enforce subscription schema invocation style of: `[::dispatch-key {:props 'map}]`
 
 [] Add type check that happen when you invoke (subscribe args)
+
+
+# Create new debounce helper 
+
+in: space.matterandvoid.subscriptions.impl.fulcro
+
+;; prevent multiple reactions triggering this callback in the same frame
+;; todo you want to make a new debounce that is invoked the first time it is called within the window
+;; and only not called again for the same arguments in the window
+;; this is preventing multiple components from firing
+(def reaction-callback (debounce reaction-callback* 15))
+

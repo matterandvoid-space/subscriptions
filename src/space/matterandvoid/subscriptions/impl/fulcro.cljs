@@ -46,7 +46,7 @@
   Fulcro app and 'query-id' -> subscription handler function.
   Lookup in the place where the query-id -> handler functions are stored."
   ([app id]
-   (log/info "GETTING HANDLER state is: " (get-in @(::fulcro.app/runtime-atom app) (state-path)))
+   ;(log/info "GETTING HANDLER state is: " (get-in @(::fulcro.app/runtime-atom app) (state-path)))
    (get-in @(::fulcro.app/runtime-atom app) (subs-state-path subs-key id)))
 
   ([app id required?]
@@ -59,9 +59,9 @@
 (defn register-handler!
   "Returns `handler-fn` after associng it in the map."
   [app id handler-fn]
-  (console :info "IN register-handler")
+  ;(console :info "IN register-handler")
   (swap! (::fulcro.app/runtime-atom app) assoc-in (subs-state-path subs-key id) (fn [& args]
-                                                                                  (log/info "IN HANDLER " id " args: " args)
+                                                                                  ;(log/info "IN HANDLER " id " args: " args)
                                                                                   (apply handler-fn args)))
   handler-fn)
 
@@ -272,6 +272,8 @@
 (defn reaction-callback* [client-signals-key this reaction-key]
   (let [new-signal-values-map (subscribe-and-deref-signals-map client-signals-key this)
         current-signal-values (get-cached-signals-map client-signals-key this)]
+    (comment
+      (c/component-name this'))
     (def this' this)
     (log/info "IN Reactive callback")
     (log/info "signals curr: " current-signal-values)
@@ -286,6 +288,9 @@
         (js/requestAnimationFrame (fn [_] (refresh-component! reaction-key this)))))))
 
 ;; prevent multiple reactions triggering this callback in the same frame
+;; todo you want to make a new debounce that is invoked the first time it is called within the window
+;; and only not called again for the same arguments in the window
+;; this is preventing multiple components from firing
 (def reaction-callback (debounce reaction-callback* 15))
 
 (defn remove-reaction! [this]
@@ -333,5 +338,5 @@
                                (set-subscription-signals-values-map! client-signals-key this
                                  (subscribe-and-deref-signals-map client-signals-key this))
                                (client-render this)) this reaction-key
-        (fn reactive-run [this] (reaction-callback client-signals-key this reaction-key))
+        (fn reactive-run [_] (reaction-callback* client-signals-key this reaction-key))
         {:no-cache true}))))

@@ -292,6 +292,8 @@
 ;; and only not called again for the same arguments in the window
 ;; this is preventing multiple components from firing
 (def reaction-callback (debounce reaction-callback* 15))
+;; in practice you're getting a component instance - so you can use identical? to compare if args are the same
+;; the other args are keywords which will never change within one reactive re-render
 
 (defn remove-reaction! [this]
   (obj/remove this reaction-key))

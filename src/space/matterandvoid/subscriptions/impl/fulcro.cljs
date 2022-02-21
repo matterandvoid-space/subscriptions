@@ -377,13 +377,13 @@
   "Installs a Reaction on the provided component which will re-render the component when any of the subscriptions'
    values change."
   [client-signals-key this client-render]
-  (log/debug "setup-reaction!")
+  ;(log/debug "setup-reaction!")
   (when (user-signals-map-changed? client-signals-key this)
     (log/debug "user signals changed! disposing !")
     (cleanup! this))
 
   (let [signals-map (get-user-signals-map client-signals-key this)]
-    (log/debug "Current signals map: " signals-map)
+    ;(log/debug "Current signals map: " signals-map)
     (when (and (nil? (get-component-reaction this)) (some-signals? this signals-map))
       (log/debug "RUNNING IN REACTION")
       (ratom/run-in-reaction (fn []

@@ -203,7 +203,9 @@
   (log/info "Refreshing component" (obj/get this reaction-key))
   (binding [c/*blindly-render* true] (c/refresh-component! this)))
 
-(def refresh-component! (debounce refresh-component!* 13))
+;(def refresh-component! (debounce refresh-component!* 13))
+(def refresh-component! refresh-component!*)
+;; could try the debouce once every technique using 'this'
 
 (defn get-subscription-state
   "Used to store the subscriptions the component is subscribed."
@@ -282,29 +284,32 @@
     (if (= new-signal-values-map current-signal-values)
       (log/info "SIGNALS ARE NOT DIFFERENT")
       (do
-        (log/info "!! SIGNALS ARE DIFFERENT")
+        (log/info "!! SIGNALS ARE DIFFERENT" (c/component-name this))
         ;; store the new subscriptions - the map -
+        (log/info " setting map to: " new-signal-values-map)
         (set-subscription-signals-values-map! client-signals-key this new-signal-values-map)
-        (js/requestAnimationFrame (fn [_] (refresh-component! reaction-key this)))))))
+        (js/requestAnimationFrame (fn [_]
+                                    (log/info "Refreshing component" (c/component-name this))
+                                    (refresh-component! reaction-key this)))))))
 
 ;; stopped -> called
-(defn call-once-every [millis f]
-  (let [state_ (volatile! :not-called)]
-    (fn [& args]
-      ;; here you can add more conditions - using the args
-      ;; could pass a predicate to the outer fn - how to determine equality of the arguments
-      (when (= @state_ :called)
-        (println "called - skipping!"))
-      (when (= @state_ :not-called)
-        (vreset! state_ :called)
-        (let [ret (apply f args)]
-          (js/setTimeout (fn [] (vreset! state_ :not-called)) millis)
-          ret)))))
+;(defn call-once-every [millis f]
+;  (let [state_ (volatile! :not-called)]
+;    (fn [& args]
+;      ;; here you can add more conditions - using the args
+;      ;; could pass a predicate to the outer fn - how to determine equality of the arguments
+;      (when (= @state_ :called)
+;        (println "called - skipping!"))
+;      (when (= @state_ :not-called)
+;        (vreset! state_ :called)
+;        (let [ret (apply f args)]
+;          (js/setTimeout (fn [] (vreset! state_ :not-called)) millis)
+;          ret)))))
+;
+;(def call-once-every-15ms (partial call-once-every 15))
 
-(def call-once-every-15ms (partial call-once-every 15))
-
-(def call-it (call-once-every-15ms (fn [] (println "called!"))))
-(def call2 (call-once-every (* 1000 4) (fn [] (println "called!"))))
+;(def call-it (call-once-every-15ms (fn [] (println "called!"))))
+;(def call2 (call-once-every (* 1000 4) (fn [] (println "called!"))))
 
 ;; prevent multiple reactions triggering this callback in the same frame
 ;; todo you want to make a new debounce that is invoked the first time it is called within the window
@@ -362,7 +367,8 @@
             ret))))))
 
 (def reaction-callback3 (call-reactive-run-once-every (fn [] (println "called!")) 4000))
-(def reaction-callback (call-reactive-run-once-every reaction-callback* 15))
+;(def reaction-callback (call-reactive-run-once-every reaction-callback* 15))
+(def reaction-callback reaction-callback*)
 (comment
   (reaction-callback3 1 2 4)
   )
@@ -384,5 +390,5 @@
                                (set-subscription-signals-values-map! client-signals-key this
                                  (subscribe-and-deref-signals-map client-signals-key this))
                                (client-render this)) this reaction-key
-        (fn reactive-run [_] (reaction-callback client-signals-key reaction-key this))
+        (fn reactive-run [_] (reaction-callback* client-signals-key reaction-key this))
         {:no-cache true}))))

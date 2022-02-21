@@ -148,7 +148,7 @@
   "Subscribe and deref a subscription, returning its value, not a reaction."
   [app query]
   (let [value (subscribe app query)]
-    (log/debug "<sub value: " value)
+    ;(log/debug "<sub value: " value)
     (when value @value)))
 
 (defn clear-sub ;; think unreg-sub
@@ -269,16 +269,16 @@
 (defn subscribe-and-deref-signals-map [client-signals-key this]
   (map-vals (partial <sub this) (get-user-signals-map client-signals-key this)))
 
-(defn reaction-callback* [client-signals-key this reaction-key]
+(defn reaction-callback* [client-signals-key reaction-key this]
   (let [new-signal-values-map (subscribe-and-deref-signals-map client-signals-key this)
         current-signal-values (get-cached-signals-map client-signals-key this)]
     (comment
       (c/component-name this'))
     (def this' this)
-    (log/info "IN Reactive callback")
-    (log/info "signals curr: " current-signal-values)
-    (log/info "signals new: " new-signal-values-map)
-    (log/info "did signals change: " (pr-str (not= new-signal-values-map current-signal-values)))
+    ;(log/info "IN Reactive callback")
+    ;(log/info "signals curr: " current-signal-values)
+    ;(log/info "signals new: " new-signal-values-map)
+    ;(log/info "did signals change: " (pr-str (not= new-signal-values-map current-signal-values)))
     (if (= new-signal-values-map current-signal-values)
       (log/info "SIGNALS ARE NOT DIFFERENT")
       (do
@@ -287,11 +287,30 @@
         (set-subscription-signals-values-map! client-signals-key this new-signal-values-map)
         (js/requestAnimationFrame (fn [_] (refresh-component! reaction-key this)))))))
 
+;; stopped -> called
+(defn call-once-every [millis f]
+  (let [state_ (volatile! :not-called)]
+    (fn [& args]
+      ;; here you can add more conditions - using the args
+      ;; could pass a predicate to the outer fn - how to determine equality of the arguments
+      (when (= @state_ :called)
+        (println "called - skipping!"))
+      (when (= @state_ :not-called)
+        (vreset! state_ :called)
+        (let [ret (apply f args)]
+          (js/setTimeout (fn [] (vreset! state_ :not-called)) millis)
+          ret)))))
+
+(def call-once-every-15ms (partial call-once-every 15))
+
+(def call-it (call-once-every-15ms (fn [] (println "called!"))))
+(def call2 (call-once-every (* 1000 4) (fn [] (println "called!"))))
+
 ;; prevent multiple reactions triggering this callback in the same frame
 ;; todo you want to make a new debounce that is invoked the first time it is called within the window
 ;; and only not called again for the same arguments in the window
 ;; this is preventing multiple components from firing
-(def reaction-callback (debounce reaction-callback* 15))
+;(def reaction-callback (debounce reaction-callback* 15))
 ;; in practice you're getting a component instance - so you can use identical? to compare if args are the same
 ;; the other args are keywords which will never change within one reactive re-render
 
@@ -323,6 +342,31 @@
   (dispose-current-reaction! this)
   (remove-reaction! this))
 
+(defn call-reactive-run-once-every
+  "Created to only run the reactive callback function (which can be expensive) only once per frame, this is a custom
+  call-once every 'x' milliseconds, but per component instance, thus it is purposefully written to not be generic
+  for any function."
+  [f millis]
+  (let [state_ (volatile! {})]
+    (fn [client-signals-key reaction-key this]
+      ;(log/info "called with: " (c/component-name this))
+      (let [this-state (get @state_ this :not-called)]
+        (when (= this-state :called)
+          (log/info "SKIPPING called with: " (c/component-name this))
+          )
+        (when (= this-state :not-called)
+          (log/info "calling called with: " (c/component-name this))
+          (vswap! state_ assoc this :called)
+          (let [ret (f client-signals-key reaction-key this)]
+            (js/setTimeout (fn [] (vswap! state_ assoc this :not-called)) millis)
+            ret))))))
+
+(def reaction-callback3 (call-reactive-run-once-every (fn [] (println "called!")) 4000))
+(def reaction-callback (call-reactive-run-once-every reaction-callback* 15))
+(comment
+  (reaction-callback3 1 2 4)
+  )
+
 (defn setup-reaction!
   "Installs a Reaction on the provided component which will re-render the component when any of the subscriptions'
    values change."
@@ -340,5 +384,5 @@
                                (set-subscription-signals-values-map! client-signals-key this
                                  (subscribe-and-deref-signals-map client-signals-key this))
                                (client-render this)) this reaction-key
-        (fn reactive-run [_] (reaction-callback* client-signals-key this reaction-key))
+        (fn reactive-run [_] (reaction-callback client-signals-key reaction-key this))
         {:no-cache true}))))

@@ -201,9 +201,8 @@
 
 (defn refresh-component!* [reaction-key this]
   (log/info "Refreshing component" (obj/get this reaction-key))
-  (binding [c/*blindly-render* true] (c/refresh-component! this)))
+  (.forceUpdate this))
 
-;(def refresh-component! (debounce refresh-component!* 13))
 (def refresh-component! refresh-component!*)
 ;; could try the debouce once every technique using 'this'
 

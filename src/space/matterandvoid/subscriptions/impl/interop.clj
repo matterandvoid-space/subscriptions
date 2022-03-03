@@ -1,4 +1,4 @@
-(ns space.matterandvoid.subscriptions.interop)
+(ns space.matterandvoid.subscriptions.impl.interop)
 
 (defn now []
   ;; currentTimeMillis may count backwards in some scenarios, but as this is used for tracing

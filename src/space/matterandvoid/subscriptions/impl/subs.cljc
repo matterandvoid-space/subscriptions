@@ -1,9 +1,9 @@
-(ns space.matterandvoid.subscriptions.subs
+(ns space.matterandvoid.subscriptions.impl.subs
   (:require
-    [space.matterandvoid.subscriptions.interop :refer [add-on-dispose! debug-enabled? make-reaction ratom? deref? dispose! reagent-id
+    [space.matterandvoid.subscriptions.impl.interop :refer [add-on-dispose! debug-enabled? make-reaction ratom? deref? dispose! reagent-id
                                                        reactive-context?]]
-    [space.matterandvoid.subscriptions.loggers :refer [console]]
-    [space.matterandvoid.subscriptions.trace :as trace :include-macros true]))
+    [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
+    [space.matterandvoid.subscriptions.impl.trace :as trace :include-macros true]))
 
 ;; -- cache -------------------------------------------------------------------
 

@@ -414,3 +414,22 @@
       (if (contains? (ex-data e) :tag)
         (throw e)
         (throw (ana/error &env "Unexpected internal error while processing defsc. Please check your syntax." e))))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;; copied query handling from fulcro.form-state.derive-form-info
+(defn component->subscriptions
+  [com]
+  (let [query-nodes        (some-> class (rc/get-query) (eql/query->ast) :children)
+        query-nodes-by-key (into {}
+                             (map (fn [n] [(:dispatch-key n) n]))
+                             query-nodes)
+        {props :prop joins :join} (group-by :type query-nodes)
+        join-keys           (->> joins (map :dispatch-key) set)
+        prop-keys           (->> props (map :dispatch-key) set)
+        ]
+
+    )
+  )

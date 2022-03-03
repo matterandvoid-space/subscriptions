@@ -1,6 +1,6 @@
 (ns space.matterandvoid.subscriptions.subs-test
   (:require
-    [space.matterandvoid.subscriptions.subs :as sut]
+    [space.matterandvoid.subscriptions.impl.subs :as sut]
     [cljs.test :refer [deftest is testing]]))
 
 (deftest memoize-fn-test

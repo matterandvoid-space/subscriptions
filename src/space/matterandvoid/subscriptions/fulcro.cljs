@@ -2,7 +2,7 @@
   (:require-macros [space.matterandvoid.subscriptions.fulcro])
   (:require
     [space.matterandvoid.subscriptions.impl.fulcro :as impl]
-    [space.matterandvoid.subscriptions.loggers :refer [console]]
+    [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
     [taoensso.timbre :as log]))
 
 (defn reg-sub

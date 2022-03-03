@@ -8,8 +8,8 @@
     [goog.functions :refer [debounce]]
     [goog.object :as obj]
     [reagent.ratom :as ratom]
-    [space.matterandvoid.subscriptions.loggers :refer [console]]
-    [space.matterandvoid.subscriptions.subs :as subs]
+    [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
+    [space.matterandvoid.subscriptions.impl.subs :as subs]
     [taoensso.timbre :as log]))
 
 (defn get-input-db [app] (if app (fulcro.app/current-state app) (console :info "APP IS NULL")))

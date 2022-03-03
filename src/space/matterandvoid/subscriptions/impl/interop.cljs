@@ -1,4 +1,4 @@
-(ns space.matterandvoid.subscriptions.interop
+(ns space.matterandvoid.subscriptions.impl.interop
   (:require [goog.async.nextTick]
             [reagent.core]
             [reagent.ratom]))

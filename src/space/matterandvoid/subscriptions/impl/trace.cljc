@@ -1,9 +1,9 @@
-(ns space.matterandvoid.subscriptions.trace
+(ns space.matterandvoid.subscriptions.impl.trace
   "Tracing copied from re-frame."
   #?(:cljs (:require-macros [net.cgrand.macrovich :as macros]
-                            [space.matterandvoid.subscriptions.trace :refer [with-trace merge-trace!]]))
-  (:require [space.matterandvoid.subscriptions.interop :as interop]
-            [space.matterandvoid.subscriptions.loggers :refer [console]]
+                            [space.matterandvoid.subscriptions.impl.trace :refer [with-trace merge-trace!]]))
+  (:require [space.matterandvoid.subscriptions.impl.interop :as interop]
+            [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
             #?(:clj [net.cgrand.macrovich :as macros])
             #?(:cljs [goog.functions])))
 

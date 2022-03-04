@@ -121,7 +121,7 @@
   ;; register-subs! - they need to be present for the components to read them before you mount the app or
   (if (var? app_)
     (do
-      (log/debug "IS A VAR")
+      ;(log/debug "IS A VAR")
       (js/setTimeout
         (fn []
           (let [app (if (var? app_) @app_ app_)]
@@ -130,7 +130,7 @@
               get-input-db get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
               app query-id args)))))
     (let [app app_]
-      (log/debug "IS NOT A VAR")
+      ;(log/debug "IS NOT A VAR")
       (assert app)
       (apply subs/reg-sub
         get-input-db get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
@@ -281,7 +281,7 @@
     ;(log/info "signals new: " new-signal-values-map)
     ;(log/info "did signals change: " (pr-str (not= new-signal-values-map current-signal-values)))
     (if (= new-signal-values-map current-signal-values)
-      (log/info "SIGNALS ARE NOT DIFFERENT")
+      ;(log/info "SIGNALS ARE NOT DIFFERENT")
       (do
         (log/info "!! SIGNALS ARE DIFFERENT" (c/component-name this))
         ;; store the new subscriptions - the map -

@@ -280,8 +280,10 @@
     ;(log/info "signals curr: " current-signal-values)
     ;(log/info "signals new: " new-signal-values-map)
     ;(log/info "did signals change: " (pr-str (not= new-signal-values-map current-signal-values)))
-    (if (= new-signal-values-map current-signal-values)
-      ;(log/info "SIGNALS ARE NOT DIFFERENT")
+    (when (= new-signal-values-map current-signal-values)
+      (log/debug "SIGNALS ARE NOT DIFFERENT comp: " (c/component-name this)))
+
+    (when (not= new-signal-values-map current-signal-values)
       (do
         (log/info "!! SIGNALS ARE DIFFERENT" (c/component-name this))
         ;; store the new subscriptions - the map -

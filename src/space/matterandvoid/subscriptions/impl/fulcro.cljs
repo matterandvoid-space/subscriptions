@@ -344,7 +344,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn cleanup! "Intended to be called when a component unmounts to clear the registered Reaction." [this]
-  (log/info " cleaning up reaction: " this)
+  ;(log/info " cleaning up reaction: " this)
   (dispose-current-reaction! this)
   (remove-reaction! this))
 
@@ -358,8 +358,7 @@
       ;(log/info "called with: " (c/component-name this))
       (let [this-state (get @state_ this :not-called)]
         (when (= this-state :called)
-          (log/info "SKIPPING called with: " (c/component-name this))
-          )
+          (log/info "SKIPPING called with: " (c/component-name this)))
         (when (= this-state :not-called)
           (log/info "calling called with: " (c/component-name this))
           (vswap! state_ assoc this :called)

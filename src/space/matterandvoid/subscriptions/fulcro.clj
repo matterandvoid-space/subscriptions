@@ -36,7 +36,6 @@
 
 (defn component-will-unmount-form [client-component-will-unmount]
   `(fn [this#]
-     (.log js/console "IN UNMOUNT reaction: " this#)
      (space.matterandvoid.subscriptions.impl.fulcro/cleanup! this#)
      ~(when client-component-will-unmount `(~client-component-will-unmount this#))))
 

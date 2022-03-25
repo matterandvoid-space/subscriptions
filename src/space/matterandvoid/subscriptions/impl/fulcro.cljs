@@ -1,6 +1,7 @@
 (ns space.matterandvoid.subscriptions.impl.fulcro
   (:require
     [com.fulcrologic.fulcro.algorithms.denormalize :as fdn]
+    [com.fulcrologic.fulcro.algorithms.tx-processing :as ftx]
     [com.fulcrologic.fulcro.algorithms.normalized-state :refer [dissoc-in]]
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [com.fulcrologic.fulcro.components :as c]
@@ -200,8 +201,11 @@
 (def user-signals-key "user-signals")
 
 (defn refresh-component!* [reaction-key this]
-  (log/info "Refreshing component" (obj/get this reaction-key))
-  (.forceUpdate this))
+  (when (c/mounted? this)
+    (log/info "Refreshing component" (c/component-name this))
+    (c/refresh-component! this)
+    ;(.forceUpdate this)
+    ))
 
 (def refresh-component! refresh-component!*)
 ;; could try the debouce once every technique using 'this'
@@ -274,6 +278,10 @@
   (let [new-signal-values-map (subscribe-and-deref-signals-map client-signals-key this)
         current-signal-values (get-cached-signals-map client-signals-key this)]
     (comment
+      (let [app (c/any->app this')]
+        (::ftx/submission-queue (deref (::fulcro.app/runtime-atom app)))
+        ;(sort (keys (deref (::fulcro.app/runtime-atom app))))
+        )
       (c/component-name this'))
     (def this' this)
     ;(log/info "IN Reactive callback")
@@ -289,9 +297,19 @@
         ;; store the new subscriptions - the map -
         (log/info " setting map to: " new-signal-values-map)
         (set-subscription-signals-values-map! client-signals-key this new-signal-values-map)
-        (js/requestAnimationFrame (fn [_]
-                                    (log/info "Refreshing component" (c/component-name this))
-                                    (refresh-component! reaction-key this)))))))
+        (let [app (c/any->app this')]
+          ;; I think c/refresh-component! is working so don't need to deal with this logic.
+          (when-not (empty? (::ftx/submission-queue (deref (::fulcro.app/runtime-atom app))))
+            (log/info "SUBMISSION QUEUE IS NOT EMPTY")
+            (log/info (::ftx/submission-queue (deref (::fulcro.app/runtime-atom app))))
+            (js/requestAnimationFrame (fn [_]
+                                        (log/info "Refreshing component" (c/component-name this))
+                                        (refresh-component! reaction-key this))))
+          (when (empty? (::ftx/submission-queue (deref (::fulcro.app/runtime-atom app))))
+            (log/info "SUBMISSION QUEUE IS EMPTY")
+            (js/requestAnimationFrame (fn [_]
+                                        (log/info "Refreshing component" (c/component-name this))
+                                        (refresh-component! reaction-key this)))))))))
 
 ;; stopped -> called
 ;(defn call-once-every [millis f]

@@ -203,9 +203,7 @@
 (defn refresh-component!* [reaction-key this]
   (when (c/mounted? this)
     (log/info "Refreshing component" (c/component-name this))
-    (c/refresh-component! this)
-    ;(.forceUpdate this)
-    ))
+    (.forceUpdate this)))
 
 (def refresh-component! refresh-component!*)
 ;; could try the debouce once every technique using 'this'
@@ -297,19 +295,20 @@
         ;; store the new subscriptions - the map -
         (log/info " setting map to: " new-signal-values-map)
         (set-subscription-signals-values-map! client-signals-key this new-signal-values-map)
-        (let [app (c/any->app this')]
-          ;; I think c/refresh-component! is working so don't need to deal with this logic.
-          (when-not (empty? (::ftx/submission-queue (deref (::fulcro.app/runtime-atom app))))
-            (log/info "SUBMISSION QUEUE IS NOT EMPTY")
-            (log/info (::ftx/submission-queue (deref (::fulcro.app/runtime-atom app))))
-            (js/requestAnimationFrame (fn [_]
-                                        (log/info "Refreshing component" (c/component-name this))
-                                        (refresh-component! reaction-key this))))
-          (when (empty? (::ftx/submission-queue (deref (::fulcro.app/runtime-atom app))))
-            (log/info "SUBMISSION QUEUE IS EMPTY")
-            (js/requestAnimationFrame (fn [_]
-                                        (log/info "Refreshing component" (c/component-name this))
-                                        (refresh-component! reaction-key this)))))))))
+        ;; This prevents multiple re-renders from happening for the case where fulcro mutations are causing repaints
+        ;; and the subscription would as well. We wait for the fulcro tx queue to empty before refreshing.
+        (let [app (c/any->app this')
+              attempt-to-draw
+                  (fn attempt-to-draw []
+                    (if (empty? (::ftx/submission-queue @(::fulcro.app/runtime-atom app)))
+                      (do (log/info "no TXes, refreshing component")
+                          (js/requestAnimationFrame (fn [_]
+                                                      (log/info "Refreshing component" (c/component-name this))
+                                                      (refresh-component! reaction-key this))))
+                      (do
+                        (log/info "NOT empty, looping")
+                        (js/setTimeout attempt-to-draw 16))))]
+          (attempt-to-draw))))))
 
 ;; stopped -> called
 ;(defn call-once-every [millis f]

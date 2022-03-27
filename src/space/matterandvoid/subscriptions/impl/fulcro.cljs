@@ -297,11 +297,11 @@
         (set-subscription-signals-values-map! client-signals-key this new-signal-values-map)
         ;; This prevents multiple re-renders from happening for the case where fulcro mutations are causing repaints
         ;; and the subscription would as well. We wait for the fulcro tx queue to empty before refreshing.
-        (let [app (c/any->app this')
+        (let [app (c/any->app this)
               attempt-to-draw
                   (fn attempt-to-draw []
                     (if (empty? (::ftx/submission-queue @(::fulcro.app/runtime-atom app)))
-                      (do (log/info "no TXes, refreshing component")
+                      (do (log/info "no TXes, refreshing component" (c/component-name (c/get-class this)))
                           (js/requestAnimationFrame (fn [_]
                                                       (log/info "Refreshing component" (c/component-name this))
                                                       (refresh-component! reaction-key this))))

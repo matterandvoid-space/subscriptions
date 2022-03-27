@@ -297,17 +297,23 @@
         (set-subscription-signals-values-map! client-signals-key this new-signal-values-map)
         ;; This prevents multiple re-renders from happening for the case where fulcro mutations are causing repaints
         ;; and the subscription would as well. We wait for the fulcro tx queue to empty before refreshing.
-        (let [app (c/any->app this)
+        (let [app      (c/any->app this)
+              counter_ (volatile! 0)
+              max-loop 100
               attempt-to-draw
-                  (fn attempt-to-draw []
-                    (if (empty? (::ftx/submission-queue @(::fulcro.app/runtime-atom app)))
-                      (do (log/info "no TXes, refreshing component" (c/component-name (c/get-class this)))
-                          (js/requestAnimationFrame (fn [_]
-                                                      (log/info "Refreshing component" (c/component-name this))
-                                                      (refresh-component! reaction-key this))))
-                      (do
-                        (log/info "NOT empty, looping")
-                        (js/setTimeout attempt-to-draw 16))))]
+                       (fn attempt-to-draw []
+                         (if (empty? (::ftx/submission-queue @(::fulcro.app/runtime-atom app)))
+                           (do (log/info "no TXes, refreshing component" (c/component-name (c/get-class this)))
+                               (js/requestAnimationFrame (fn [_]
+                                                           (log/info "Refreshing component" (c/component-name this))
+                                                           (refresh-component! reaction-key this))))
+                           (do
+
+                             (log/info "NOT empty, looping")
+                             (vswap! counter_ inc)
+                             (if (< @counter_ max-loop)
+                               (js/setTimeout attempt-to-draw 16)
+                               (log/info "Max retries reached, not looping.")))))]
           (attempt-to-draw))))))
 
 ;; stopped -> called

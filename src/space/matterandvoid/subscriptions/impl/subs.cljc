@@ -118,13 +118,13 @@
   [get-input-db inputs-fn computation-fn query-id]
   (fn subs-handler-fn
     [app query-vec]
-    (println "IN make-subs-handler-fn args app: " app)
-    (println "IN make-subs-handler-fn args queryvec: " query-vec)
+    ;(println "IN make-subs-handler-fn args app: " app)
+    ;(println "IN make-subs-handler-fn args queryvec: " query-vec)
     (let [db (get-input-db app)
-          _ (println "IN make-subs-handler-fn args DB : " db)
+          ;_ (println "IN make-subs-handler-fn args DB : " db)
           subscriptions (inputs-fn app query-vec)
           reaction-id   (atom nil)
-          _             (console :info "IN SUBS HANDLER 1")
+          ;_             (console :info "IN SUBS HANDLER 1")
           reaction      (make-reaction
                           (fn []
                             (trace/with-trace {:operation (first query-vec)

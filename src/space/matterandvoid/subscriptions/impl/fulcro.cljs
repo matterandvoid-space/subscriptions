@@ -42,35 +42,41 @@
 (defn subs-state-path [k v] [app-state-key subs-key v])
 (defn state-path ([] [app-state-key]) ([k] [app-state-key k]) ([k v] [app-state-key k v]))
 
+(defonce handler-registry_ (atom {}))
+
 (defn get-handler
   "Returns a \"handler\" function registered for the subscription with the given `id`.
   Fulcro app and 'query-id' -> subscription handler function.
   Lookup in the place where the query-id -> handler functions are stored."
-  ([app id]
-   ;(log/info "GETTING HANDLER state is: " (get-in @(::fulcro.app/runtime-atom app) (state-path)))
-   (get-in @(::fulcro.app/runtime-atom app) (subs-state-path subs-key id)))
+  [id]
+  (get-in @handler-registry_ (subs-state-path subs-key id)))
 
-  ([app id required?]
-   (let [handler (get-handler app id)]
-     (when debug-enabled? ;; This is in a separate `when` so Closure DCE can run ...
-       (when (and required? (nil? handler)) ;; ...otherwise you'd need to type-hint the `and` with a ^boolean for DCE.
-         (console :error "Subscription: no handler registered for:" id)))
-     handler)))
+;(defn get-handler
+;  "Returns a \"handler\" function registered for the subscription with the given `id`.
+;  Fulcro app and 'query-id' -> subscription handler function.
+;  Lookup in the place where the query-id -> handler functions are stored."
+;  ([app id]
+;   ;(log/info "GETTING HANDLER state is: " (get-in @(::fulcro.app/runtime-atom app) (state-path)))
+;   (get-in @(::fulcro.app/runtime-atom app) (subs-state-path subs-key id)))
+;
+;  ([app id required?]
+;   (let [handler (get-handler app id)]
+;     (when debug-enabled? ;; This is in a separate `when` so Closure DCE can run ...
+;       (when (and required? (nil? handler)) ;; ...otherwise you'd need to type-hint the `and` with a ^boolean for DCE.
+;         (console :error "Subscription: no handler registered for:" id)))
+;     handler)))
 
 (defn register-handler!
   "Returns `handler-fn` after associng it in the map."
-  [app id handler-fn]
-  ;(console :info "IN register-handler")
-  (swap! (::fulcro.app/runtime-atom app) assoc-in (subs-state-path subs-key id) (fn [& args]
-                                                                                  ;(log/info "IN HANDLER " id " args: " args)
-                                                                                  (apply handler-fn args)))
+  [id handler-fn]
+  (swap! handler-registry_ assoc-in (subs-state-path subs-key id) (fn [& args] (apply handler-fn args)))
   handler-fn)
 
 (defn clear-handlers
   ;; clear all handlers
   ([db] (assoc db subs-key {}))
   ([db id]
-   (if (get-handler db id)
+   (if (get-handler id)
      (dissoc-in db (subs-state-path subs-key id))
      ;(update db subs-key dissoc id)
      (console :warn "Subscriptions: can't clear handler for" (str id ". Handler not found.")))))
@@ -116,7 +122,7 @@
   [query-id & args]
   (apply subs/reg-sub
     get-input-db get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
-    app query-id args))
+    query-id args))
 
 (defn subscribe
   "Given a `query` vector, returns a Reagent `reaction` which will, over
@@ -156,8 +162,8 @@
   Some explanation is available in the docs at
   <a href=\"http://day8.github.io/re-frame/flow-mechanics/\" target=\"_blank\">http://day8.github.io/re-frame/flow-mechanics/</a>"
   {:api-docs/heading "Subscriptions"}
-  [registry query-id handler-fn]
-  (register-handler! registry query-id handler-fn))
+  [query-id handler-fn]
+  (register-handler! query-id handler-fn))
 
 (defn clear-subscription-cache!
   "Removes all subscriptions from the cache.

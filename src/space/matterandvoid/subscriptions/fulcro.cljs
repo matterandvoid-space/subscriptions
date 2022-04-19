@@ -76,7 +76,7 @@
   Some explanation is available in the docs at
   <a href=\"http://day8.github.io/re-frame/flow-mechanics/\" target=\"_blank\">http://day8.github.io/re-frame/flow-mechanics/</a>"
   {:api-docs/heading "Subscriptions"}
-  [registry query-id handler-fn] (impl/register-handler! registry query-id handler-fn))
+  [query-id handler-fn] (impl/register-handler! query-id handler-fn))
 
 (defn clear-subscription-cache!
   "Removes all subscriptions from the cache.

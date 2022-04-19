@@ -1,4 +1,4 @@
-{:deps    {org.clojure/clojure       {:mvn/version "1.10.3" :scope "provided"}
+{:deps    {org.clojure/clojure       {:mvn/version "1.11.1" :scope "provided"}
            org.clojure/clojurescript {:mvn/version "1.11.4" :scope "provided"}
            com.fulcrologic/fulcro    {:mvn/version "3.5.13" :scope "provided"}
            reagent/reagent           {:mvn/version "1.1.0" :scope "provided"}

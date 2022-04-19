@@ -1,7 +1,35 @@
 (ns space.matterandvoid.subscriptions.subs-test
   (:require
-    [space.matterandvoid.subscriptions.impl.subs :as sut]
-    [cljs.test :refer [deftest is testing]]))
+    [cljs.test :refer [deftest is testing]]
+    [com.fulcrologic.fulcro.application :as fulcro.app]
+    [com.fulcrologic.fulcro.components :as c]
+    [space.matterandvoid.subscriptions.impl.subs :as sut]))
+
+(enable-console-print!)
+
+(defn get-input-db [app] (fulcro.app/current-state app))
+(defn get-input-db-signal [app] (::fulcro.app/state-atom app))
+(defonce subs-cache (atom {}))
+(defn get-subscription-cache [app] subs-cache)
+(defn cache-lookup [app query-v]
+  (when app (get @(get-subscription-cache app) query-v)))
+(def app-state-key ::state)
+(def subs-key ::subs)
+(defn subs-state-path [k v] [app-state-key subs-key v])
+(defn state-path ([] [app-state-key]) ([k] [app-state-key k]) ([k v] [app-state-key k v]))
+
+(defonce handler-registry (atom {}))
+
+(comment @handler-registry)
+
+(defn register-handler!
+  "Returns `handler-fn` after associng it in the map."
+  [id handler-fn]
+  (swap! handler-registry assoc-in (subs-state-path subs-key id) (fn [& args] (apply handler-fn args)))
+  handler-fn)
+
+(defn get-handler [id]
+  (get-in @handler-registry (subs-state-path subs-key id)))
 
 (deftest memoize-fn-test
   (let [counter (volatile! 0)
@@ -23,3 +51,25 @@
 ;    (is (= {:a 1 :b 2} @test-sub))
 ;    (swap! db/app-db assoc :b 3)
 ;    (is (= {:a 1 :b 3} @test-sub))))
+
+(defn reg-sub [query-id & args]
+  (apply sut/reg-sub
+    get-input-db get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
+    query-id args))
+
+(defn subscribe
+  [?app query]
+  (sut/subscribe get-input-db get-handler cache-lookup get-subscription-cache (c/any->app ?app) query))
+
+(reg-sub :hello
+  (fn [db] (:hello db)))
+
+(defonce fulcro-app (fulcro.app/fulcro-app {:initial-db {:hello 500}}))
+
+(comment
+  @(subscribe fulcro-app [:hello])
+  (get-input-db-signal fulcro-app)
+  (get-input-db fulcro-app)
+
+  ((get-handler :hello) fulcro-app [:hello])
+  )

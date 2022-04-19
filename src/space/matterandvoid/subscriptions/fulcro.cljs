@@ -41,8 +41,8 @@
   can vary in 3 ways, but whatever is there defines the `input signals` part
   of `the mechanism`, specifying what input values \"flow into\" the
   `computation function` (as the 1st argument) when it is called."
-  [app_ query-id & args]
-  (apply impl/reg-sub app_ query-id args))
+  [query-id & args]
+  (apply impl/reg-sub query-id args))
 
 (defn subscribe
   "Given a `query` vector, returns a Reagent `reaction` which will, over

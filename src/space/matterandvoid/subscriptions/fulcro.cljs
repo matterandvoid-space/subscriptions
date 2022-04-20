@@ -97,7 +97,6 @@
 (def signals-key-on-component ::signals)
 
 (defn cleanup! "Intended to be called when a component unmounts to clear the registered Reaction."
-
   [this] (impl/cleanup! this))
 
 (defn setup-reaction!

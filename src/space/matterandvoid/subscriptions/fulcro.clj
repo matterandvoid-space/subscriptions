@@ -36,7 +36,7 @@
 
 (defn component-will-unmount-form [client-component-will-unmount]
   `(fn [this#]
-     (space.matterandvoid.subscriptions.impl.fulcro/cleanup! this#)
+     (cleanup! this#)
      ~(when client-component-will-unmount `(~client-component-will-unmount this#))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

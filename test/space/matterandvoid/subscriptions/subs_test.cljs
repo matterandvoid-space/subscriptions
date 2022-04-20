@@ -54,12 +54,12 @@
 
 (defn reg-sub [query-id & args]
   (apply sut/reg-sub
-    get-input-db get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
+    get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
     query-id args))
 
 (defn subscribe
   [?app query]
-  (sut/subscribe get-input-db get-handler cache-lookup get-subscription-cache (c/any->app ?app) query))
+  (sut/subscribe get-handler cache-lookup get-subscription-cache (c/any->app ?app) query))
 
 (reg-sub :hello
   (fn [db] (:hello db)))

@@ -54,34 +54,34 @@
 ;; -- subscribe ---------------------------------------------------------------
 
 (defn subscribe
-  [get-input-db get-handler cache-lookup get-subscription-cache
+  [get-handler cache-lookup get-subscription-cache
    app query]
-  (let [input-db (get-input-db app)]
-    (trace/with-trace {:operation (first query)
-                       :op-type   :sub/create
-                       :tags      {:query-v query}}
-      ;(console :info (str "subs. cache-lookup: " query))
-      (if-let [cached (cache-lookup app query)]
-        (do
-          (trace/merge-trace! {:tags {:cached?  true
-                                      :reaction (reagent-id cached)}})
-          ;(console :info (str "subs. returning cached " query ", " #_(pr-str cached)))
-          cached)
-        (let [query-id   (first query)
-              _ (println "query id: " query-id)
-              handler-fn (get-handler query-id)]
-          ;(console :info "DO NOT HAVE CACHED")
-          ;(console :info (str "subs. computing subscription"))
-          ;(console :error (str "Subscription handler for the following query is missing\n\n" (pr-str query-id) "\n"))
-          ;(assert handler-fn (str "Subscription handler for the following query is missing\n\n" (pr-str query-id) "\n"))
+  ;(println "Subscribe query: " query)
+  (trace/with-trace {:operation (first query)
+                     :op-type   :sub/create
+                     :tags      {:query-v query}}
+    ;(console :info (str "subs. cache-lookup: " query))
+    (if-let [cached (cache-lookup app query)]
+      (do
+        (trace/merge-trace! {:tags {:cached?  true
+                                    :reaction (reagent-id cached)}})
+        ;(console :info (str "subs. returning cached " query ", " #_(pr-str cached)))
+        cached)
+      (let [query-id   (first query)
+            ;_          (println "query id: " query-id)
+            handler-fn (get-handler query-id)]
+        ;(console :info "DO NOT HAVE CACHED")
+        ;(console :info "handler out: " (handler-fn app query))
+        ;(console :info (str "subs. computing subscription"))
+        (assert handler-fn (str "Subscription handler for the following query is missing\n\n" (pr-str query-id) "\n"))
 
-          (trace/merge-trace! {:tags {:cached? false}})
-          (if (nil? handler-fn)
-            (do (trace/merge-trace! {:error true})
-                (console :error (str "No subscription handler registered for: " query-id "\n\nReturning a nil subscription.")))
-            (do
-              ;(console :info "Have handler. invoking")
-              (cache-and-return! get-subscription-cache app query (handler-fn app query)))))))))
+        (trace/merge-trace! {:tags {:cached? false}})
+        (if (nil? handler-fn)
+          (do (trace/merge-trace! {:error true})
+              (console :error (str "No subscription handler registered for: " query-id "\n\nReturning a nil subscription.")))
+          (do
+            ;(console :info "Have handler. invoking")
+            (cache-and-return! get-subscription-cache app query (handler-fn app query))))))))
 
 ;; -- reg-sub -----------------------------------------------------------------
 
@@ -115,16 +115,11 @@
   (map-signals deref signals))
 
 (defn make-subs-handler-fn
-  [get-input-db inputs-fn computation-fn query-id]
+  [inputs-fn computation-fn query-id]
   (fn subs-handler-fn
     [app query-vec]
-    ;(println "IN make-subs-handler-fn args app: " app)
-    ;(println "IN make-subs-handler-fn args queryvec: " query-vec)
-    (let [db (get-input-db app)
-          ;_ (println "IN make-subs-handler-fn args DB : " db)
-          subscriptions (inputs-fn app query-vec)
+    (let [subscriptions (inputs-fn app query-vec)
           reaction-id   (atom nil)
-          ;_             (console :info "IN SUBS HANDLER 1")
           reaction      (make-reaction
                           (fn []
                             (trace/with-trace {:operation (first query-vec)
@@ -132,12 +127,9 @@
                                                :tags      {:query-v  query-vec
                                                            :reaction @reaction-id}}
 
-                              (console :info "IN REACTION calling computation fn")
                               (let [subscription-output (computation-fn (deref-input-signals subscriptions query-id) query-vec)]
-                                (console :info "IN the reaction callback 2 sub output: " subscription-output)
                                 (trace/merge-trace! {:tags {:value subscription-output}})
                                 subscription-output))))]
-      ;_ (console :info "IN SUBS HANDLER 2, reagent id: " (reagent-id reaction))
       (reset! reaction-id (reagent-id reaction))
       reaction)))
 
@@ -170,13 +162,13 @@
 (defn reg-sub
   "db, fully qualified keyword for the query id
   optional positional args."
-  [get-input-db get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
+  [get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
    query-id & args]
   (let [computation-fn          (last args)
         _                       (assert (ifn? computation-fn) "Last arg should be function - your computation function.")
         memoized-computation-fn (memoize-fn 100 50 computation-fn)
         input-args              (butlast args) ;; may be empty, or one signal fn, or pairs of  :<- / vector
-        err-header              (str "re-frame: reg-sub for " query-id ", ")
+        err-header              (str "space.matterandvoid.subscriptions: reg-sub for " query-id ", ")
         inputs-fn               (case (count input-args)
                                   ;; no `inputs` function provided - give the default
                                   0
@@ -201,8 +193,8 @@
                                       (when-not (= :<- marker)
                                         (console :error err-header "expected :<-, got:" marker))
                                       (fn inp-fn
-                                        ([app] (subscribe get-input-db get-handler cache-lookup get-subscription-cache app signal-vec))
-                                        ([app _] (subscribe get-input-db get-handler cache-lookup get-subscription-cache app signal-vec))))
+                                        ([app] (subscribe get-handler cache-lookup get-subscription-cache app signal-vec))
+                                        ([app _] (subscribe get-handler cache-lookup get-subscription-cache app signal-vec))))
 
                                   ;; multiple sugar pairs
                                   (let [pairs   (partition 2 input-args)
@@ -212,7 +204,7 @@
                                     (when-not (and (every? #{:<-} markers) (every? vector? vecs))
                                       (console :error err-header "expected pairs of :<- and vectors, got:" pairs))
                                     (fn inp-fn
-                                      ([app] (map #(subscribe get-input-db get-handler cache-lookup get-subscription-cache app %) vecs))
-                                      ([app _] (map #(subscribe get-input-db get-handler cache-lookup get-subscription-cache app %) vecs)))))]
+                                      ([app] (map #(subscribe get-handler cache-lookup get-subscription-cache app %) vecs))
+                                      ([app _] (map #(subscribe get-handler cache-lookup get-subscription-cache app %) vecs)))))]
     (console :info "registering subscription: " query-id)
-    (register-handler! query-id (make-subs-handler-fn get-input-db inputs-fn memoized-computation-fn query-id))))
+    (register-handler! query-id (make-subs-handler-fn inputs-fn memoized-computation-fn query-id))))

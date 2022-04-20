@@ -136,7 +136,6 @@
   "Subscribe and deref a subscription, returning its value, not a reaction."
   [app query]
   (let [value (subscribe app query)]
-    ;(log/debug "<sub value: " value)
     (when value @value)))
 
 (defn clear-sub ;; think unreg-sub
@@ -187,7 +186,7 @@
 (def signals-key "signals")
 (def user-signals-key "user-signals")
 
-(defn refresh-component!* [reaction-key this]
+(defn refresh-component!* [reaction-key ^js this]
   (when (c/mounted? this)
     (log/info "Refreshing component" (c/component-name this))
     (.forceUpdate this)))

@@ -1,7 +1,7 @@
 (ns space.matterandvoid.subscriptions.impl.subs
   (:require
     [space.matterandvoid.subscriptions.impl.interop :refer [add-on-dispose! debug-enabled? make-reaction ratom? deref? dispose! reagent-id
-                                                       reactive-context?]]
+                                                            reactive-context?]]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
     [space.matterandvoid.subscriptions.impl.trace :as trace :include-macros true]))
 
@@ -56,7 +56,10 @@
 (defn subscribe
   [get-handler cache-lookup get-subscription-cache
    app query]
-  ;(println "Subscribe query: " query)
+  (assert (vector? query))
+  (let [cnt (count query)]
+    (assert (or (= 1 cnt) (= 2 cnt)) "Query must contain only one map")
+    (if (= 2 cnt) (assert (map? (get query 1)) "Args to the query vector must be one map.")))
   (trace/with-trace {:operation (first query)
                      :op-type   :sub/create
                      :tags      {:query-v query}}

@@ -34,6 +34,10 @@
   (fn [db [_ args]] {:a (sut/subscribe app [::fifth])})
   (fn [{:keys [a]}] (+ 20 a)))
 
+;; pass a subscription as a parameter
+
+;; use generative testing to ensure memory usage is constrained
+
 (deftest sub-0-test
   (let [out1 (sut/<sub app [::first])
         out2 (sut/<sub app [::second])

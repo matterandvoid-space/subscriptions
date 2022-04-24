@@ -1,10 +1,17 @@
 (ns space.matterandvoid.subscriptions.fulcro-test
   (:require
-    [clojure.test :refer [deftest is testing]]
+    [clojure.test :refer [deftest is testing use-fixtures]]
+    [space.matterandvoid.subscriptions.subs :as subs]
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [space.matterandvoid.subscriptions.fulcro :as sut]))
 
 (enable-console-print!)
+(defonce counter_ (volatile! 0))
+
+(use-fixtures :each
+  {:after (fn [t]
+            (vreset! counter_ 0)
+            (t))})
 
 (defonce app (fulcro.app/fulcro-app {:initial-db {:first 500
                                                   :a "hi"}}))
@@ -12,7 +19,6 @@
 (sut/reg-sub ::first
   (fn [db] (:first db)))
 
-(defonce counter_ (volatile! 0))
 (sut/reg-sub ::second :<- [::first]
   (fn [args]
     (vswap! counter_ inc)
@@ -60,3 +66,21 @@
 (deftest subs-arg-must-be-map-test
   (is (thrown-with-msg? js/Error #"Query must contain only one map" (sut/<sub app [::fifth 'a 'b])))
   (is (thrown-with-msg? js/Error #"Args to the query vector must be one map." (sut/<sub app [::fifth 'b]))))
+
+
+(deftest def-sub-test
+  (let [out1 (subs/first app)
+        out2 (subs/second app)
+        out3 (subs/third app)
+        out4 (subs/fourth app)
+        out5 (subs/fifth app)
+        a (subs/a app)]
+    (is (= out1 500))
+    (is (= out2 510))
+    (is (= (subs/second app 510)))
+    (is (= (subs/second app 510)))
+    (is (= out3 520))
+    (is (= out4 "500"))
+    (is (= out5 520))
+    (is (= a "hi"))
+    (is (= @counter_ 1))))

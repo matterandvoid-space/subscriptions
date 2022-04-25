@@ -1,6 +1,5 @@
 (ns space.matterandvoid.subscriptions.impl.interop
   (:require [goog.async.nextTick]
-            [reagent.core]
             [reagent.ratom]))
 
 ;; Make sure the Google Closure compiler sees this as a boolean constant,
@@ -10,7 +9,7 @@
 (def ^boolean debug-enabled? "@define {boolean}" ^boolean goog/DEBUG)
 
 (defn ratom [x]
-  (reagent.core/atom x))
+  (reagent.ratom/atom x))
 
 (defn ratom? [x]
   ;; ^:js suppresses externs inference warnings by forcing the compiler to

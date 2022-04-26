@@ -40,10 +40,6 @@
     (mem-add 1 1) (mem-add 1 1) (mem-add 1 1) (mem-add 1 1) (mem-add 1 1)
     (is (= 1 @counter_))))
 
-(deftest
-  hello-test
-  (is (= 5 (+ 2 3))))
-
 ;; setup a test environment and pass all of the callbacks needed
 ;(deftest test-reg-sub-clj-repl
 ;  (sut/reg-sub :a-sub (fn [db _] (:a db)))

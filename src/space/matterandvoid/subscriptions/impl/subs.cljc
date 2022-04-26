@@ -178,15 +178,12 @@
                                (case op
                                  ;; return a function that calls the computation fn
                                  ;;  on the input signal, removing the query vector
-                                 :->
-                                 [args (fn [db _]
-                                         (f db))]
+                                 :-> [args (fn [db _] (f db))]
+
                                  ;; return a function that calls the computation fn
                                  ;;  on the input signal and the data in the query vector
                                  ;;  that is not the query-id
-                                 :=>
-                                 [args (fn [db [_ & qs]]
-                                         (apply f db qs))]
+                                 :=> [args (fn [db [_ & qs]] (apply f db qs))]
                                  ;; an incorrect keyword was passed
                                  (console :error err-header "expected :-> or :=> as second to last argument, got:" op)))))
         _                       (assert (ifn? computation-fn) "Last arg should be function - your computation function.")

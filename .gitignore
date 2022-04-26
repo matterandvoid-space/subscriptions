@@ -17,3 +17,4 @@ node_modules/
 .cpcache
 test-output
 node-tests.js
+resources

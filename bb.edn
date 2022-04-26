@@ -1,0 +1,7 @@
+{
+ :min-bb-version "0.4.0"
+ :tasks
+ {yarn-install (shell "yarn install")
+  test
+  {:depends [yarn-install]
+   :task (shell "yarn shadow-cljs watch test")}}}

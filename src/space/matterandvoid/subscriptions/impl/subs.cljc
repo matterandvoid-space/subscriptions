@@ -167,7 +167,8 @@
   optional positional args."
   [get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
    query-id & args]
-  (let [[input-args      ;; may be empty, or one signal fn, or pairs of  :<- / vector
+  (let [err-header (str "space.matterandvoid.subscriptions: reg-sub for " query-id ", ")
+         [input-args      ;; may be empty, or one signal fn, or pairs of  :<- / vector
          computation-fn] (let [[op f :as comp-f] (take-last 2 args)]
                            (if (or (= 1 (count comp-f))
                                  (fn? op)

@@ -32,13 +32,17 @@
   (get-in @handler-registry (subs-state-path subs-key id)))
 
 (deftest memoize-fn-test
-  (let [counter (volatile! 0)
+  (let [counter_ (volatile! 0)
         add     (fn add [x y]
-                  (vswap! counter inc)
+                  (vswap! counter_ inc)
                   (println "EXECUTING") (+ x y))
         mem-add (sut/memoize-fn 2 3 add)]
     (mem-add 1 1) (mem-add 1 1) (mem-add 1 1) (mem-add 1 1) (mem-add 1 1)
-    (is (= 1 @counter))))
+    (is (= 1 @counter_))))
+
+(deftest
+  hello-test
+  (is (= 5 (+ 2 3))))
 
 ;; setup a test environment and pass all of the callbacks needed
 ;(deftest test-reg-sub-clj-repl

@@ -13,8 +13,7 @@
             (vreset! counter_ 0)
             (t))})
 
-(defonce app (fulcro.app/fulcro-app {:initial-db {:first 500
-                                                  :a "hi"}}))
+(defonce app (fulcro.app/fulcro-app {:initial-db {:first 500 :a "hi"}}))
 
 (sut/reg-sub ::first
   (fn [db] (:first db)))

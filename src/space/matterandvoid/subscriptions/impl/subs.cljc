@@ -113,8 +113,8 @@
 (defn- deref-input-signals
   [signals query-id]
   (when-not ((some-fn sequential? map? deref?) signals)
-    (console :error "re-frame: in the reg-sub for" query-id ", the input-signals function returns:" signals))
-  (trace/merge-trace! {:tags {:input-signals (doall (to-seq (map-signals reagent-id signals)))}})
+    (console :error "space.matterandvoid.subscriptions: in the reg-sub for" query-id ", the input-signals function returns:" signals))
+  ;(trace/merge-trace! {:tags {:input-signals (doall (to-seq (map-signals reagent-id signals)))}})
   (map-signals deref signals))
 
 (defn make-subs-handler-fn
@@ -167,10 +167,30 @@
   optional positional args."
   [get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
    query-id & args]
-  (let [computation-fn          (last args)
+  (let [[input-args      ;; may be empty, or one signal fn, or pairs of  :<- / vector
+         computation-fn] (let [[op f :as comp-f] (take-last 2 args)]
+                           (if (or (= 1 (count comp-f))
+                                 (fn? op)
+                                 (vector? op))
+                             [(butlast args) (last args)]
+                             (let [args (drop-last 2 args)]
+                               (case op
+                                 ;; return a function that calls the computation fn
+                                 ;;  on the input signal, removing the query vector
+                                 :->
+                                 [args (fn [db _]
+                                         (f db))]
+                                 ;; return a function that calls the computation fn
+                                 ;;  on the input signal and the data in the query vector
+                                 ;;  that is not the query-id
+                                 :=>
+                                 [args (fn [db [_ & qs]]
+                                         (apply f db qs))]
+                                 ;; an incorrect keyword was passed
+                                 (console :error err-header "expected :-> or :=> as second to last argument, got:" op)))))
         _                       (assert (ifn? computation-fn) "Last arg should be function - your computation function.")
         memoized-computation-fn (memoize-fn 100 50 computation-fn)
-        input-args              (butlast args) ;; may be empty, or one signal fn, or pairs of  :<- / vector
+
         err-header              (str "space.matterandvoid.subscriptions: reg-sub for " query-id ", ")
         inputs-fn               (case (count input-args)
                                   ;; no `inputs` function provided - give the default

@@ -287,6 +287,12 @@
               counter_ (volatile! 0)
               max-loop 100
               attempt-to-draw
+              ;; todo investigate if batching makes sense and sorting by position in the react tree (run-queue in reagent)
+              ;; could also handle de-duplication (one component using multiple subs which trigger re-rendering)
+              ;; - not sure if this is already handles by how reactive atoms work
+              ;; but should investigate
+              ;; https://github.com/reagent-project/reagent/blob/master/src/reagent/impl/batching.cljs
+              ;; https://github.com/reagent-project/reagent/blob/master/doc/BatchingAndTiming.md
                        (fn attempt-to-draw []
                          (if (empty? (::ftx/submission-queue @(::fulcro.app/runtime-atom app)))
                            (do (log/info "no TXes, refreshing component" (c/component-name (c/get-class this)))
@@ -294,7 +300,6 @@
                                                            (log/info "Refreshing component" (c/component-name this))
                                                            (refresh-component! reaction-key this))))
                            (do
-
                              (log/info "NOT empty, looping")
                              (vswap! counter_ inc)
                              (if (< @counter_ max-loop)

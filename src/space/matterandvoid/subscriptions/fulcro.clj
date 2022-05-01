@@ -418,20 +418,23 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-;; copied query handling from fulcro.form-state.derive-form-info
-(defn component->subscriptions
-  "todo
-  The idea here is to register subscriptions for the given component based on its query. "
-
-  [com]
+(defn get-fulcro-component-query-keys
+  []
   (let [query-nodes        (some-> class (rc/get-query) (eql/query->ast) :children)
         query-nodes-by-key (into {}
                              (map (fn [n] [(:dispatch-key n) n]))
                              query-nodes)
         {props :prop joins :join} (group-by :type query-nodes)
         join-keys           (->> joins (map :dispatch-key) set)
-        prop-keys           (->> props (map :dispatch-key) set)
-        ]))
+        prop-keys           (->> props (map :dispatch-key) set)]
+    {:join join-keys :leaf prop-keys}))
+
+;; copied query handling from fulcro.form-state.derive-form-info
+(defn component->subscriptions
+  "todo
+  The idea here is to register subscriptions for the given component based on its query. "
+
+  [com]
 
 (defmacro defsub
   "Has the same function signature as `reg-sub`.

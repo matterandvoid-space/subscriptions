@@ -1,8 +1,10 @@
 (ns space.matterandvoid.subscriptions.fulcro
   (:require-macros [space.matterandvoid.subscriptions.fulcro])
   (:require
+    [com.fulcrologic.fulcro.application :as fulcro.app]
     [space.matterandvoid.subscriptions.impl.fulcro :as impl]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
+    [reagent.ratom]
     [taoensso.timbre :as log]))
 
 (defn reg-sub
@@ -94,6 +96,8 @@
 ;; reactive refresh of components
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;; todo this only supports class components right now, not hooks.
+
 (def signals-key-on-component ::signals)
 
 (defn cleanup! "Intended to be called when a component unmounts to clear the registered Reaction."
@@ -112,3 +116,12 @@
 
   The values of the map are the values of the subscriptions, not the vectors the user supplied."
   [this] (impl/get-cached-signals-map signals-key-on-component this))
+
+(defn fulcro-app
+  "Proxies to com.fulcrologic.fulcro.application/fulcro-app
+   and then assoc'es a reagent.ratom/atom for the fulcro state-atom with :initial-db if present
+   in hte args map"
+  [args]
+  {:pre [(map? args)]}
+  (assoc (fulcro.app/fulcro-app args)
+    ::fulcro.app/state-atom (reagent.ratom/atom (:initial-db args {}))))

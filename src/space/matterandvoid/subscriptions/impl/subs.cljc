@@ -117,7 +117,7 @@
   ;(trace/merge-trace! {:tags {:input-signals (doall (to-seq (map-signals reagent-id signals)))}})
   (map-signals deref signals))
 
-(defn make-subs-handler-fn
+(defn make-subs-reaction
   [inputs-fn computation-fn query-id]
   (fn subs-handler-fn
     [app query-vec]
@@ -228,4 +228,4 @@
                                       ([app] (map #(subscribe get-handler cache-lookup get-subscription-cache app %) vecs))
                                       ([app _] (map #(subscribe get-handler cache-lookup get-subscription-cache app %) vecs)))))]
     (console :info "registering subscription: " query-id)
-    (register-handler! query-id (make-subs-handler-fn inputs-fn memoized-computation-fn query-id))))
+    (register-handler! query-id (make-subs-reaction inputs-fn memoized-computation-fn query-id))))

@@ -344,8 +344,8 @@
     (ratom/dispose! reaction)))
 
 (defn user-signals-map-changed?
-  "Determines if the map of keywords to vectors representing subscriptions has changed, this is used to enable repl
-  development and for dynamically changing the subscriptions the componcleanupent subscribes to dynamically."
+  "Determines if the map of keywords to vectors representing subscriptions has changed, this is used to enable REPL
+  development and for dynamically changing the subscriptions the component subscribes to dynamically."
   [client-signals-key this]
   (let [cached (get-cached-user-signals-map this)]
     ;(log/info "new user signals map " (get-user-signals-map client-signals-key this))

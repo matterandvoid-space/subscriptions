@@ -433,8 +433,7 @@
 (defn component->subscriptions
   "todo
   The idea here is to register subscriptions for the given component based on its query. "
-
-  [com]
+  [com])
 
 (defmacro defsub
   "Has the same function signature as `reg-sub`.

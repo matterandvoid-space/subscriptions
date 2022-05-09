@@ -44,6 +44,11 @@ Example:
 
 (subs/defsub key1 (fn [db] (:key1 db)))
 
+;; and defsub expands to:
+
+(subs/reg-sub ::key1 (fn [db] (:key1 db)))
+(defn key1 [db] (deref (subs/subscribe db [::key1])))
+
 (key1 fulcro-app) ;; => 500
 
 (subs/defsc MyComponent [this props]
@@ -104,6 +109,12 @@ This library currently only supports integrating with fulcro components which pr
 
 If this is something that interests you, PRs are welcome.
 
+### Future ideas
+
+Integrating with fulcro-inspect - probably by adding instrumentation inside of defsub that happens based on a compiler 
+flag, as well as during re-render - to allow inspecting how long subscriptions took to compute as well as which components
+they caused to be re-rendered.
+
 # Differences/modifications from upstream re-frame
 
 ## Memoized subscription computation functions.
@@ -142,3 +153,11 @@ That is, they must look like this:
 ```clojure
 (subscribe [::my-sub {:arg1 5}])
 ```
+
+## `defsub` macro
+
+Creates a function that derefs the subscription, this allows for better editor integration such as jump-to-definition 
+support as well as searching for the use of the subscription across a codebase.
+
+You could also use your own defsub macro to add instrumentation, for example, around subscriptions.
+

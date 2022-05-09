@@ -18,3 +18,4 @@ node_modules/
 test-output
 node-tests.js
 resources
+public

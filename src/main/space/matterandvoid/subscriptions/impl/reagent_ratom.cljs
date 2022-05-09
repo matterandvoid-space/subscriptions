@@ -1,11 +1,39 @@
-(ns space.matterandvoid.subscriptions.fulcro
-  (:require-macros [space.matterandvoid.subscriptions.fulcro])
+(ns space.matterandvoid.subscriptions.impl.reagent-ratom
   (:require
-    [com.fulcrologic.fulcro.application :as fulcro.app]
-    [space.matterandvoid.subscriptions.impl.fulcro :as impl]
+    [reagent.ratom :as ratom]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
-    [reagent.ratom]
+    [space.matterandvoid.subscriptions.impl.subs :as subs]
     [taoensso.timbre :as log]))
+
+(defn get-input-db-signal [app] app)
+(defonce subs-cache_ (atom {}))
+(defn get-subscription-cache [_app] subs-cache_)
+(defn cache-lookup [app query-v] (when app (get @(get-subscription-cache app) query-v)))
+
+(defn subs-state-path [k] [k])
+;(defn state-path ([] []) ([k] [app-state-key k]) ([k v] [app-state-key k v]))
+(defonce handler-registry_ (atom {}))
+(comment @handler-registry_)
+
+(defn register-handler!
+  "Returns `handler-fn` after associng it in the map."
+  [id handler-fn]
+  (swap! handler-registry_ assoc-in (subs-state-path id) (fn [& args] (apply handler-fn args)))
+  handler-fn)
+
+(defn get-handler [id]
+  (get-in @handler-registry_ (subs-state-path id)))
+
+(defn clear-handlers
+  ;; clear all handlers
+  ([_db] (reset! handler-registry_ {}))
+  ([_db id]
+   (if (get-handler id)
+     (swap! handler-registry_ update dissoc id)
+     ;(update db subs-key dissoc id)
+     (console :warn "Subscriptions: can't clear handler for" (str id ". Handler not found.")))))
+
+;----------
 
 (defn reg-sub
   "A call to `reg-sub` associates a `query-id` with two functions ->
@@ -44,20 +72,25 @@
   of `the mechanism`, specifying what input values \"flow into\" the
   `computation function` (as the 1st argument) when it is called."
   [query-id & args]
-  (apply impl/reg-sub query-id args))
+  (apply subs/reg-sub
+    get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
+    query-id args))
 
 (defn subscribe
   "Given a `query` vector, returns a Reagent `reaction` which will, over
   time, reactively deliver a stream of values. Also known as a `Signal`.
 
   To obtain the current value from the Signal, it must be dereferenced"
-  [?app query] (impl/subscribe ?app query))
+  [app query]
+  (subs/subscribe get-handler cache-lookup get-subscription-cache app query))
 
 (defn <sub
   "Subscribe and deref a subscription, returning its value, not a reaction."
-  [?app query] (impl/<sub ?app query))
+  [app query]
+  (let [value (subscribe app query)]
+    (when value @value)))
 
-(defn clear-sub
+(defn clear-sub ;; think unreg-sub
   "Unregisters subscription handlers (presumably registered previously via the use of `reg-sub`).
 
   When called with no args, it will unregister all currently registered subscription handlers.
@@ -68,8 +101,10 @@
 
   NOTE: Depending on the usecase, it may be necessary to call `clear-subscription-cache!` afterwards"
   {:api-docs/heading "Subscriptions"}
-  ([registry] (impl/clear-handlers registry))
-  ([registry query-id] (impl/clear-handlers registry query-id)))
+  ([registry]
+   (clear-handlers registry))
+  ([registry query-id]
+   (clear-handlers registry query-id)))
 
 (defn reg-sub-raw
   "This is a low level, advanced function.  You should probably be
@@ -78,7 +113,8 @@
   Some explanation is available in the docs at
   <a href=\"http://day8.github.io/re-frame/flow-mechanics/\" target=\"_blank\">http://day8.github.io/re-frame/flow-mechanics/</a>"
   {:api-docs/heading "Subscriptions"}
-  [query-id handler-fn] (impl/register-handler! query-id handler-fn))
+  [query-id handler-fn]
+  (register-handler! query-id handler-fn))
 
 (defn clear-subscription-cache!
   "Removes all subscriptions from the cache.
@@ -88,40 +124,6 @@
   because React components won't have been cleaned up properly. And this, in turn, means
   the subscriptions within those components won't have been cleaned up correctly. So this
   forces the issue."
-  [registry] (impl/clear-subscription-cache! registry))
+  [registry]
+  (subs/clear-subscription-cache! get-subscription-cache registry))
 
-;; component rendering integrations
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; reactive refresh of components
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; todo this only supports class components right now, not hooks.
-
-(def signals-key-on-component ::signals)
-
-(defn cleanup! "Intended to be called when a component unmounts to clear the registered Reaction."
-  [this] (impl/cleanup! this))
-
-(defn setup-reaction!
-  "Installs a Reaction on the provided component which will re-render the component when any of the subscriptions'
-   values change.
-   Takes a component instance and a render function with signature: (fn render [this])"
-  [this client-render] (impl/setup-reaction! signals-key-on-component this client-render))
-
-(defn signals-map
-  "Returns a map of keywords to the most recently computed values of the subscriptions,
-  the map shape matches the shape of the map returned from the signals function from the component options
-  of the provided component.
-
-  The values of the map are the values of the subscriptions, not the vectors the user supplied."
-  [this] (impl/get-cached-signals-map signals-key-on-component this))
-
-(defn fulcro-app
-  "Proxies to com.fulcrologic.fulcro.application/fulcro-app
-   and then assoc'es a reagent.ratom/atom for the fulcro state-atom with :initial-db if present
-   in hte args map"
-  [args]
-  {:pre [(map? args)]}
-  (assoc (fulcro.app/fulcro-app args)
-    ::fulcro.app/state-atom (reagent.ratom/atom (:initial-db args {}))))

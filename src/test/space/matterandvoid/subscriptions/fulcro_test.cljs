@@ -11,9 +11,9 @@
 (use-fixtures :each
   {:after (fn [] (vreset! counter_ 0))})
 
-(defonce app (fulcro.app/fulcro-app {:initial-db {:first 500
-                                                  :first-sub 500
-                                                  :a "hi"}}))
+(defonce app (sut/fulcro-app {:initial-db {:first     500
+                                           :first-sub 500
+                                           :a         "hi"}}))
 
 (sut/reg-sub ::first
   (fn [db] (:first db)))
@@ -49,7 +49,7 @@
         out3 (sut/<sub app [::third])
         out4 (sut/<sub app [::fourth])
         out5 (sut/<sub app [::fifth])
-        a (sut/<sub app [::a])]
+        a    (sut/<sub app [::a])]
     (is (= out1 500))
     (is (= out2 510))
     (is (= (sut/<sub app [::second]) 510))
@@ -75,7 +75,7 @@
         out4 (subs/fourth-sub app)
         out5 (subs/fifth-sub app)
         out6 (subs/sixth-sub app)
-        a (subs/a-sub app)]
+        a    (subs/a-sub app)]
     (is (= out1 500))
     (is (= out2 510))
     (is (= (sut/<sub app [::subs/second-sub]) 510))

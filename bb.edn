@@ -1,7 +1,49 @@
 {
  :min-bb-version "0.4.0"
  :tasks
- {yarn-install (shell "yarn install")
+
+ {:init     (do
+              ;; add any dev aliases (as keywords) you want included when starting the fe and be repls.
+              (def dev-aliases [])
+
+              (defn rm-rf [x] (if (fs/directory? x) (fs/delete-tree x) (fs/delete x)))
+              (defn rm-all [xs]
+                (let [xs (filter fs/exists? xs)]
+                  (if (seq xs)
+                    (do
+                      (println "Removing:" (str/join ", " (map (fn [x] (str "'" x "'")) xs)))
+                      (run! rm-rf xs))
+                    (println "Nothing to clean."))))
+
+              (defn run-shadow
+                ([mode builds] (run-shadow mode builds nil))
+                ([mode builds aliases]
+                 (shell
+                   (cond-> (str "yarn run shadow-cljs " mode " " (str/join " " (cond-> builds (not (coll? builds)) vector)))
+                     (seq (some-> aliases (not (coll? aliases)) vector))
+                     (str " -A" (str/join aliases))))))
+              (def run-shadow-watch (partial run-shadow 'watch))
+              (def run-shadow-release (partial run-shadow 'release))
+              (def run-shadow-compile (partial run-shadow 'compile)))
+
+  :requires ([babashka.process :as p :refer [process]]
+             [babashka.fs :as fs]
+             [clojure.string :as str])
+
+  yarn-install
+  (shell "yarn install")
+
+  -write-index.html
+  (spit (fs/file "public" "dev" "index.html")
+    (str "<!doctype html>\n<html>\n  <head><meta charset='utf-8'></head>\n"
+      "  <body>\n    <script charset='utf-8' src='/dev/js/dev.js'></script>\n  </body></html>"))
+
+  dev
+  {:depends [yarn-install -write-index.html]
+   :doc     "Starts a shadow-cljs watch on the dev build"
+   :task    (do (println "Starting shadow-cljs compilations")
+                (run-shadow-watch 'dev (into *command-line-args* dev-aliases)))}
+
   test
   {:depends [yarn-install]
-   :task (shell "yarn shadow-cljs watch test")}}}
+   :task    (shell "yarn shadow-cljs watch test")}}}

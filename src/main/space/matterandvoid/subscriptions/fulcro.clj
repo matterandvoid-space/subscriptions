@@ -437,7 +437,7 @@
 
 (defmacro defsub
   "Has the same function signature as `reg-sub`.
-  Registers a subscription and creates a function which is invokes subscription and deref on the registered subscription
+  Registers a subscription and creates a function which is invokes subscribe and deref on the registered subscription
   with the args map passed in."
   [sub-name & args]
   (let [sub-kw (keyword (str *ns*) (str sub-name))]

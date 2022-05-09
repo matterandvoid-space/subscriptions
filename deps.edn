@@ -2,12 +2,21 @@
            org.clojure/clojurescript {:mvn/version "1.11.4" :scope "provided"}
            com.fulcrologic/fulcro    {:mvn/version "3.5.13" :scope "provided"}
            reagent/reagent           {:mvn/version "1.1.0" :scope "provided"}
+           ;; used by tracing
            net.cgrand/macrovich      {:mvn/version "0.2.1"}
            org.clojure/tools.logging {:mvn/version "1.1.0"}}
- :paths   ["src"]
+ :paths
+
+ ;; include clj-kondo exports in the JAR so that they can be imported,
+ ;; see https://github.com/clj-kondo/clj-kondo/blob/master/doc/config.md#exporting-and-importing-configuration
+ ["src/main" "src/clj-kondo"]
+
  :aliases {:test
-           {:extra-paths ["test"]}
+           {:extra-paths ["src/test"]}
 
            :dev
-           {:extra-deps {org.slf4j/slf4j-nop  {:mvn/version "2.0.0-alpha5"}
-                         thheller/shadow-cljs {:mvn/version "2.17.2"}}}}}
+           {:extra-paths ["src/dev" "public"]
+            :extra-deps  {org.slf4j/slf4j-nop  {:mvn/version "2.0.0-alpha5"}
+                          thheller/shadow-cljs {:mvn/version "2.18.0"}}}}}
+
+

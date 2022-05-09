@@ -13,8 +13,6 @@
     [space.matterandvoid.subscriptions.impl.subs :as subs]
     [taoensso.timbre :as log]))
 
-(defn get-input-db [app] (if app (fulcro.app/current-state app) (console :info "APP IS NULL")))
-
 (defn get-input-db-signal
   "Given the storage for the subscriptions return an atom containing a map
   (this it the 'db' in re-frame parlance).
@@ -262,12 +260,13 @@
   (let [new-signal-values-map (subscribe-and-deref-signals-map client-signals-key this)
         current-signal-values (get-cached-signals-map client-signals-key this)]
     (comment
+      (def this' this)
       (let [app (c/any->app this')]
         (::ftx/submission-queue (deref (::fulcro.app/runtime-atom app)))
         ;(sort (keys (deref (::fulcro.app/runtime-atom app))))
         )
-      (c/component-name this'))
-    (def this' this)
+      (c/component-name this')
+      )
     ;(log/info "IN Reactive callback")
     ;(log/info "signals curr: " current-signal-values)
     ;(log/info "signals new: " new-signal-values-map)
@@ -277,9 +276,9 @@
 
     (when (not= new-signal-values-map current-signal-values)
       (do
-        (log/info "!! SIGNALS ARE DIFFERENT" (c/component-name this))
+        (log/debug "!! SIGNALS ARE DIFFERENT" (c/component-name this))
         ;; store the new subscriptions - the map -
-        (log/info " setting map to: " new-signal-values-map)
+        (log/debug " setting map to: " new-signal-values-map)
         (set-subscription-signals-values-map! client-signals-key this new-signal-values-map)
         ;; This prevents multiple re-renders from happening for the case where fulcro mutations are causing repaints
         ;; and the subscription would as well. We wait for the fulcro tx queue to empty before refreshing.
@@ -300,11 +299,11 @@
                                                            (log/info "Refreshing component" (c/component-name this))
                                                            (refresh-component! reaction-key this))))
                            (do
-                             (log/info "NOT empty, looping")
+                             (log/debug "NOT empty, looping")
                              (vswap! counter_ inc)
                              (if (< @counter_ max-loop)
-                               (js/setTimeout attempt-to-draw 16)
-                               (log/info "Max retries reached, not looping.")))))]
+                               (js/setTimeout attempt-to-draw 16.67)
+                               (log/debug "Max retries reached, not looping.")))))]
           (attempt-to-draw))))))
 
 ;; stopped -> called
@@ -321,18 +320,6 @@
 ;          (js/setTimeout (fn [] (vreset! state_ :not-called)) millis)
 ;          ret)))))
 ;
-;(def call-once-every-15ms (partial call-once-every 15))
-
-;(def call-it (call-once-every-15ms (fn [] (println "called!"))))
-;(def call2 (call-once-every (* 1000 4) (fn [] (println "called!"))))
-
-;; prevent multiple reactions triggering this callback in the same frame
-;; todo you want to make a new debounce that is invoked the first time it is called within the window
-;; and only not called again for the same arguments in the window
-;; this is preventing multiple components from firing
-;(def reaction-callback (debounce reaction-callback* 15))
-;; in practice you're getting a component instance - so you can use identical? to compare if args are the same
-;; the other args are keywords which will never change within one reactive re-render
 
 (defn remove-reaction! [this]
   (obj/remove this reaction-key))
@@ -348,8 +335,6 @@
   development and for dynamically changing the subscriptions the component subscribes to dynamically."
   [client-signals-key this]
   (let [cached (get-cached-user-signals-map this)]
-    ;(log/info "new user signals map " (get-user-signals-map client-signals-key this))
-    ;(log/info "cached user signals map" cached)
     (and cached
       (not= (get-user-signals-map client-signals-key this) cached))))
 

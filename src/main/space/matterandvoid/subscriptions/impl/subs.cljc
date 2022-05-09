@@ -24,7 +24,7 @@
   "cache the reaction r"
   [get-subscription-cache app query-v reaction]
   ;; this prevents memory leaks (caching subscription -> reaction) but still allows
-  ;; executing outside of a (reagent.reaction ) form, like in event handlers.
+  ;; executing outside of a (reagent.reaction) form, like in event handlers.
   (when (reactive-context?)
     ;(console :debug "IN A REACTIVE CONTEXT")
     (let [cache-key          query-v

@@ -161,3 +161,12 @@ support as well as searching for the use of the subscription across a codebase.
 
 You could also use your own defsub macro to add instrumentation, for example, around subscriptions.
 
+
+
+# Development 
+
+clone the repo and 
+
+```bash
+bb dev
+```

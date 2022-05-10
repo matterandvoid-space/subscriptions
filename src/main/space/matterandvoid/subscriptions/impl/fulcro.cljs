@@ -9,6 +9,7 @@
     [goog.functions :refer [debounce]]
     [goog.object :as obj]
     [reagent.ratom :as ratom]
+    [space.matterandvoid.subscriptions.impl.shared :refer [memoize-fn]]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
     [space.matterandvoid.subscriptions.impl.subs :as subs]
     [taoensso.timbre :as log]))
@@ -119,7 +120,7 @@
   `computation function` (as the 1st argument) when it is called."
   [query-id & args]
   (apply subs/reg-sub
-    get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
+    get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup memoize-fn
     query-id args))
 
 (defn subscribe

@@ -136,36 +136,10 @@
       (reset! reaction-id (reagent-id reaction))
       reaction)))
 
-(defn memoize-fn
-  "Returns a function which is memoized, with a policy.
-  For now it will retain the up to 'n' unique invocations of input to output. When buffer/cache of 'n' distinct input calls is full will
-  evict the oldest first."
-  ([f] (memoize-fn 100 50 f))
-  ([max-args-cached-length max-history-length f]
-   (let [cache_          (atom {:data         {}
-                                :args-history #queue[]})
-         lookup-sentinel (js-obj)]
-     (fn [& args]
-       (let [{:keys [args-history data]} @cache_
-             v (get data args lookup-sentinel)]
-         (swap! cache_
-           #(cond-> %
-              ;;
-              (and (= (count (keys data)) max-args-cached-length)
-                (not (contains? data args)))
-              (update :data dissoc (peek args-history))
-
-              (= (count args-history) max-history-length) (update :args-history pop)
-
-              ;; cache miss
-              (identical? v lookup-sentinel) (update :data assoc args (apply f args))
-              true (update :args-history conj args)))
-         (get (:data @cache_) args))))))
-
 (defn reg-sub
   "db, fully qualified keyword for the query id
   optional positional args."
-  [get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
+  [get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup memoize-fn
    query-id & args]
   (let [err-header (str "space.matterandvoid.subscriptions: reg-sub for " query-id ", ")
          [input-args      ;; may be empty, or one signal fn, or pairs of  :<- / vector
@@ -187,7 +161,7 @@
                                  ;; an incorrect keyword was passed
                                  (console :error err-header "expected :-> or :=> as second to last argument, got:" op)))))
         _                       (assert (ifn? computation-fn) "Last arg should be function - your computation function.")
-        memoized-computation-fn (memoize-fn 100 50 computation-fn)
+        memoized-computation-fn (memoize-fn computation-fn)
 
         err-header              (str "space.matterandvoid.subscriptions: reg-sub for " query-id ", ")
         inputs-fn               (case (count input-args)

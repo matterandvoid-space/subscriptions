@@ -1,10 +1,9 @@
-(ns space.matterandvoid.subscriptions.reagent-ratom
+(ns space.matterandvoid.subscriptions.core
   #?@(:cljs
-      [(:require-macros [space.matterandvoid.subscriptions.reagent-ratom])
+      [(:require-macros [space.matterandvoid.subscriptions.core])
        (:require
-         [space.matterandvoid.subscriptions.impl.reagent-ratom :as impl]
+         [space.matterandvoid.subscriptions.impl.core :as impl]
          [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
-         [reagent.ratom]
          [taoensso.timbre :as log])]))
 
 #?(:cljs

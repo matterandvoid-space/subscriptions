@@ -1,11 +1,11 @@
-(ns space.matterandvoid.subscriptions.impl.reagent-ratom
+(ns space.matterandvoid.subscriptions.impl.core
   (:require
-    [reagent.ratom :as ratom]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
+    [space.matterandvoid.subscriptions.impl.shared :refer [memoize-fn]]
     [space.matterandvoid.subscriptions.impl.subs :as subs]
     [taoensso.timbre :as log]))
 
-(defn get-input-db-signal [app] app)
+(defn get-input-db-signal [ratom] ratom)
 (defonce subs-cache_ (atom {}))
 (defn get-subscription-cache [_app] subs-cache_)
 (defn cache-lookup [app query-v] (when app (get @(get-subscription-cache app) query-v)))
@@ -73,7 +73,7 @@
   `computation function` (as the 1st argument) when it is called."
   [query-id & args]
   (apply subs/reg-sub
-    get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
+    get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup memoize-fn
     query-id args))
 
 (defn subscribe

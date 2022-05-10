@@ -8,9 +8,6 @@
 ;; https://developers.google.com/closure/compiler/docs/js-for-compiler
 (def ^boolean debug-enabled? "@define {boolean}" ^boolean goog/DEBUG)
 
-(defn ratom [x]
-  (reagent.ratom/atom x))
-
 (defn ratom? [x]
   ;; ^:js suppresses externs inference warnings by forcing the compiler to
   ;; generate proper externs. Although not strictly required as
@@ -18,25 +15,15 @@
   ;; See https://shadow-cljs.github.io/docs/UsersGuide.html#infer-externs
   (satisfies? reagent.ratom/IReactiveAtom ^js x))
 
-(defn deref? [x]
-  (satisfies? IDeref x))
-
-(defn make-reaction [f]
-  (reagent.ratom/make-reaction f))
-
-(defn add-on-dispose! [a-ratom f]
-  (reagent.ratom/add-on-dispose! a-ratom f))
-
-(defn dispose! [a-ratom]
-  (reagent.ratom/dispose! a-ratom))
-
-(defn set-timeout! [f ms]
-  (js/setTimeout f ms))
+(defn deref? [x] (satisfies? IDeref x))
+(defn make-reaction [f] (reagent.ratom/make-reaction f))
+(defn add-on-dispose! [a-ratom f] (reagent.ratom/add-on-dispose! a-ratom f))
+(defn dispose! [a-ratom] (reagent.ratom/dispose! a-ratom))
+(defn set-timeout! [f ms] (js/setTimeout f ms))
+(defn ^boolean reactive-context? [] (reagent.ratom/reactive?))
 
 (defn now []
-  (if (and
-       (exists? js/performance)
-       (exists? js/performance.now))
+  (if (and (exists? js/performance) (exists? js/performance.now))
     (js/performance.now)
     (js/Date.now)))
 
@@ -57,4 +44,3 @@
            "other")
          (hash reactive-val))))
 
-(defn ^boolean reactive-context? [] (reagent.ratom/reactive?))

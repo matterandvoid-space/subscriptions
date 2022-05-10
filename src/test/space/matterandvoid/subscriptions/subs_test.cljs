@@ -2,8 +2,11 @@
   (:require
     [cljs.test :refer [deftest is testing]]
     [com.fulcrologic.fulcro.application :as fulcro.app]
+    [datascript.core :as d]
     [com.fulcrologic.fulcro.components :as c]
+    [space.matterandvoid.subscriptions.impl.shared :refer [memoize-fn]]
     [space.matterandvoid.subscriptions.impl.subs :as sut]))
+
 
 (enable-console-print!)
 
@@ -33,12 +36,26 @@
 
 (deftest memoize-fn-test
   (let [counter_ (volatile! 0)
-        add     (fn add [x y]
-                  (vswap! counter_ inc)
-                  (println "EXECUTING") (+ x y))
-        mem-add (sut/memoize-fn 2 3 add)]
+        add      (fn add [x y]
+                   (vswap! counter_ inc)
+                   (println "EXECUTING") (+ x y))
+        mem-add  (memoize-fn {:max-args-cached-size 2 :max-history-size 3} add)]
     (mem-add 1 1) (mem-add 1 1) (mem-add 1 1) (mem-add 1 1) (mem-add 1 1)
     (is (= 1 @counter_))))
+
+(defn make-todo [id text] {:todo/id id :todo/text text})
+(def schema {:todo/id {:db/unique :db.unique/identity}})
+(def conn (d/create-conn schema))
+(defn all-todos [conn]
+  (d/q '[:find [(pull ?e [*]) ...] :where [?e :todo/id]] (d/db conn))
+  )
+(memoize-fn {:max-args-cached-size 2 :max-history-size 3} (fn [conn]
+                                                            ()))
+(comment
+  (d/transact! conn [(make-todo (random-uuid) "hello4-7")])
+  ()
+  (d/create-conn schema)
+  )
 
 ;; setup a test environment and pass all of the callbacks needed
 ;(deftest test-reg-sub-clj-repl
@@ -54,7 +71,7 @@
 
 (defn reg-sub [query-id & args]
   (apply sut/reg-sub
-    get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
+    get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup memoize-fn
     query-id args))
 
 (defn subscribe

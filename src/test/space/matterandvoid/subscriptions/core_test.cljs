@@ -130,3 +130,90 @@
          :where [[?e :todo/id ?id]]}
     (d/db conn))
   )
+
+(defn bytes->mb [amount] (/ amount (js/Math.pow 1000 2)))
+(defn mb-str [amount] (str (bytes->mb amount) "MB"))
+(defn get-mem [] (.. js/performance -memory -usedJSHeapSize))
+(defn pr-mem [] (let [m (get-mem)] (println (mb-str m)) m))
+
+(defn memory-test
+  []
+  (let [start-memory (get-mem)]
+    start-memory ) )
+
+;; now I want to:
+;; in a loop - make a db that has a lot of data
+;; {:a1 [1]
+;;  :a2 [2}
+;; then
+;; sut/reg-sub
+
+
+(defn mem-test-register []
+  ;; register subs
+  (let [curr-ns (namespace ::a)]
+    (reduce
+      (fn [acc num]
+        (let [kw (keyword curr-ns (str "a" num))]
+          (sut/reg-sub kw (fn [db] (get db kw)))
+          (assoc acc kw num)))
+      {}
+      (range (js/Math.pow 10 3))))
+  ;;
+  ;; now subscribe to them
+  )
+
+
+(defn mem-test-subscribe
+  "Tests the memoization cache to ensure it will evict"
+  []
+  (let [start-mem (get-mem)]
+    ;; the default memoization size is 100, so 100 of these should be cached at a time.
+    (doseq [x (range 200 ;(js/Math.pow 10 4)
+                )]
+      (sut/<sub db [::sub2 (assoc {} x x)])
+      )
+    (let [end-mem (get-mem)]
+      [start-mem end-mem (mb-str (- end-mem start-mem))])))
+(comment
+  (reduce
+    (fn [acc n] (conj acc (conj (mem-test-subscribe) (pr-mem))))
+    []
+    (range 20)
+    )
+  ; we see it is working, when garbage collection runs, the used memory decreases
+
+  ; [[40274880 45661528 "5.386648MB" 45661528]
+  ; [45661528 45166488 "-0.49504MB" 45166488]
+  ; [45166488 45549864 "0.383376MB" 45549864]
+  ; [45549864 47180288 "1.630424MB" 47180288]
+  ; [47180288 49006772 "1.826484MB" 49006772]
+  ; [49006772 45135584 "-3.871188MB" 45135584]
+  ; [45135584 48579556 "3.443972MB" 48579556]
+  ; [48579556 53173488 "4.593932MB" 53173488]
+  ; [53173488 49934320 "-3.239168MB" 49934320]
+  ; [49934320 53999056 "4.064736MB" 53999056]
+  ; [53999056 56624700 "2.625644MB" 56624700]
+  ; [56624700 60415896 "3.791196MB" 60415896]
+  ; [60415896 55832040 "-4.583856MB" 55832040]
+  ; [55832040 60820452 "4.988412MB" 60820452]
+  ; [60820452 47500832 "-13.31962MB" 47500832]
+  ; [47500832 43605116 "-3.895716MB" 43605116]
+  ; [43605116 47368612 "3.763496MB" 47368612]
+  ; [47368612 52015848 "4.647236MB" 52015848]
+  ; [52015848 54946732 "2.930884MB" 54946732]
+  ; [54946732 51004108 "-3.942624MB" 51004108]]
+  )
+
+
+;; really you only need one subscription registered to test this.
+
+;; registering isn't the issue - calling <sub is the issue you want to test
+;; so make a sub that takes in a vector of args
+;; and does something with it -
+;;
+(comment (mem-test))
+
+(comment
+  (sut/<sub (ratom/atom {::a1 200}) [::a1])
+  (println (mb-str (memory-test))))

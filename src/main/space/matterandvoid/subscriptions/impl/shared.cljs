@@ -12,7 +12,7 @@
                                 :args-history #queue[]})
          lookup-sentinel (js-obj)]
      (fn [& args]
-       (println "memoized called with: " args)
+       ;(println "memoized called with: " args)
        (let [{:keys [args-history args->data]} @cache_
              v (get args->data args lookup-sentinel)]
          (swap! cache_
@@ -29,7 +29,7 @@
               ;; cache miss, assoc new kv pair
 
               (identical? v lookup-sentinel) ((fn [db]
-                                                (println "Not cached, computing...")
+                                                ;(println "Not cached, computing...")
                                                 (update db :args->data assoc args (apply f args))))
 
               ;; save the args history

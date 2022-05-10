@@ -48,6 +48,9 @@
   (is (= "hello" (sut/<sub db [:hello])))
   (is (= "hello" @(sut/subscribe db [:hello]))))
 
+(deftest invalid-start-signal
+  (is (thrown-with-msg? js/Error #"Your input signal must be a reagent.ratom" (sub2 (atom {})))))
+
 (sut/defsub all-todos
   :-> (fn [db]
         (log/info "compute all todos")

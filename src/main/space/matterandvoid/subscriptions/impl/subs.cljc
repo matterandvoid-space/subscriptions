@@ -141,8 +141,8 @@
   optional positional args."
   [get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup memoize-fn
    query-id & args]
-  (let [err-header (str "space.matterandvoid.subscriptions: reg-sub for " query-id ", ")
-         [input-args      ;; may be empty, or one signal fn, or pairs of  :<- / vector
+  (let [err-header              (str "space.matterandvoid.subscriptions: reg-sub for " query-id ", ")
+        [input-args ;; may be empty, or one signal fn, or pairs of  :<- / vector
          computation-fn] (let [[op f :as comp-f] (take-last 2 args)]
                            (if (or (= 1 (count comp-f))
                                  (fn? op)
@@ -172,8 +172,19 @@
                                     (fn
                                       ([app]
                                        (println "IN case 0 args: " app)
-                                       (get-input-db-signal app))
-                                      ([app _] (get-input-db-signal app))))
+                                       (let [start-signal (get-input-db-signal app)]
+                                         #?(:cljs
+                                            (when goog/DEBUG
+                                              (when-not (ratom? start-signal)
+                                                (throw (js/Error. (str "Your input signal must be a reagent.ratom. You provided: " (pr-str start-signal)))))))
+                                         start-signal))
+                                      ([app _]
+                                       (let [start-signal (get-input-db-signal app)]
+                                         #?(:cljs
+                                            (when goog/DEBUG
+                                              (when-not (ratom? start-signal)
+                                                (throw (js/Error. (str "Your input signal must be a reagent.ratom. You provided: " (pr-str start-signal)))))))
+                                         start-signal))))
 
                                   ;; a single `inputs` fn
                                   1 (let [f (first input-args)]

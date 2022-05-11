@@ -20,9 +20,13 @@ The difference from upstream is when you invoke `(subscribe)` you pass in the ro
 (subscribe (reagent.ratom/atom {:hello 200}) [:hello])
 ```
 
-## Examples
+# Examples
 
 Todo copy things from tests for datascript and for a plain hashmap.
+
+## Use with a hashmap
+
+## Use with datascript
 
 # Differences/modifications from upstream re-frame
 

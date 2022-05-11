@@ -74,6 +74,14 @@
   (sum-lists dscript-db_)
   )
 
+;; this lends itself well for property based tests
+;; 1. add generators
+;; implement the same test -> start data -> transact -> expected output
+;; repeat
+
+;; maybe you can do this with malli schemas
+;; copy the reverse example from the clojure docs for example
+
 (deftest datascript-test
   (is (= (all-todos dscript-db_)
         [{:db/id 1, :todo/id #uuid"6848eac7-245c-4c5c-b932-8525279d4f0a", :todo/text "hello1"}

@@ -27,7 +27,6 @@
               (= (count args-history) max-history-size) (update :args-history pop)
 
               ;; cache miss, assoc new kv pair
-
               (identical? v lookup-sentinel) ((fn [db]
                                                 ;(println "Not cached, computing...")
                                                 (update db :args->data assoc args (apply f args))))

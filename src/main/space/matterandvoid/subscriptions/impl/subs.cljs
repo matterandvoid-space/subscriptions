@@ -1,7 +1,6 @@
 (ns space.matterandvoid.subscriptions.impl.subs
   (:require
-    [space.matterandvoid.subscriptions.impl.interop :refer [add-on-dispose! debug-enabled? make-reaction ratom? deref? dispose! reagent-id
-                                                            reactive-context?]]
+    [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
     [space.matterandvoid.subscriptions.impl.trace :as trace :include-macros true]))
 
@@ -12,7 +11,7 @@
    which will cause the value to be removed from the cache"
   [get-subscription-cache app]
   (console :info "Clearing subscription cache")
-  (doseq [[_ rxn] @(get-subscription-cache app)] (dispose! rxn))
+  (doseq [[_ rxn] @(get-subscription-cache app)] (ratom/dispose! rxn))
   (if (not-empty @(get-subscription-cache app))
     (console :warn "re-frame: The subscription cache isn't empty after being cleared")))
 
@@ -25,16 +24,16 @@
   [get-subscription-cache app query-v reaction]
   ;; this prevents memory leaks (caching subscription -> reaction) but still allows
   ;; executing outside of a (reagent.reaction) form, like in event handlers.
-  (when (reactive-context?)
+  (when (ratom/reactive-context?)
     ;(console :debug "IN A REACTIVE CONTEXT")
     (let [cache-key          query-v
           subscription-cache (get-subscription-cache app)]
       ;(console :debug "cache-and-return!" #_subscription-cache)
       ;; when this reaction is no longer being used, remove it from the cache
-      (add-on-dispose! reaction #(trace/with-trace {:operation (first query-v)
+      (ratom/add-on-dispose! reaction #(trace/with-trace {:operation (first query-v)
                                                     :op-type   :sub/dispose
                                                     :tags      {:query-v  query-v
-                                                                :reaction (reagent-id reaction)}}
+                                                                :reaction (ratom/reagent-id reaction)}}
                                    (swap! subscription-cache
                                      (fn [query-cache]
                                        (if (and (contains? query-cache cache-key) (identical? reaction (get query-cache cache-key)))
@@ -42,13 +41,13 @@
                                          query-cache)))))
       ;; cache this reaction, so it can be used to deduplicate other, later "=" subscriptions
       (swap! subscription-cache (fn [query-cache]
-                                  (when debug-enabled?
+                                  (when ratom/debug-enabled?
                                     (when (contains? query-cache cache-key)
                                       (console :warn "re-frame: Adding a new subscription to the cache while there is an existing subscription in the cache" cache-key)))
                                   ;(console :info "ABOUT TO ASSOC , cache key: " cache-key)
                                   ;(console :info "ABOUT TO ASSOC , cache is : " query-cache)
                                   (assoc query-cache cache-key reaction)))
-      (trace/merge-trace! {:tags {:reaction (reagent-id reaction)}})))
+      (trace/merge-trace! {:tags {:reaction (ratom/reagent-id reaction)}})))
   reaction)
 
 ;; -- subscribe ---------------------------------------------------------------
@@ -67,7 +66,7 @@
     (if-let [cached (cache-lookup app query)]
       (do
         (trace/merge-trace! {:tags {:cached?  true
-                                    :reaction (reagent-id cached)}})
+                                    :reaction (ratom/reagent-id cached)}})
         ;(console :info (str "subs. returning cached " query ", " #_(pr-str cached)))
         cached)
       (let [query-id   (first query)
@@ -102,7 +101,7 @@
   (cond
     (sequential? signals) (map f signals)
     (map? signals) (map-vals f signals)
-    (deref? signals) (f signals)
+    (ratom/deref? signals) (f signals)
     :else '()))
 
 (defn to-seq
@@ -112,7 +111,7 @@
 
 (defn- deref-input-signals
   [signals query-id]
-  (when-not ((some-fn sequential? map? deref?) signals)
+  (when-not ((some-fn sequential? map? ratom/deref?) signals)
     (console :error "space.matterandvoid.subscriptions: in the reg-sub for" query-id ", the input-signals function returns:" signals))
   ;(trace/merge-trace! {:tags {:input-signals (doall (to-seq (map-signals reagent-id signals)))}})
   (map-signals deref signals))
@@ -123,7 +122,7 @@
     [app query-vec]
     (let [subscriptions (inputs-fn app query-vec)
           reaction-id   (atom nil)
-          reaction      (make-reaction
+          reaction      (ratom/make-reaction
                           (fn []
                             (trace/with-trace {:operation (first query-vec)
                                                :op-type   :sub/run
@@ -133,7 +132,7 @@
                               (let [subscription-output (computation-fn (deref-input-signals subscriptions query-id) query-vec)]
                                 (trace/merge-trace! {:tags {:value subscription-output}})
                                 subscription-output))))]
-      (reset! reaction-id (reagent-id reaction))
+      (reset! reaction-id (ratom/reagent-id reaction))
       reaction)))
 
 (defn reg-sub
@@ -173,17 +172,15 @@
                                       ([app]
                                        ;(println "IN case 0 args: " app)
                                        (let [start-signal (get-input-db-signal app)]
-                                         #?(:cljs
-                                            (when goog/DEBUG
-                                              (when-not (ratom? start-signal)
-                                                (throw (js/Error. (str "Your input signal must be a reagent.ratom. You provided: " (pr-str start-signal)))))))
+                                         (when goog/DEBUG
+                                           (when-not (ratom/ratom? start-signal)
+                                             (throw (js/Error. (str "Your input signal must be a reagent.ratom. You provided: " (pr-str start-signal))))))
                                          start-signal))
                                       ([app _]
                                        (let [start-signal (get-input-db-signal app)]
-                                         #?(:cljs
-                                            (when goog/DEBUG
-                                              (when-not (ratom? start-signal)
-                                                (throw (js/Error. (str "Your input signal must be a reagent.ratom. You provided: " (pr-str start-signal)))))))
+                                         (when goog/DEBUG
+                                           (when-not (ratom/ratom? start-signal)
+                                             (throw (js/Error. (str "Your input signal must be a reagent.ratom. You provided: " (pr-str start-signal))))))
                                          start-signal))))
 
                                   ;; a single `inputs` fn

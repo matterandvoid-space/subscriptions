@@ -2,9 +2,9 @@
            org.clojure/clojurescript {:mvn/version "1.11.4" :scope "provided"}
            com.fulcrologic/fulcro    {:mvn/version "3.5.19" :scope "provided"}
            reagent/reagent           {:mvn/version "1.1.1" :scope "provided"}
+           com.taoensso/timbre       {:mvn/version "5.2.1"}
            ;; used by tracing
-           net.cgrand/macrovich      {:mvn/version "0.2.1"}
-           org.clojure/tools.logging {:mvn/version "1.2.4"}}
+           net.cgrand/macrovich      {:mvn/version "0.2.1"}}
  :paths
 
  ;; include clj-kondo exports in the JAR so that they can be imported,

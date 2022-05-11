@@ -5,7 +5,7 @@
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [com.fulcrologic.fulcro.components :as c]
     [goog.object :as obj]
-    [reagent.ratom :as ratom]
+    [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [space.matterandvoid.subscriptions.impl.shared :refer [memoize-fn]]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
     [space.matterandvoid.subscriptions.impl.subs :as subs]

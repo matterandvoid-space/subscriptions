@@ -1,13 +1,7 @@
 (ns space.matterandvoid.subscriptions.impl.loggers
-  (:require
-   [clojure.set :refer [difference]]
-   #?@(:clj [[clojure.string :as str]
-             [taoensso.timbre :as log]])))
+  (:require [clojure.set :refer [difference]]))
 
-#?(:clj (defn log [level & args]
-          (log/log level (if (= 1 (count args))
-                           (first args)
-                           (str/join " " args)))))
+#?(:clj (defn log [& args]))
 
 (def ^:private loggers
   "Holds the current set of logging functions.
@@ -37,14 +31,3 @@
   [level & args]
   (assert (contains? @loggers level) (str "re-frame: log called with unknown level: " level))
   (apply (level @loggers) args))
-
-
-(defn set-loggers!
-  [new-loggers]
-  (assert  (empty? (difference (set (keys new-loggers)) (-> @loggers keys set))) "Unknown keys in new-loggers")
-  (swap! loggers merge new-loggers))
-
-(defn get-loggers
-  "Get the current logging functions used by re-frame."
-  []
-  @loggers)

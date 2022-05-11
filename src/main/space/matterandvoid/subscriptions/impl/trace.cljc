@@ -2,10 +2,19 @@
   "Tracing copied from re-frame."
   #?(:cljs (:require-macros [net.cgrand.macrovich :as macros]
                             [space.matterandvoid.subscriptions.impl.trace :refer [with-trace merge-trace!]]))
-  (:require [space.matterandvoid.subscriptions.impl.interop :as interop]
-            [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
+  (:require [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
             #?(:clj [net.cgrand.macrovich :as macros])
             #?(:cljs [goog.functions])))
+
+(defn now []
+  #?(:cljs
+     (if (and (exists? js/performance) (exists? js/performance.now))
+       (js/performance.now)
+       (js/Date.now))
+
+     ;; currentTimeMillis may count backwards in some scenarios, but as this is used for tracing
+     ;; it is preferable to the slower but more accurate System.nanoTime.
+     :clj (System/currentTimeMillis)))
 
 (def id (atom 0))
 (def ^:dynamic *current-trace* nil)
@@ -49,7 +58,7 @@
    :op-type   op-type
    :tags      tags
    :child-of  (or child-of (:id *current-trace*))
-   :start     (interop/now)})
+   :start     (now)})
 
 ;; On debouncing
 ;;
@@ -98,11 +107,11 @@
 (macros/deftime
   (defmacro finish-trace [trace]
      `(when (is-trace-enabled?)
-        (let [end#      (interop/now)
+        (let [end#      (now)
               duration# (- end# (:start ~trace))]
           (swap! traces conj (assoc ~trace
                                :duration duration#
-                               :end (interop/now)))
+                               :end (now)))
           (run-tracing-callbacks! end#))))
 
  (defmacro with-trace

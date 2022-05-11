@@ -1,10 +1,7 @@
 (ns space.matterandvoid.subscriptions.core
   #?@(:cljs
       [(:require-macros [space.matterandvoid.subscriptions.core])
-       (:require
-         [space.matterandvoid.subscriptions.impl.core :as impl]
-         [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
-         [taoensso.timbre :as log])]))
+       (:require [space.matterandvoid.subscriptions.impl.core :as impl])]))
 
 #?(:cljs
    (defn reg-sub

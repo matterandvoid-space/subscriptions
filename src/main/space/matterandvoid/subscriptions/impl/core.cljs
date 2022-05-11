@@ -2,8 +2,7 @@
   (:require
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
     [space.matterandvoid.subscriptions.impl.shared :refer [memoize-fn]]
-    [space.matterandvoid.subscriptions.impl.subs :as subs]
-    [taoensso.timbre :as log]))
+    [space.matterandvoid.subscriptions.impl.subs :as subs]))
 
 (defn get-input-db-signal [ratom] ratom)
 (defonce subs-cache_ (atom {}))

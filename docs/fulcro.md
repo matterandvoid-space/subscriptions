@@ -1,28 +1,51 @@
-This document assumes knowledge of re-frame, specifically subscriptions.
+This document assumes knowledge of re-frame, especially subscriptions.
 
 If you do not currently have that knowledge, please take the time to acquire it.
 
-See the readme for referecnes to learn more.
+See the readme for references to learn more.
 
 # Why?
 
-The point of this integration is to solve the problem of rendering derived data in fulcro applications. Making it
-simple and easy to ensure what is rendered onscreen always reflects the state in the fulcro app db without
-the user having to tell fulcro which components should re-render.
+Fulcro provides powerful features and abstractions but its rendering model is backward to how most humans think about 
+UI development. 
 
-The other pain point it is solving is the ability to query for this derived data in event handler code and to not need 
-to store the derived data (by the user, this library handles that).
+The way I think about this is that most UI libraries have a "pull" mental model where a component (the leaf) asks
+for data it needs to render. Whereas in fulcro the model is "push" - a mutation augments the data and then tells the leaves to redraw,
+pushing the data from the core out to the leaves.
+
+The pull model is well studied and understood. It is the domain of dataflow programming and functional reactive programming.
+You start with a core of data and perform pure functional transforms on this core to get the data in a shape needed to render.
+
+The point of this integration is to bring the pull model to fulcro applications and solve the problem of rendering derived data. 
+Making it simple (not interwoven) and easy (close at hand) to ensure what is rendered onscreen always reflects the state
+in the fulcro app db without the user having to tell fulcro which components should re-render.
+
+The other pain point it solves is the ability to query for this derived data in event handler code or other non-drawing code 
+and to not need to store the derived data by the user, the library handles that.
 
 In bullet points:
 
 - Normalized graph db in the client is the correct model for UI state
   - because updates are: assoc-in/update-in [table id attr] 
+  - if it isn't in this shape you now have a data synchronization problem
 - We want derived data to only be (re)computed when needed to draw that data
-- We don't want to do the book keeping of this derived data - it does not belong in view rendering paths.
-  - we may want to make use of this derived data elsewhere
-  - we may forget all the circuitous paths that may update the downstream sources of the derived data, ending up with state 
+- We don't want to do the bookkeeping of this derived data - it does not belong in view rendering paths.
+  - If you store the derived data in app-db you no longer have a normalized source of truth. 
+  - we may want to make use of this derived data elsewhere (e.g. event handlers)
+  - we may forget all the circuitous paths that may update the downstream sources of the derived data, ending up with stale 
     derived data
   - we may forget which components need to redraw derived data after normalized data is updated
+- There are quite a few large re-frame applications in production at this point and this model scales well both to large 
+  codebases and to projects with numerous disparate contributors.
+  - It removes decision making about when/where to compute derived data (it always goes in a subscription)
+  - Views are only about rendering data, not transforming it.
+  - The presence of these large re-frame applications shows that solving the DB problem by the developers (as re-frame does not
+    have opinions about the shape of your app-db - no normalization by default) is tractable, whereas the author believes pushing the 
+    responsibility of figuring out derived data to the application author does not scale, especially when you add more devs.
+- One of the early and exciting selling points of Om/Fulcro was targeted refresh of only the components whose data has changed.
+  There has recently been a move away from this render optimization because it is so hard to make sure all the components
+  onscreen are redrawn that need to be. This library makes targeted refresh tractable (well really reagent does that and Mike's
+  incredible discovery/invention of subscriptions).
 
 # How?
 
@@ -108,7 +131,7 @@ So:
 
 This library currently only supports integrating with fulcro components which produce JavaScript React class components.
 
-If this is something that interests you, PRs are welcome.
+If using hooks is something that interests you, PRs are welcome.
 
 # Future ideas
 

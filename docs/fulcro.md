@@ -1,13 +1,35 @@
+This document assumes knowledge of re-frame, specifically subscriptions.
+
+If you do not currently have that knowledge, please take the time to acquire it.
+
+See the readme for referecnes to learn more.
+
+# Why?
+
 The point of this integration is to solve the problem of rendering derived data in fulcro applications. Making it
 simple and easy to ensure what is rendered onscreen always reflects the state in the fulcro app db without
 the user having to tell fulcro which components should re-render.
 
-How?
+The other pain point it is solving is the ability to query for this derived data in event handler code and to not need 
+to store the derived data (by the user, this library handles that).
+
+In bullet points:
+
+- Normalized graph db in the client is the correct model for UI state
+  - because updates are: assoc-in/update-in [table id attr] 
+- We want derived data to only be (re)computed when needed to draw that data
+- We don't want to do the book keeping of this derived data - it does not belong in view rendering paths.
+  - we may want to make use of this derived data elsewhere
+  - we may forget all the circuitous paths that may update the downstream sources of the derived data, ending up with state 
+    derived data
+  - we may forget which components need to redraw derived data after normalized data is updated
+
+# How?
 
 There is a `defsc` macro in this library which has the same exact API as the one in fulcro, but wraps the render function of
 the component in a `reagent.ratom/run-in-reaction` - and provides it with a callback that will re-render the component
 whenever any of the values of the subscriptions the component is subscribed to change. The data for bookkeeping is stored on the
-component JS instance itself.
+component JS instance itself, and cleanup happens on component unmount.
 
 Nothing else about using fulcro components has changed, they will still re-render following the usual fulcro usage.
 

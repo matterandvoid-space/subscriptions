@@ -30,6 +30,10 @@ Todo copy things from tests for datascript and for a plain hashmap.
 
 # Differences/modifications from upstream re-frame
 
+
+(inputs-fn to a reg-sub takes the storage (as a reagent.ratom/atom) 
+and the subscribe vector)
+
 ## Memoized subscription computation functions.
 
 The underlying reagent.ratom/Reaction used in re-frame is cached - this library also does this.
@@ -95,3 +99,21 @@ bb dev
 ```
 
 Open the shadow-cljs inspector page and open the page that hosts the tests.
+
+# Integrating this library with other view layers
+
+In short use `reagent.ratom/run-in-reaction`, see the reagent source for inspiration:
+
+https://github.com/reagent-project/reagent/blob/f64821ce2234098a837ac7e280969f98ab11342e/src/reagent/impl/component.cljs#L254
+
+# References 
+
+re-frame:
+
+https://day8.github.io/re-frame/re-frame
+
+Mike Thompson on the history of re-frame:
+
+https://player.fm/series/clojurestream-podcast/s4-e3-re-frame-with-mike-thompson
+
+https://soundcloud.com/clojurestream/s4-e3-re-frame-with-mike-thompson

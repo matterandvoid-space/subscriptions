@@ -57,13 +57,20 @@ The changes are:
 - do not cache reactions if we are not in a reactive context (reagent indicates a reactive context by binding a dynamic variable.)
 - memoize all subscription computation functions with a bounded cache that evicts the least recently used subscription when full.
 
-This is possible because subscriptions are pure functions. 
+This is possible because subscriptions are pure functions and the layer 2 accessor subscriptions will invalidate when a new value 
+for app-db is `reset!`.
 
 Another change in this library is that all subscriptions are forced to receive only one argument: a hashmap.
 
 Taking a tip from many successful clojure projects which are able to be extended and grown and integrated over time,
 this library forces all subscriptions arguments to be one hashmap - this forces you to name all your arguments and allows
-easily flowing data. It also encourages the use of fully qualifed keywords.
+easily flowing data. It also encourages the use of fully qualified keywords.
+
+This format is also know as "variants":
+
+Jeanine Adkisson - Variants are Not Unions
+
+https://www.youtube.com/watch?v=ZQkIWWTygio
 
 That is, they must look like this:
 

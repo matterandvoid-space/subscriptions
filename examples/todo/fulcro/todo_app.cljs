@@ -59,10 +59,7 @@
 
 ;; so these sort of subscriptions can be add to defsc macro
 
-(reg-sub :todo/id
-  (fn [db [_ {:todo/keys [id]}]]
-    (when (contains? (:todo/id db) id)
-      id)))
+(reg-sub :todo/id (fn [_ [_ {:todo/keys [id]}]] id))
 
 (reg-sub :todo/text
   (fn [db [_ {:todo/keys [id]}]]
@@ -99,7 +96,9 @@
       ;(habit/make-habit input)
       input)
     ))
-(comment (subs/<sub fulcro-app [::todo {:todo/id #uuid"703ecd9c-1ebe-47e2-8ed0-adad1f2642de"}]))
+(comment
+  (swap! (::fulcro.app/state-atom fulcro-app) assoc-in [:todo/id #uuid"703ecd9c-1ebe-47e2-8ed0-adad1f2642de" :todo/text] "Changed")
+  (subs/<sub fulcro-app [::todo {:todo/id #uuid"703ecd9c-1ebe-47e2-8ed0-adad1f2642de"}]))
 
 (defsc TodoList [this props]
   {:ident         (fn [] [:component/id ::todo-list])
@@ -113,39 +112,39 @@
       (map ui-todo todos))))
 
 (def ui-todo-list (c/computed-factory TodoList))
-;
-;(defsc TodoList [this {:list/keys [id items filter title] :as props}]
-;  {:initial-state {:list/id 1 :ui/new-item-text "" :list/items [] :list/title "main" :list/filter :list.filter/none}
-;   :ident         :list/id
-;   :query         [:list/id :ui/new-item-text {:list/items (comp/get-query TodoItem)} :list/title :list/filter]}
-;  (let [num-todos       (count items)
-;        completed-todos (filterv :item/complete items)
-;        num-completed   (count completed-todos)
-;        all-completed?  (every? :item/complete items)
-;        filtered-todos  (case filter
-;                          :list.filter/active (filterv (comp not :item/complete) items)
-;                          :list.filter/completed completed-todos
-;                          items)
-;        delete-item     (fn [item-id] (comp/transact! this `[(api/todo-delete-item ~{:list-id id :id item-id})]))]
-;    (dom/div {}
-;      (dom/section :.todoapp {}
-;        (header this title)
-;        (when (pos? num-todos)
-;          (dom/div {}
-;            (dom/section :.main {}
-;              (dom/input {:type      "checkbox"
-;                          :className "toggle-all"
-;                          :checked   all-completed?
-;                          :onClick   (fn [] (if all-completed?
-;                                              (comp/transact! this `[(api/todo-uncheck-all {:list-id ~id})])
-;                                              (comp/transact! this `[(api/todo-check-all {:list-id ~id})])))})
-;              (dom/label {:htmlFor "toggle-all"} "Mark all as complete")
-;              (dom/ul :.todo-list {}
-;                (map #(ui-todo-item % {:delete-item delete-item}) filtered-todos)))
-;            #_(filter-footer this num-todos num-completed))))
-;      #_(footer-info))))
-;
-;(def ui-todo-list (c/factory TodoList))
+
+(defsc TodoList [this {:list/keys [id items filter title] :as props}]
+  {:initial-state {:list/id 1 :ui/new-item-text "" :list/items [] :list/title "main" :list/filter :list.filter/none}
+   :ident         :list/id
+   :query         [:list/id :ui/new-item-text {:list/items (comp/get-query TodoItem)} :list/title :list/filter]}
+  (let [num-todos       (count items)
+        completed-todos (filterv :item/complete items)
+        num-completed   (count completed-todos)
+        all-completed?  (every? :item/complete items)
+        filtered-todos  (case filter
+                          :list.filter/active (filterv (comp not :item/complete) items)
+                          :list.filter/completed completed-todos
+                          items)
+        delete-item     (fn [item-id] (comp/transact! this `[(api/todo-delete-item ~{:list-id id :id item-id})]))]
+    (dom/div {}
+      (dom/section :.todoapp {}
+        (header this title)
+        (when (pos? num-todos)
+          (dom/div {}
+            (dom/section :.main {}
+              (dom/input {:type      "checkbox"
+                          :className "toggle-all"
+                          :checked   all-completed?
+                          :onClick   (fn [] (if all-completed?
+                                              (comp/transact! this `[(api/todo-uncheck-all {:list-id ~id})])
+                                              (comp/transact! this `[(api/todo-check-all {:list-id ~id})])))})
+              (dom/label {:htmlFor "toggle-all"} "Mark all as complete")
+              (dom/ul :.todo-list {}
+                (map #(ui-todo-item % {:delete-item delete-item}) filtered-todos)))
+            #_(filter-footer this num-todos num-completed))))
+      #_(footer-info))))
+
+(def ui-todo-list (c/factory TodoList))
 
 ;(defsc Root [this {:keys [todo-list]}]
 ;  {:query [{:todo-list (c/get-query TodoList)}]}

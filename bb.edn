@@ -24,7 +24,12 @@
                      (str " -A" (str/join aliases))))))
               (def run-shadow-watch (partial run-shadow 'watch))
               (def run-shadow-release (partial run-shadow 'release))
-              (def run-shadow-compile (partial run-shadow 'compile)))
+              (def run-shadow-compile (partial run-shadow 'compile))
+              (defn write-html [file script]
+                (spit file
+                  (str "<!doctype html>\n<html>\n  <head><meta charset=\"utf-8\"></head>\n"
+                    "  <body>\n    <div id=\"app\"></div>\n    <script charset='utf-8' src=\"" script
+                    "\"></script>\n  </body></html>\n"))))
 
   :requires ([babashka.process :as p :refer [process]]
              [babashka.fs :as fs]
@@ -34,15 +39,16 @@
   (shell "yarn install")
 
   -write-index.html
-  (spit (fs/file "public" "dev" "index.html")
-    (str "<!doctype html>\n<html>\n  <head><meta charset='utf-8'></head>\n"
-      "  <body>\n    <script charset='utf-8' src='/dev/js/dev.js'></script>\n  </body></html>"))
+  (write-html (fs/file "public" "dev" "index.html") "/dev/js/dev.js")
+
+  -write-example.html
+  (write-html (fs/file "public" "examples" "index.html") "/examples/js/examples.js")
 
   dev
-  {:depends [yarn-install -write-index.html]
+  {:depends [yarn-install -write-index.html -write-example.html]
    :doc     "Starts a shadow-cljs watch on the dev build"
    :task    (do (println "Starting shadow-cljs compilations")
-                (run-shadow-watch '[dev test] (into *command-line-args* dev-aliases)))}
+                (run-shadow-watch '[dev test examples] (into *command-line-args* dev-aliases)))}
 
   test
   {:depends [yarn-install]

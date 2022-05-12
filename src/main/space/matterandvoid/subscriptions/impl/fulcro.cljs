@@ -121,7 +121,11 @@
   This function invokes that function and returns the map - it does not deref the subscription values."
   [client-signals-key this]
   (when-let [signals-fn (client-signals-key (c/component-options (c/get-class this)))]
-    (signals-fn this (c/props this))))
+    (when-not (fn? signals-fn)
+      (throw (js/Error. (str "Component " (c/component-name this) " signals must be a function, you provided: " (pr-str signals-fn) "\n"))))
+    (let [out (signals-fn this (c/props this))]
+      (when-not (map? out) (throw (js/Error. (str "Component " (c/component-name this) " signals function must return a hashmap, got: " (pr-str out) "\n"))))
+      out)))
 
 (defn set-subscription-signals-values-map!
   "Mutates the provided js object to store new state.

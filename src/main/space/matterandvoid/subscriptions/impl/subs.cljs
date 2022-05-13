@@ -2,8 +2,9 @@
   (:require
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
-    [taoensso.timbre :as log]
-    [space.matterandvoid.subscriptions.impl.trace :as trace :include-macros true]))
+    [space.matterandvoid.subscriptions.impl.memoize :as memoize]
+    [space.matterandvoid.subscriptions.impl.trace :as trace :include-macros true]
+    [taoensso.timbre :as log]))
 
 ;; -- cache -------------------------------------------------------------------
 
@@ -57,27 +58,25 @@
   [get-handler cache-lookup get-subscription-cache
    app query]
   (assert (vector? query))
-  (let [cnt (count query)
-        [query-id args] query]
+  (let [cnt (count query), [query-id] query]
     (assert (or (= 1 cnt) (= 2 cnt)) (str "Query must contain only one map for subscription " query-id))
     (when (= 2 cnt) (assert (map? (get query 1)) (str "Args to the query vector must be one map for subscription " query-id)))
-    (js/console.log "SUBSCRIBE called: " query)
+    ;(js/console.log "SUBSCRIBE called: " query)
     (trace/with-trace {:operation (first query)
                        :op-type   :sub/create
                        :tags      {:query-v query}}
       ;(console :info (str "subs. cache-lookup: " query))
       (let [cached (cache-lookup app query)]
-        (if (and true #_(ratom/reactive-context?) cached)
+        (if (and (ratom/reactive-context?) cached)
           (do
             (trace/merge-trace! {:tags {:cached?  true
                                         :reaction (ratom/reagent-id cached)}})
-            (log/info "CACHED")
-            (console :info (str "subs. returning cached " query ", " #_(pr-str cached)))
+            ;(log/info "CACHED")
+            ;(console :info (str "subs. returning cached " query ", " #_(pr-str cached)))
             cached)
           (let [handler-fn (get-handler query-id)]
-            (console :info "DO NOT HAVE CACHED")
-            (console :info "handler out: " (handler-fn app query))
-            (console :info (str "subs. computing subscription"))
+            ;(console :info "DO NOT HAVE CACHED")
+            ;(console :info (str "subs. computing subscription"))
             (assert handler-fn (str "Subscription handler for the following query is missing\n\n" (pr-str query-id) "\n"))
 
             (trace/merge-trace! {:tags {:cached? false}})
@@ -85,9 +84,9 @@
               (do (trace/merge-trace! {:error true})
                   (console :error (str "No subscription handler registered for: " query-id "\n\nReturning a nil subscription.")))
               (do
-                (js/console.log "SUBSCRIBE")
-                (js/console.log "Have handler. invoking with args: " args)
-                (cache-and-return! get-subscription-cache app query (handler-fn app args))))))))))
+                ;(js/console.log "SUBSCRIBE")
+                ;(js/console.log "Have handler. invoking with args: " query)
+                (cache-and-return! get-subscription-cache app query (handler-fn app query))))))))))
 
 ;; -- reg-sub -----------------------------------------------------------------
 
@@ -108,29 +107,30 @@
     (ratom/deref? signals) (f signals)
     :else '()))
 
-(defn to-seq
-  "Coerces x to a seq if it isn't one already"
-  [x]
-  (cond-> x (not (sequential? x)) list))
 
 (defn- deref-input-signals
   [signals query-id]
   (when-not ((some-fn sequential? map? ratom/deref?) signals)
-    (console :error "space.matterandvoid.subscriptions: in the reg-sub for" query-id ", the input-signals function returns:" signals))
-  ;(trace/merge-trace! {:tags {:input-signals (doall (to-seq (map-signals reagent-id signals)))}})
+    (let [to-seq #(cond-> % (not (sequential? %)) list)]
+      (console :error "space.matterandvoid.subscriptions: in the reg-sub for" query-id ", the input-signals function returns:" signals)
+      ;(trace/merge-trace! {:tags {:input-signals (doall (to-seq (map-signals reagent-id signals)))}})
+      ))
   (map-signals deref signals))
 
-(defn make-subs-reaction
+(defn make-subs-handler-fn
   "This is where the inputs-fn is executed and
   the computation is put inside a reaction - ie a callback for later invocation when subscribe is called and derefed."
   [inputs-fn computation-fn query-id]
   (fn subs-handler-fn
-    [app args]
-    (js/console.log "subs-handler-fn args: " args)
-    (let [subscriptions (inputs-fn app args)
+    [app query-vec]
+    (assert (vector? query-vec))
+    (let [args          (second query-vec)
+          ;_ (js/console.log "subs-handler-fn args: " args)
+          subscriptions (inputs-fn app args)
           reaction-id   (atom nil)
           reaction      (ratom/make-reaction
                           (fn []
+                            ;(log/info "In reaction cb calling computation-fn sub with args: " args)
                             (trace/with-trace {:operation query-id
                                                :op-type   :sub/run
                                                :tags      {:query-v  [query-id args]
@@ -142,10 +142,14 @@
       (reset! reaction-id (ratom/reagent-id reaction))
       reaction)))
 
+(def memoize-fn memoize/memoize-fn)
+
+(defn set-memoize! [f] (set! memoize-fn f))
+
 (defn reg-sub
   "db, fully qualified keyword for the query id
   optional positional args."
-  [get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup memoize-fn
+  [get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
    query-id & args]
   (let [err-header              (str "space.matterandvoid.subscriptions: reg-sub for " query-id ", ")
         [input-args ;; may be empty, or one signal fn, or pairs of  :<- / vector
@@ -154,15 +158,16 @@
                                  (fn? op)
                                  (vector? op))
                              [(butlast args) (last args)]
-                             (let [args (drop-last 2 args)]
+                             (let [ ;_    (js/console.log "IN ELSE: args" args)
+                                   args (drop-last 2 args)]
                                (case op
                                  ;; return a function that calls the computation fn
                                  ;;  on the input signal, removing the query vector
                                  :-> [args (fn [db _] (f db))]
 
                                  ;; an incorrect keyword was passed
-                                 (console :error err-header "expected :-> or :=> as second to last argument, got:" op)))))
-        _                       (assert (ifn? computation-fn) "Last arg should be function - your computation function.")
+                                 (console :error err-header "expected :-> as second to last argument, got:" op)))))
+        _                       (assert (ifn? computation-fn) "Last arg should be a function (your computation function).")
         memoized-computation-fn (memoize-fn computation-fn)
 
         err-header              (str "space.matterandvoid.subscriptions: reg-sub for " query-id ", ")
@@ -212,6 +217,6 @@
                                     (fn inp-fn
                                       ([app] (map #(subscribe get-handler cache-lookup get-subscription-cache app %) vecs))
                                       ([app _] (map #(subscribe get-handler cache-lookup get-subscription-cache app %) vecs)))))]
-    (js/console.log "registering subscription: " query-id)
-    (js/console.log "input args: " input-args)
-    (register-handler! query-id (make-subs-reaction inputs-fn memoized-computation-fn query-id))))
+    ;(js/console.log "registering subscription: " query-id)
+    ;(js/console.log "input args: " input-args)
+    (register-handler! query-id (make-subs-handler-fn inputs-fn memoized-computation-fn query-id))))

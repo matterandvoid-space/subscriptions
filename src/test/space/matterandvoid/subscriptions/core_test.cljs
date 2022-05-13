@@ -147,7 +147,7 @@
 (defn memory-test
   []
   (let [start-memory (get-mem)]
-    start-memory ) )
+    start-memory))
 
 ;; now I want to:
 ;; in a loop - make a db that has a lot of data
@@ -225,3 +225,58 @@
 (comment
   (sut/<sub (ratom/atom {::a1 200}) [::a1])
   (println (mb-str (memory-test))))
+
+(def db-r_ (ratom/atom
+             {:root/list-id :root/todos,
+              :todo/id      {#uuid"7dea2e3a-9b3d-4d35-a120-d65db43868cb" #:todo{:id    #uuid"7dea2e3a-9b3d-4d35-a120-d65db43868cb",
+                                                                                :text  "helo138",
+                                                                                :state :incomplete},
+                             #uuid"31a54f54-a701-4e92-af91-78447f5294e6" #:todo{:id    #uuid"31a54f54-a701-4e92-af91-78447f5294e6",
+                                                                                :text  "helo139",
+                                                                                :state :incomplete}},
+              :root/todos   [[:todo/id #uuid"7dea2e3a-9b3d-4d35-a120-d65db43868cb"]
+                             [:todo/id #uuid"31a54f54-a701-4e92-af91-78447f5294e6"]]}))
+
+(sut/defsub list-idents (fn [db {:keys [list-id]}] (get db list-id)))
+(sut/reg-sub :todo/id (fn [_ {:todo/keys [id]}] id))
+(sut/reg-sub :todo/text (fn [db {:todo/keys [id]}]
+                          (get-in db [:todo/id id :todo/text])))
+
+(sut/reg-sub ::todo
+  (fn [app args]
+    {:todo/text (sut/subscribe app [:todo/text args])
+     :todo/id   (sut/subscribe app [:todo/id args])})
+  (fn [{:todo/keys [id] :as input}]
+    (when id input)))
+
+(sut/reg-sub ::todos-list
+  (fn [r {:keys [list-id]}]
+    (let [todo-idents (list-idents r {:list-id list-id})]
+      (log/info "todo idents: " todo-idents)
+      (mapv (fn [[_ i]] (sut/subscribe r [::todo {:todo/id i}])) todo-idents)))
+  (fn [x]
+    (log/info "::todos-list x: " x)
+    x))
+
+(deftest args-to-inputs-fn-test
+  (let [out (sut/<sub db-r_ [::todos-list {:list-id :root/todos}])]
+    (is (=
+          (list #:todo{:text "helo138", :id #uuid"7dea2e3a-9b3d-4d35-a120-d65db43868cb"}
+            #:todo{:text "helo139", :id #uuid"31a54f54-a701-4e92-af91-78447f5294e6"})
+          out))
+    (let [id   #uuid"d3a00f08-f6a3-49e0-bda9-97f245b9feed",
+          todo {:todo/id id :todo/text "new one" :todo/state :incomplete}
+          _    (swap! db-r_
+                 (fn [db]
+                   []
+                   (-> db
+                     (update :root/todos conj [:todo/id id])
+                     (update :todo/id assoc id todo)
+                     )))
+          out2 (sut/<sub db-r_ [::todos-list {:list-id :root/todos}])]
+      (log/info "out2: " out2)
+      (is (=
+            (list #:todo{:text "helo138", :id #uuid"7dea2e3a-9b3d-4d35-a120-d65db43868cb"}
+              #:todo{:text "helo139", :id #uuid"31a54f54-a701-4e92-af91-78447f5294e6"}
+              #:todo{:text "new one", :id id}) out2)))))
+

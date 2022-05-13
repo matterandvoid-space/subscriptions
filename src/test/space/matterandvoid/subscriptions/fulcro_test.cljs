@@ -36,7 +36,7 @@
 (sut/reg-sub ::a (fn [db] (db :a)))
 
 (sut/reg-sub ::sixth
-  (fn [db [_ args]] {:a (sut/subscribe app [::fifth])})
+  (fn [db args] {:a (sut/subscribe app [::fifth])})
   (fn [{:keys [a]}] (+ 20 a)))
 
 ;; pass a subscription as a parameter
@@ -121,13 +121,13 @@
     (is (= 3 (e-first-sub app)))))
 
 ; test the syntactical sugar for input signals and query vector arguments
-(deftest test-sub-macros-=>
+(deftest test-sub-macros->
   (reset! (::fulcro.app/state-atom app) {:a 1 :b 2 :c :foo :d [1 2] :e [3 4]})
   (sut/reg-sub :a-sub :-> :a)
   (sut/reg-sub :b-sub :-> :b)
-  (sut/reg-sub :test-a-sub :<- [:a-sub] :=> vector)
+  (sut/reg-sub :test-a-sub :<- [:a-sub] vector)
   ;; test for equality of input signal and query parameter
-  (sut/reg-sub :test-b-sub :<- [:b-sub] :=> (comp = :arg))
+  (sut/reg-sub :test-b-sub :<- [:b-sub] (comp = :arg))
   (let [test-a-sub (sut/subscribe app [:test-a-sub {:arg :c}])
         test-b-sub (sut/subscribe app [:test-b-sub {:arg 2}])]
     (is (= [1 {:arg :c}] @test-a-sub))

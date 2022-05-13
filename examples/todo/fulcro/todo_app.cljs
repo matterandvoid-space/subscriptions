@@ -5,8 +5,40 @@
     [com.fulcrologic.fulcro.dom :as dom]
     [space.matterandvoid.subscriptions.fulcro :as subs :refer [defsc defsub reg-sub]]
     [com.fulcrologic.fulcro.components :as c]
+    [reagent.ratom :as r]
     [taoensso.timbre :as log]))
 
+(defn memoize-fn
+  ([f] (memoize-fn {:max-args-cached-size 100 :max-history-size 50} f))
+  ([{:keys [max-args-cached-size max-history-size]} f]
+   (let [cache_          (atom {:args->data   {}
+                                :args-history #queue[]})
+         lookup-sentinel (js-obj)]
+     (fn [& args]
+       (println "memoized called with: " args)
+       (let [{:keys [args-history args->data]} @cache_
+             v (get args->data args lookup-sentinel)]
+         (swap! cache_
+           #(cond-> %
+              ;; the size of the cache is limited by the total key-value pairs
+              (and (= (count (keys args->data)) max-args-cached-size)
+                (not (contains? args->data args)))
+              ;; remove the oldest (LRU) argument
+              ;; make room forthe new args->value pair
+              (update :args->data dissoc (peek args-history))
+
+              (= (count args-history) max-history-size) (update :args-history pop)
+
+              ;; cache miss, assoc new kv pair
+              (identical? v lookup-sentinel) ((fn [db]
+                                                (println "Not cached, computing...")
+                                                (update db :args->data assoc args (apply f args))))
+
+              ;; save the args history
+              true (update :args-history conj args)))
+         (get (:args->data @cache_) args))))))
+
+(subs/set-memoize! memoize-fn)
 
 ;; 1. make a fulcro app
 ;; 2. write the views
@@ -210,9 +242,9 @@
 ;    x))
 
 (reg-sub ::todos-list
-  (fn INPUT [app args]
+  (fn INPUT [app {:keys [list-id] :as args}]
     (log/info "::todos-list args: " args)
-    (let [todo-idents (list-idents app {:list-id :list-id})]
+    (let [todo-idents (list-idents app {:list-id list-id})]
       (log/info "todo idents: " todo-idents)
       (mapv (fn [[_ i]] (subs/subscribe app [::todo {:todo/id i}])) todo-idents))
     )
@@ -220,13 +252,18 @@
     (log/info "::todos-list x: " x)
     x))
 
-
 (reg-sub :todo/id2 :-> :root/todos)
+
 (comment
   (as-> fulcro-app XX
     ;(merge/merge-component! XX Todo (make-todo "helo"))
-    (merge/merge-component! XX Todo (make-todo "helo139") :append [:root/todos])
+    (merge/merge-component! XX Todo (make-todo "helo19") :append [:root/todos])
     (fulcro.app/current-state fulcro-app))
+
+  (swap! (::fulcro.app/state-atom fulcro-app) update :dan-num inc)
+  ;;
+  (let [id  #uuid"18ee1d24-6d71-4e49-927f-8fc04b42ce03"]
+    (swap! (::fulcro.app/state-atom fulcro-app) assoc-in [:todo/id id :todo/text]  "CHANGEd"))
 
   (fulcro.app/current-state fulcro-app)
   (all-todos fulcro-app)
@@ -236,4 +273,8 @@
 
   (subs/<sub fulcro-app [::list-idents {:list-id :root/todos}])
   (subs/<sub fulcro-app [::todos-list {:list-id :root/todos}])
+  )
+(def rr
+  (r/make-reaction (fn [] (log/info "in reaction"))))
+(comment
   )

@@ -4,7 +4,7 @@
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [datascript.core :as d]
     [com.fulcrologic.fulcro.components :as c]
-    [space.matterandvoid.subscriptions.impl.shared :refer [memoize-fn]]
+    [space.matterandvoid.subscriptions.impl.memoize :refer [memoize-fn]]
     [space.matterandvoid.subscriptions.impl.subs :as sut]))
 
 
@@ -69,9 +69,11 @@
 ;    (swap! db/app-db assoc :b 3)
 ;    (is (= {:a 1 :b 3} @test-sub))))
 
+(set! sut/memoize-fn memoize-fn)
+
 (defn reg-sub [query-id & args]
   (apply sut/reg-sub
-    get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup memoize-fn
+    get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
     query-id args))
 
 (defn subscribe

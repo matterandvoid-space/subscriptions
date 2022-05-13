@@ -1,7 +1,6 @@
 (ns space.matterandvoid.subscriptions.impl.core
   (:require
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
-    [space.matterandvoid.subscriptions.impl.shared :refer [memoize-fn]]
     [space.matterandvoid.subscriptions.impl.subs :as subs]))
 
 (defn get-input-db-signal [ratom] ratom)
@@ -31,10 +30,12 @@
 ;----------
 ;; api
 
+(defn set-memoize! [f] (subs/set-memoize! f))
+
 (defn reg-sub
   [query-id & args]
   (apply subs/reg-sub
-    get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup memoize-fn
+    get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
     query-id args))
 
 (defn subscribe

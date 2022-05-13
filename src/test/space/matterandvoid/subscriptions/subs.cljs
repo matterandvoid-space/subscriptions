@@ -17,17 +17,17 @@
 (sut/defsub third-sub :<- [::second-sub] #(+ 10 %))
 
 (sut/defsub fourth-sub
-  (fn [app args] (sut/subscribe app [::first-sub]))
+  (fn [app] (sut/subscribe app [::first-sub]))
   (fn [first-val] (str first-val)))
 
 (sut/defsub fifth-sub
-  (fn [app args] {:a (sut/subscribe app [::first-sub])})
+  (fn [app] {:a (sut/subscribe app [::first-sub])})
   (fn [{:keys [a]}] (+ 20 a)))
 
 (sut/defsub a-sub (fn [db] (db :a)))
 
 (sut/defsub sixth-sub
-  (fn [app [_ args]] {:a (sut/subscribe app [::fifth-sub])})
+  (fn [app args] {:a (sut/subscribe app [::fifth-sub])})
   (fn [{:keys [a]}] (+ 20 a)))
 
 ;; pass a subscription as a parameter

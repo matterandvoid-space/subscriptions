@@ -8,6 +8,8 @@
     [reagent.ratom]
     [taoensso.timbre :as log]))
 
+(defn set-memoize! [f] (impl/set-memoize! f))
+
 (defn reg-sub
   "A call to `reg-sub` associates a `query-id` with two functions ->
   a function returning input signals and a function (the signals function)

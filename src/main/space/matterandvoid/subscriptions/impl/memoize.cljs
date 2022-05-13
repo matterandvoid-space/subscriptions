@@ -1,4 +1,4 @@
-(ns space.matterandvoid.subscriptions.impl.shared)
+(ns space.matterandvoid.subscriptions.impl.memoize)
 
 (defn memoize-fn
   "Returns a function which is memoized, with an eviction policy.

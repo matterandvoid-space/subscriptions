@@ -6,7 +6,6 @@
     [com.fulcrologic.fulcro.components :as c]
     [goog.object :as obj]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
-    [space.matterandvoid.subscriptions.impl.shared :refer [memoize-fn]]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
     [space.matterandvoid.subscriptions.impl.subs :as subs]
     [taoensso.timbre :as log]))
@@ -41,12 +40,11 @@
 (defn register-handler!
   "Returns `handler-fn` after associng it in the map."
   [id handler-fn]
-  (log/info "Registering sub: " id)
-  (js/console.log "============Registering sub: " id)
+  ;(log/info "Registering handler: " id)
   (swap! handler-registry_ assoc-in (subs-state-path subs-key id)
     (fn [& args]
-      (log/info "Calling handler with args: " args)
-      (js/console.log "-------------------------------Calling handler with args: " args)
+      ;(log/info "Calling handler with args: " args)
+      ;(js/console.log "-------------------------------Calling handler with args: " args)
       (apply handler-fn args)))
   handler-fn)
 
@@ -61,10 +59,12 @@
 ;; -------------------
 ;; api
 
+(defn set-memoize! [f] (subs/set-memoize! f))
+
 (defn reg-sub
   [query-id & args]
   (apply subs/reg-sub
-    get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup memoize-fn
+    get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
     query-id args))
 
 (defn subscribe

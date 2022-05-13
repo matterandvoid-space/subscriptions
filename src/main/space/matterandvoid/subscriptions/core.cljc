@@ -3,6 +3,7 @@
       [(:require-macros [space.matterandvoid.subscriptions.core])
        (:require [space.matterandvoid.subscriptions.impl.core :as impl])]))
 
+#?(:cljs (defn set-memoize! [f] (impl/set-memoize! f)))
 #?(:cljs
    (defn reg-sub
      "A call to `reg-sub` associates a `query-id` with two functions ->

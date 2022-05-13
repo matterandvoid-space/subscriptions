@@ -1,6 +1,6 @@
 {:deps    {org.clojure/clojure       {:mvn/version "1.11.1" :scope "provided"}
            org.clojure/clojurescript {:mvn/version "1.11.4" :scope "provided"}
-           com.fulcrologic/fulcro    {:mvn/version "3.5.19" :scope "provided"}
+           com.fulcrologic/fulcro    {:mvn/version "3.5.20" :scope "provided"}
            reagent/reagent           {:mvn/version "1.1.1" :scope "provided"}
            com.taoensso/timbre       {:mvn/version "5.2.1"}
            ;; used by tracing
@@ -18,6 +18,7 @@
            :dev
            {:extra-paths ["src/dev" "examples" "public"]
             :extra-deps  {org.slf4j/slf4j-nop  {:mvn/version "2.0.0-alpha7"}
+                          binaryage/devtools   {:mvn/version "1.0.6"}
                           thheller/shadow-cljs {:mvn/version "2.18.0"}}}}}
 
 

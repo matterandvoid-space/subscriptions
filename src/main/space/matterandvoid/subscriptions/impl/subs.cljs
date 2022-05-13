@@ -2,6 +2,7 @@
   (:require
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
+    [taoensso.timbre :as log]
     [space.matterandvoid.subscriptions.impl.trace :as trace :include-macros true]))
 
 ;; -- cache -------------------------------------------------------------------
@@ -55,6 +56,7 @@
 (defn subscribe
   [get-handler cache-lookup get-subscription-cache
    app query]
+  (log/info "subscribe q: " query)
   (assert (vector? query))
   (let [cnt (count query)]
     (assert (or (= 1 cnt) (= 2 cnt)) "Query must contain only one map")
@@ -63,27 +65,28 @@
                      :op-type   :sub/create
                      :tags      {:query-v query}}
     ;(console :info (str "subs. cache-lookup: " query))
-    (if-let [cached (cache-lookup app query)]
-      (do
-        (trace/merge-trace! {:tags {:cached?  true
-                                    :reaction (ratom/reagent-id cached)}})
-        ;(console :info (str "subs. returning cached " query ", " #_(pr-str cached)))
-        cached)
-      (let [query-id   (first query)
-            ;_          (println "query id: " query-id)
-            handler-fn (get-handler query-id)]
-        ;(console :info "DO NOT HAVE CACHED")
-        ;(console :info "handler out: " (handler-fn app query))
-        ;(console :info (str "subs. computing subscription"))
-        (assert handler-fn (str "Subscription handler for the following query is missing\n\n" (pr-str query-id) "\n"))
+    (let [cached (cache-lookup app query)]
+      (if (and (ratom/reactive-context?) cached)
+        (do
+          (trace/merge-trace! {:tags {:cached?  true
+                                      :reaction (ratom/reagent-id cached)}})
+          ;(console :info (str "subs. returning cached " query ", " #_(pr-str cached)))
+          cached)
+        (let [query-id   (first query)
+              ;_          (println "query id: " query-id)
+              handler-fn (get-handler query-id)]
+          ;(console :info "DO NOT HAVE CACHED")
+          ;(console :info "handler out: " (handler-fn app query))
+          ;(console :info (str "subs. computing subscription"))
+          (assert handler-fn (str "Subscription handler for the following query is missing\n\n" (pr-str query-id) "\n"))
 
-        (trace/merge-trace! {:tags {:cached? false}})
-        (if (nil? handler-fn)
-          (do (trace/merge-trace! {:error true})
-              (console :error (str "No subscription handler registered for: " query-id "\n\nReturning a nil subscription.")))
-          (do
-            ;(console :info "Have handler. invoking")
-            (cache-and-return! get-subscription-cache app query (handler-fn app query))))))))
+          (trace/merge-trace! {:tags {:cached? false}})
+          (if (nil? handler-fn)
+            (do (trace/merge-trace! {:error true})
+                (console :error (str "No subscription handler registered for: " query-id "\n\nReturning a nil subscription.")))
+            (do
+              ;(console :info "Have handler. invoking")
+              (cache-and-return! get-subscription-cache app query (handler-fn app query)))))))))
 
 ;; -- reg-sub -----------------------------------------------------------------
 

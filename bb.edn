@@ -39,10 +39,14 @@
   (shell "yarn install")
 
   -write-index.html
-  (write-html (fs/file "public" "dev" "index.html") "/dev/js/dev.js")
+  (do
+    (fs/create-dirs (fs/file "public" "examples"))
+    (write-html (fs/file "public" "dev" "index.html") "/dev/js/dev.js"))
 
   -write-example.html
-  (write-html (fs/file "public" "examples" "index.html") "/examples/js/examples.js")
+  (do
+    (fs/create-dirs (fs/file "public" "examples"))
+    (write-html (fs/file "public" "examples" "index.html") "/examples/js/examples.js"))
 
   dev
   {:depends [yarn-install -write-index.html -write-example.html]

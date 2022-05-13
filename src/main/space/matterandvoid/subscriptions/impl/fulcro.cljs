@@ -170,6 +170,7 @@
   (map-vals (partial <sub this) (get-user-signals-map client-signals-key this)))
 
 (defn reaction-callback* [client-signals-key reaction-key this]
+  (log/info "IN REACTION CB")
   (let [new-signal-values-map (subscribe-and-deref-signals-map client-signals-key this)
         current-signal-values (get-cached-signals-map client-signals-key this)]
     (comment

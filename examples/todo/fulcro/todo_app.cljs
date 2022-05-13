@@ -40,10 +40,14 @@
 
 (def ui-comment (c/computed-factory Comment {:keyfn :comment/id}))
 
-(defsc Todo [this props]
+(defsc Todo [this {:todo/keys [text state completed-at]}]
   {:query         [:todo/id :todo/text :todo/state :todo/completed-at]
    :ident         :todo/id
-   :initial-state (fn [text] (make-todo text))})
+   :initial-state (fn [text] (make-todo text))}
+  (dom/div
+    {}
+    "Todo:" (dom/div text)
+    (dom/div "status: " (pr-str state))))
 
 (def ui-todo (c/computed-factory Todo {:keyfn :todo/id}))
 
@@ -59,10 +63,13 @@
 
 ;; so these sort of subscriptions can be add to defsc macro
 
-(reg-sub :todo/id (fn [_ [_ {:todo/keys [id]}]] id))
+(reg-sub :todo/id (fn [_ [_ {:todo/keys [id]}]]
+                    (log/info ":todo/id " id)
+                    id))
 
 (reg-sub :todo/text
   (fn [db [_ {:todo/keys [id]}]]
+    (log/info ":todo/text")
     (get-in db [:todo/id id :todo/text])))
 
 ;(reg-sub ::habit/record-log-idents
@@ -77,11 +84,9 @@
 ;  (fn [{::habit/keys [record-log]} [_ {::habit/keys [id]}]]
 ;    ;(log/info "computing record log: " record-log)
 ;    record-log))
-
 (reg-sub ::todo
   (fn [app [_ args]]
-    (log/info "::todo db: " app)
-    (log/info "::todo args: " args)
+    (log/info "::todo inputs fn")
     ;(log/info "signas, input: " args)
     ;; so this is the structure to end up with
     ;; it's a tree that mirrors the query - at this level you don't care if a piece of data is a join or not
@@ -89,9 +94,8 @@
     ;; for example - fetching all the record-logs
     {:todo/text (subs/subscribe app [:todo/text args])
      :todo/id   (subs/subscribe app [:todo/id args])})
-  (fn [{:todo/keys [id text] :as input}]
-    (def input' input)
-    (log/info "habit sub input: " input)
+  (fn [{:todo/keys [id] :as input}]
+    (log/info "::todo return: " input)
     (when id
       ;(habit/make-habit input)
       input)
@@ -102,10 +106,10 @@
 
 (defsc TodoList [this props]
   {:ident         (fn [] [:component/id ::todo-list])
-   :query         []
-   ::subs/signals (fn [] {:todos          [::all-todos]
-                          :complete-todos [::complete-todos]})
-   }
+   :query         [:list-id]
+   ::subs/signals (fn [this {:keys [list-id]}]
+                    {:todos          [::todos-list {:list-id list-id}]
+                     :complete-todos [::complete-todos {:list-id list-id}]})}
   (let [{:keys [todos complete-todos]} (subs/signals-map this)]
     (dom/div
       (dom/h1 "Todos")
@@ -113,48 +117,48 @@
 
 (def ui-todo-list (c/computed-factory TodoList))
 
-(defsc TodoList [this {:list/keys [id items filter title] :as props}]
-  {:initial-state {:list/id 1 :ui/new-item-text "" :list/items [] :list/title "main" :list/filter :list.filter/none}
-   :ident         :list/id
-   :query         [:list/id :ui/new-item-text {:list/items (comp/get-query TodoItem)} :list/title :list/filter]}
-  (let [num-todos       (count items)
-        completed-todos (filterv :item/complete items)
-        num-completed   (count completed-todos)
-        all-completed?  (every? :item/complete items)
-        filtered-todos  (case filter
-                          :list.filter/active (filterv (comp not :item/complete) items)
-                          :list.filter/completed completed-todos
-                          items)
-        delete-item     (fn [item-id] (comp/transact! this `[(api/todo-delete-item ~{:list-id id :id item-id})]))]
-    (dom/div {}
-      (dom/section :.todoapp {}
-        (header this title)
-        (when (pos? num-todos)
-          (dom/div {}
-            (dom/section :.main {}
-              (dom/input {:type      "checkbox"
-                          :className "toggle-all"
-                          :checked   all-completed?
-                          :onClick   (fn [] (if all-completed?
-                                              (comp/transact! this `[(api/todo-uncheck-all {:list-id ~id})])
-                                              (comp/transact! this `[(api/todo-check-all {:list-id ~id})])))})
-              (dom/label {:htmlFor "toggle-all"} "Mark all as complete")
-              (dom/ul :.todo-list {}
-                (map #(ui-todo-item % {:delete-item delete-item}) filtered-todos)))
-            #_(filter-footer this num-todos num-completed))))
-      #_(footer-info))))
+;(defsc TodoList [this {:list/keys [id items filter title] :as props}]
+;  {:initial-state {:list/id 1 :ui/new-item-text "" :list/items [] :list/title "main" :list/filter :list.filter/none}
+;   :ident         :list/id
+;   :query         [:list/id :ui/new-item-text {:list/items (comp/get-query TodoItem)} :list/title :list/filter]}
+;  (let [num-todos       (count items)
+;        completed-todos (filterv :item/complete items)
+;        num-completed   (count completed-todos)
+;        all-completed?  (every? :item/complete items)
+;        filtered-todos  (case filter
+;                          :list.filter/active (filterv (comp not :item/complete) items)
+;                          :list.filter/completed completed-todos
+;                          items)
+;        delete-item     (fn [item-id] (comp/transact! this `[(api/todo-delete-item ~{:list-id id :id item-id})]))]
+;    (dom/div {}
+;      (dom/section :.todoapp {}
+;        (header this title)
+;        (when (pos? num-todos)
+;          (dom/div {}
+;            (dom/section :.main {}
+;              (dom/input {:type      "checkbox"
+;                          :className "toggle-all"
+;                          :checked   all-completed?
+;                          :onClick   (fn [] (if all-completed?
+;                                              (comp/transact! this `[(api/todo-uncheck-all {:list-id ~id})])
+;                                              (comp/transact! this `[(api/todo-check-all {:list-id ~id})])))})
+;              (dom/label {:htmlFor "toggle-all"} "Mark all as complete")
+;              (dom/ul :.todo-list {}
+;                (map #(ui-todo-item % {:delete-item delete-item}) filtered-todos)))
+;            #_(filter-footer this num-todos num-completed))))
+;      #_(footer-info))))
 
-(def ui-todo-list (c/factory TodoList))
+;(def ui-todo-list (c/factory TodoList))
 
 ;(defsc Root [this {:keys [todo-list]}]
 ;  {:query [{:todo-list (c/get-query TodoList)}]}
 ;  (dom/div "App:"
 ;    (ui-todo-list todo-list)))
 
-(defsc Root [this {:root/keys [todo]}]
-  {:initial-state {:root/todo {}}
-   :query         [{:root/todo (c/get-query TodoList)}]}
-  (dom/div {} (ui-todo-list todo)))
+(defsc Root [this {:root/keys [list-id]}]
+  {:initial-state {:root/list-id :root/todos}
+   :query         [:root/list-id]}
+  (dom/div {} (ui-todo-list {:list-id list-id})))
 
 (make-todo "one")
 (make-todo "two")
@@ -164,13 +168,78 @@
 (defonce fulcro-app (subs/fulcro-app {:initial-db {}}))
 (defn ^:export ^:dev/after-load init [] (fulcro.app/mount! fulcro-app Root js/app))
 
+
+;; anytime you have a list of idents in fulcro the subscription pattern is to
+;; have input signals that subscribe to layer 2 subscriptions
+
+
+;; db:
+{:root/todos [[:todo/id #uuid"43615860-c746-4891-be66-aeb3c2b4569c"]
+              [:todo/id #uuid"703ecd9c-1ebe-47e2-8ed0-adad1f2642de"]
+              [:todo/id #uuid"db9b8642-2781-42a7-97eb-1f6ed8262834"]
+              [:todo/id #uuid"eba2982b-93c6-4ef5-910d-397054dfa020"]]}
+
+
+
+;; idea:
+;; change design of the library to be:
+;; args passed to an input signals function is always: <storage> <args-map>
+
+;; passed to subscribe is always: (subscribe <storage> <keyword> <args-map>?)
+;; what about in the syntax:
+
+;; I think the 2-tuple is the way to go actually. But you can optimize
+;; don't need to pass the event name to the handlers and input signals fn.
+;(reg-sub ::abc :<- [::subscibe {:args 1}] :<- ::other (fn [db] ) )
+;(reg-sub ::abc :<- ::subscibe {:args 1} :<- ::other (fn [db] ) )
+
+;; never pass the query kw
+
+(defsub list-idents (fn [db [_ {:keys [list-id] :as args}]]
+                      (log/info "list -idents args: " args)
+                      (get db list-id)))
+
+;(reg-sub ::todos-list
+;  (fn [app {:keys [list-id]}]
+;    (.log js/console "HELLO")
+;    (log/info "todos list list id : " list-id)
+;    (let [todo-idents (list-idents app {:list-id list-id})]
+;      (mapv (fn [[_ i]] (subs/subscribe app [::todo {:todo/id i}])) todo-idents)))
+;  (fn [x]
+;    (log/info "::todos-list x: " x)
+;    x))
+
+(reg-sub ::todos-list
+  (fn INPUT [app [_ args]]
+    (log/info "::todos-list args: " args)
+    (let [todo-idents (list-idents app args)]
+      (log/info "todo idents: " todo-idents)
+      (mapv (fn [[_ i]] (subs/subscribe app [::todo {:todo/id i}])) todo-idents))
+    )
+  (fn [x]
+    (log/info "::todos-list x: " x)
+    x))
+
+
+(reg-sub :todo/id2 :-> :root/todos)
 (comment
   (as-> fulcro-app XX
     ;(merge/merge-component! XX Todo (make-todo "helo"))
-    (merge/merge-component! XX Todo (make-todo "helo") :append [:root/todos])
+    (merge/merge-component! XX Todo (make-todo "helo148") :append [:root/todos])
     (fulcro.app/current-state fulcro-app))
 
+  (fulcro.app/current-state fulcro-app)
   (all-todos fulcro-app)
   (complete-todos fulcro-app)
   (incomplete-todos fulcro-app)
+  (subs/<sub fulcro-app [:todo/id2])
+
+
+  (swap! (::fulcro.app/state-atom fulcro-app) update :dan-num inc)
+  ;;
+  (let [id #uuid"36fc7aad-9e72-4763-b30e-9373ea6880aa" ]
+    (swap! (::fulcro.app/state-atom fulcro-app) assoc-in [:todo/id id :todo/text]  "CHANGEd3"))
+
+  (subs/<sub fulcro-app [::list-idents {:list-id :root/todos}])
+  (subs/<sub fulcro-app [::todos-list {:list-id :root/todos}])
   )

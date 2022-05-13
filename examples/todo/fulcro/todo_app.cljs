@@ -40,29 +40,6 @@
 
 (def ui-comment (c/computed-factory Comment {:keyfn :comment/id}))
 
-(defsc Todo [this {:todo/keys [text state completed-at]}]
-  {:query         [:todo/id :todo/text :todo/state :todo/completed-at]
-   :ident         :todo/id
-   :initial-state (fn [text] (make-todo text))}
-  (dom/div
-    {}
-    "Todo:" (dom/div text)
-    (dom/div "status: " (pr-str state))))
-
-(def ui-todo (c/computed-factory Todo {:keyfn :todo/id}))
-
-;; todo copy the example from the fulcro codebase - where a list has an id
-;; this way you can use 'this' in the subscription to get the current value of the list
-;; when computing a subscription and to maintain multiple lists.
-;; with filtering sorting etc handled by one parameterized sub.
-
-
-;; so i'm thinking in this demo all data that is _read_ to draw the UI comes thru subscriptions
-;; the defsc and queries and idents are use for normalization.
-;; don't try to please people using fulcro for other purposes
-
-;; so these sort of subscriptions can be add to defsc macro
-
 (reg-sub :todo/id (fn [_ [_ {:todo/keys [id]}]]
                     (log/info ":todo/id " id)
                     id))
@@ -72,18 +49,6 @@
     (log/info ":todo/text")
     (get-in db [:todo/id id :todo/text])))
 
-;(reg-sub ::habit/record-log-idents
-;  (fn [db [_ {::habit/keys [id]}]]
-;    (get-in db (habit/ident id ::habit/record-log))))
-;
-;(reg-sub ::habit/record-log
-;  (fn [[_ args]]
-;    ;(log/info "computing signals for ::habit/record-log")
-;    {::habit/record-log (mapv #(sub/subscribe SPA [::record-log.subs/record-log (apply hash-map %)])
-;                              (sub/<sub SPA [::habit/record-log-idents args]))})
-;  (fn [{::habit/keys [record-log]} [_ {::habit/keys [id]}]]
-;    ;(log/info "computing record log: " record-log)
-;    record-log))
 (reg-sub ::todo
   (fn [app [_ args]]
     (log/info "::todo inputs fn")
@@ -100,6 +65,52 @@
       ;(habit/make-habit input)
       input)
     ))
+
+(defsc Todo [this props]
+  {:query         [:todo/id :todo/text :todo/state :todo/completed-at]
+   :ident         :todo/id
+   ::subs/signals
+   (fn [this {:todo/keys [id]}]
+     (log/info "in todo signals  " id)
+     {:todo          [::todo {:todo/id id}]})
+
+   :initial-state (fn [text] (make-todo text))}
+  (let [{:keys [todo]} (subs/signals-map this)
+        {:todo/keys [text state completed-at]} todo]
+    (log/info "Rendering todo item: " text)
+    (dom/div
+      {}
+      (dom/div "Todo:" (dom/div text))
+      (dom/div "status: " (pr-str state)))))
+
+(def ui-todo (c/computed-factory Todo {:keyfn :todo/id}))
+
+
+;; todo copy the example from the fulcro codebase - where a list has an id
+;; this way you can use 'this' in the subscription to get the current value of the list
+;; when computing a subscription and to maintain multiple lists.
+;; with filtering sorting etc handled by one parameterized sub.
+
+
+;; so i'm thinking in this demo all data that is _read_ to draw the UI comes thru subscriptions
+;; the defsc and queries and idents are use for normalization.
+;; don't try to please people using fulcro for other purposes
+
+;; so these sort of subscriptions can be add to defsc macro
+
+
+;(reg-sub ::habit/record-log-idents
+;  (fn [db [_ {::habit/keys [id]}]]
+;    (get-in db (habit/ident id ::habit/record-log))))
+;
+;(reg-sub ::habit/record-log
+;  (fn [[_ args]]
+;    ;(log/info "computing signals for ::habit/record-log")
+;    {::habit/record-log (mapv #(sub/subscribe SPA [::record-log.subs/record-log (apply hash-map %)])
+;                              (sub/<sub SPA [::habit/record-log-idents args]))})
+;  (fn [{::habit/keys [record-log]} [_ {::habit/keys [id]}]]
+;    ;(log/info "computing record log: " record-log)
+;    record-log))
 (comment
   (swap! (::fulcro.app/state-atom fulcro-app) assoc-in [:todo/id #uuid"703ecd9c-1ebe-47e2-8ed0-adad1f2642de" :todo/text] "Changed")
   (subs/<sub fulcro-app [::todo {:todo/id #uuid"703ecd9c-1ebe-47e2-8ed0-adad1f2642de"}]))
@@ -108,11 +119,16 @@
   {:ident         (fn [] [:component/id ::todo-list])
    :query         [:list-id]
    ::subs/signals (fn [this {:keys [list-id]}]
+                    (log/info "in todo list subs, list id: " list-id)
                     {:todos          [::todos-list {:list-id list-id}]
                      :complete-todos [::complete-todos {:list-id list-id}]})}
+  (log/info "In TodoList render fn")
   (let [{:keys [todos complete-todos]} (subs/signals-map this)]
+    (def t' todos)
     (dom/div
       (dom/h1 "Todos")
+      (dom/pre (pr-str todos))
+      (dom/hr)
       (map ui-todo todos))))
 
 (def ui-todo-list (c/computed-factory TodoList))
@@ -195,9 +211,10 @@
 
 ;; never pass the query kw
 
-(defsub list-idents (fn [db [_ {:keys [list-id] :as args}]]
-                      (log/info "list -idents args: " args)
-                      (get db list-id)))
+(defsub list-idents
+  (fn [db [_ {:keys [list-id] :as args}]]
+    (log/info "list -idents args: " args)
+    (get db list-id)))
 
 ;(reg-sub ::todos-list
 ;  (fn [app {:keys [list-id]}]
@@ -212,7 +229,10 @@
 (reg-sub ::todos-list
   (fn INPUT [app [_ args]]
     (log/info "::todos-list args: " args)
-    (let [todo-idents (list-idents app args)]
+    (let [todo-idents
+          (get-in @(::fulcro.app/state-atom app) [(:list-id args)])
+          ;(list-idents app args)
+          ]
       (log/info "todo idents: " todo-idents)
       (mapv (fn [[_ i]] (subs/subscribe app [::todo {:todo/id i}])) todo-idents))
     )
@@ -225,7 +245,7 @@
 (comment
   (as-> fulcro-app XX
     ;(merge/merge-component! XX Todo (make-todo "helo"))
-    (merge/merge-component! XX Todo (make-todo "helo148") :append [:root/todos])
+    (merge/merge-component! XX Todo (make-todo "helo199") :append [:root/todos])
     (fulcro.app/current-state fulcro-app))
 
   (fulcro.app/current-state fulcro-app)
@@ -237,8 +257,11 @@
 
   (swap! (::fulcro.app/state-atom fulcro-app) update :dan-num inc)
   ;;
-  (let [id #uuid"36fc7aad-9e72-4763-b30e-9373ea6880aa" ]
-    (swap! (::fulcro.app/state-atom fulcro-app) assoc-in [:todo/id id :todo/text]  "CHANGEd3"))
+
+  (let [id
+        (-> (fulcro.app/current-state fulcro-app) :todo/id keys first)
+        ]
+    (swap! (::fulcro.app/state-atom fulcro-app) assoc-in [:todo/id id :todo/text]  "XHANGEd4"))
 
   (subs/<sub fulcro-app [::list-idents {:list-id :root/todos}])
   (subs/<sub fulcro-app [::todos-list {:list-id :root/todos}])

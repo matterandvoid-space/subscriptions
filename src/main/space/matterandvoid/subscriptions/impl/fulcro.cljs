@@ -260,5 +260,7 @@
                                (set-subscription-signals-values-map! client-signals-key this
                                  (subscribe-and-deref-signals-map client-signals-key this))
                                (client-render this)) this reaction-key
-        (fn reactive-run [_] (reaction-callback* client-signals-key reaction-key this))
+        (fn reactive-run [_]
+          (log/info "IN reactive run")
+          (reaction-callback* client-signals-key reaction-key this))
         {:no-cache true}))))

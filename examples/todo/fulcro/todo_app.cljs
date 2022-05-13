@@ -1,6 +1,7 @@
 (ns todo.fulcro.todo-app
   (:require
     [com.fulcrologic.fulcro.application :as fulcro.app]
+    [com.fulcrologic.fulcro.mutations :as mut :refer [defmutation]]
     [com.fulcrologic.fulcro.algorithms.merge :as merge]
     [com.fulcrologic.fulcro.dom :as dom]
     [space.matterandvoid.subscriptions.fulcro :as subs :refer [defsc defsub reg-sub]]
@@ -66,7 +67,7 @@
       input)
     ))
 
-(defsc Todo [this props]
+(defsc Todo [this {:todo/keys [id text state]}]
   {:query         [:todo/id :todo/text :todo/state :todo/completed-at]
    :ident         :todo/id
    ::subs/signals
@@ -75,8 +76,10 @@
      {:todo          [::todo {:todo/id id}]})
 
    :initial-state (fn [text] (make-todo text))}
-  (let [{:keys [todo]} (subs/signals-map this)
-        {:todo/keys [text state completed-at]} todo]
+  (let [
+        ;{:keys [todo]} (subs/signals-map this)
+        ;{:todo/keys [text state completed-at]} todo
+        ]
     (log/info "Rendering todo item: " text)
     (dom/div
       {}
@@ -242,6 +245,14 @@
 
 
 (reg-sub :todo/id2 :-> :root/todos)
+
+(defmutation change-todo-text
+  [{:keys [id text]}]
+  (action [{:keys [state]}]
+    (swap! state assoc-in [:todo/id id :todo/text] text)))
+
+(defn change-todo-text! [this args] (c/transact! this [(change-todo-text args)]))
+
 (comment
   (as-> fulcro-app XX
     ;(merge/merge-component! XX Todo (make-todo "helo"))
@@ -257,10 +268,14 @@
 
   (swap! (::fulcro.app/state-atom fulcro-app) update :dan-num inc)
   ;;
+  ;; okayyyyyyyyyyyyyyyyyyyy
+  ;; this works
+  (let [id (-> (fulcro.app/current-state fulcro-app) :todo/id keys first)]
+    (change-todo-text! fulcro-app {:id id :text "CHANFDSKLFJE"}))
 
-  (let [id
-        (-> (fulcro.app/current-state fulcro-app) :todo/id keys first)
-        ]
+  ;; This will only work if the leaf component is rendered via a subscription
+  ;; whereas if you use
+  (let [id (-> (fulcro.app/current-state fulcro-app) :todo/id keys first)]
     (swap! (::fulcro.app/state-atom fulcro-app) assoc-in [:todo/id id :todo/text]  "XHANGEd4"))
 
   (subs/<sub fulcro-app [::list-idents {:list-id :root/todos}])

@@ -163,7 +163,7 @@
                                  ;; an incorrect keyword was passed
                                  (console :error err-header "expected :-> or :=> as second to last argument, got:" op)))))
         _                       (assert (ifn? computation-fn) "Last arg should be function - your computation function.")
-        memoized-computation-fn computation-fn ;(memoize-fn computation-fn)
+        memoized-computation-fn (memoize-fn computation-fn)
 
         err-header              (str "space.matterandvoid.subscriptions: reg-sub for " query-id ", ")
         inputs-fn               (case (count input-args)

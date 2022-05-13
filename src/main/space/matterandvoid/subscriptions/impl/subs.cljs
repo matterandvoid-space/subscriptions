@@ -56,9 +56,10 @@
   [get-handler cache-lookup get-subscription-cache
    app query]
   (assert (vector? query))
-  (let [cnt (count query)]
-    (assert (or (= 1 cnt) (= 2 cnt)) "Query must contain only one map")
-    (if (= 2 cnt) (assert (map? (get query 1)) "Args to the query vector must be one map.")))
+  (let [cnt (count query)
+        kw (first query)]
+    (assert (or (= 1 cnt) (= 2 cnt)) (str "Query must contain only one map for subscription " kw))
+    (when (= 2 cnt) (assert (map? (get query 1)) (str "Args to the query vector must be one map for subscription " kw))))
   (trace/with-trace {:operation (first query)
                      :op-type   :sub/create
                      :tags      {:query-v query}}
@@ -117,19 +118,22 @@
   (map-signals deref signals))
 
 (defn make-subs-reaction
+  "This is where the inputs-fn is executed and
+  the computation is put inside a reaction - ie a callback for later invocation when subscribe is called and derefed."
   [inputs-fn computation-fn query-id]
   (fn subs-handler-fn
     [app query-vec]
-    (let [subscriptions (inputs-fn app query-vec)
+    (let [[kw args] query-vec
+          subscriptions (inputs-fn app args)
           reaction-id   (atom nil)
           reaction      (ratom/make-reaction
                           (fn []
-                            (trace/with-trace {:operation (first query-vec)
+                            (trace/with-trace {:operation kw
                                                :op-type   :sub/run
                                                :tags      {:query-v  query-vec
                                                            :reaction @reaction-id}}
 
-                              (let [subscription-output (computation-fn (deref-input-signals subscriptions query-id) query-vec)]
+                              (let [subscription-output (computation-fn (deref-input-signals subscriptions query-id) args)]
                                 (trace/merge-trace! {:tags {:value subscription-output}})
                                 subscription-output))))]
       (reset! reaction-id (ratom/reagent-id reaction))
@@ -153,10 +157,6 @@
                                  ;;  on the input signal, removing the query vector
                                  :-> [args (fn [db _] (f db))]
 
-                                 ;; return a function that calls the computation fn
-                                 ;;  on the input signal and the data in the query vector
-                                 ;;  that is not the query-id
-                                 :=> [args (fn [db [_ & qs]] (apply f db qs))]
                                  ;; an incorrect keyword was passed
                                  (console :error err-header "expected :-> or :=> as second to last argument, got:" op)))))
         _                       (assert (ifn? computation-fn) "Last arg should be function - your computation function.")

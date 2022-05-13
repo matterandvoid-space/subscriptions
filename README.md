@@ -60,19 +60,21 @@ The changes are:
 This is possible because subscriptions are pure functions and the layer 2 accessor subscriptions will invalidate when a new value 
 for app-db is `reset!`.
 
+## Only one map for all queries
+
 Another change in this library is that all subscriptions are forced to receive only one argument: a hashmap.
 
 Taking a tip from many successful clojure projects which are able to be extended and grown and integrated over time,
-this library forces all subscriptions arguments to be one hashmap - this forces you to name all your arguments and allows
+(as well as dealing with multiple subscription argument styles in a large re-frame app and attempting to refactor them..)
+This library forces all subscriptions arguments to be one hashmap - this forces you to name all your arguments and allows
 easily flowing data. It also encourages the use of fully qualified keywords.
 
-This format is also know as "variants":
+This format of a 2-tuple with a tag as the first element and data as the second shows up in lots of places, here is 
+a great talk about modeling information this way by Jeanine Adkisson from the 2014 Conj:
 
-Jeanine Adkisson - Variants are Not Unions
+[Jeanine Adkisson - Variants are Not Unions](https://www.youtube.com/watch?v=ZQkIWWTygio)
 
-https://www.youtube.com/watch?v=ZQkIWWTygio
-
-That is, they must look like this:
+Concretely, all subscribe calls must have this shape::
 
 ```clojure
 (subscribe [::my-sub {:arg1 5}])
@@ -84,6 +86,53 @@ Doing this will throw an exception:
 ;; or this
 (subscribe [::my-sub "anything that is not a hashmap"])
 ```
+
+## Event keyword is never passed to any callbacks
+
+I'm sure you may notice if you've used re-frame before that the query id is never used in actual code - neither to 
+produce the input signals, or in the computation function.
+
+This library removes another point where a decision has to be made about how the callbacks will be called - they are 
+always passed the source of your data (usually a ratom) and the query args.
+
+Here's an example where we query for a list of todos, where the data is normalized
+
+```clojure
+(defonce db_ (reageent.ratom/atom {:list-one [#uuid"c906f43e-b91d-464d-88cb-0c54988ee847"
+                                              #uuid"62864412-d146-4111-b339-8fb3f5f5d236"]
+                                   :todo/id {#uuid"c906f43e-b91d-464d-88cb-0c54988ee847" #:todo{:id #uuid"c906f43e-b91d-464d-88cb-0c54988ee847",
+                                                                                               :text "todo1",
+                                                                                               :state :incomplete},
+                                            #uuid"62864412-d146-4111-b339-8fb3f5f5d236" #:todo{:id #uuid"62864412-d146-4111-b339-8fb3f5f5d236",
+                                                                                               :text "todo2",
+                                                                                               :state :incomplete},
+                                            #uuid"f4aa3501-0922-47a5-8579-70a4f3b1398b" #:todo{:id #uuid"f4aa3501-0922-47a5-8579-70a4f3b1398b",
+                                                                                               :text "todo3",
+                                                                                               :state :incomplete}}}))
+(reg-sub ::item-ids #(get %1 (:list-id %2)))
+
+(reg-sub ::todos-list
+  (fn [ratom {:keys [list-id]}] ;; <-- here we don't need useless vector destructuring.
+    (let [todo-ids (subs/<sub ratom [::item-ids {:list-id list-id}])]
+      (mapv (fn [id] (subs/subscribe ratom [::todo {:todo/id id}])) todo-ids)))
+  identity)
+
+(subs/<sub db_ [::todos-list {:list-id :list-one}])
+```
+And the same thing for layer 2:
+
+```clojure
+(reg-sub ::todo-text 
+  (fn [db {:todo/keys [id]}]  ;; <-- for layer 2 you are just passed the args
+    (get-in db [:todo/id id :todo/text])))
+
+(subs/<sub db_ [::todo-text {:todo-id #uuid"f4aa3501-0922-47a5-8579-70a4f3b1398b"}])
+```
+
+If you _really_ need the query id you can just assoc it onto the args map. One less thing to worry about.
+
+This style also means there is no need for the `:=>` syntax sugar (but `:->` is still useful for functions that only need
+to operate on the db).
 
 ## `defsub` macro
 

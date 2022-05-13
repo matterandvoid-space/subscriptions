@@ -127,6 +127,20 @@ So:
   hiding a subscription dependency - so refactor it to be another subscription, this way your compute graph will recompute
   correctly when dependent data changes.
 
+## Do not use swap!
+
+In short: always mutate the fulcro state atom as usual: you must use `transact!` to have your UI stay up to date.
+
+For the best integration the fulcro rule applies: pretend there is no watch on the fulcro state atom.
+
+You're going to have a bad time if you try to use `swap!` because fulcro caches a component's props on the component insntance
+so if a parent component uses a subscription but it does not and instead renders its props - its parent will refresh 
+via the reaction firing, but the leaf/child will not because fulcro is rendering its cached props
+
+TODO:
+
+show an example of what this looks like
+
 # No hooks support
 
 This library currently only supports integrating with fulcro components which produce JavaScript React class components.

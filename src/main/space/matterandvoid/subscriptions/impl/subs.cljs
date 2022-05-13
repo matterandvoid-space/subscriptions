@@ -2,6 +2,7 @@
   (:require
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
+    [taoensso.timbre :as log]
     [space.matterandvoid.subscriptions.impl.trace :as trace :include-macros true]))
 
 ;; -- cache -------------------------------------------------------------------
@@ -31,21 +32,21 @@
       ;(console :debug "cache-and-return!" #_subscription-cache)
       ;; when this reaction is no longer being used, remove it from the cache
       (ratom/add-on-dispose! reaction #(trace/with-trace {:operation (first query-v)
-                                                    :op-type   :sub/dispose
-                                                    :tags      {:query-v  query-v
-                                                                :reaction (ratom/reagent-id reaction)}}
-                                   (swap! subscription-cache
-                                     (fn [query-cache]
-                                       (if (and (contains? query-cache cache-key) (identical? reaction (get query-cache cache-key)))
-                                         (dissoc query-cache cache-key)
-                                         query-cache)))))
+                                                          :op-type   :sub/dispose
+                                                          :tags      {:query-v  query-v
+                                                                      :reaction (ratom/reagent-id reaction)}}
+                                         (swap! subscription-cache
+                                           (fn [query-cache]
+                                             (if (and (contains? query-cache cache-key) (identical? reaction (get query-cache cache-key)))
+                                               (dissoc query-cache cache-key)
+                                               query-cache)))))
       ;; cache this reaction, so it can be used to deduplicate other, later "=" subscriptions
       (swap! subscription-cache (fn [query-cache]
                                   (when ratom/debug-enabled?
                                     (when (contains? query-cache cache-key)
                                       (console :warn "re-frame: Adding a new subscription to the cache while there is an existing subscription in the cache" cache-key)))
-                                  ;(console :info "ABOUT TO ASSOC , cache key: " cache-key)
-                                  ;(console :info "ABOUT TO ASSOC , cache is : " query-cache)
+                                  (console :info "ABOUT TO ASSOC , cache key: " cache-key)
+                                  (console :info "ABOUT TO ASSOC , cache is : " query-cache)
                                   (assoc query-cache cache-key reaction)))
       (trace/merge-trace! {:tags {:reaction (ratom/reagent-id reaction)}})))
   reaction)
@@ -57,34 +58,36 @@
    app query]
   (assert (vector? query))
   (let [cnt (count query)
-        kw (first query)]
-    (assert (or (= 1 cnt) (= 2 cnt)) (str "Query must contain only one map for subscription " kw))
-    (when (= 2 cnt) (assert (map? (get query 1)) (str "Args to the query vector must be one map for subscription " kw))))
-  (trace/with-trace {:operation (first query)
-                     :op-type   :sub/create
-                     :tags      {:query-v query}}
-    ;(console :info (str "subs. cache-lookup: " query))
-    (if-let [cached (cache-lookup app query)]
-      (do
-        (trace/merge-trace! {:tags {:cached?  true
-                                    :reaction (ratom/reagent-id cached)}})
-        ;(console :info (str "subs. returning cached " query ", " #_(pr-str cached)))
-        cached)
-      (let [query-id   (first query)
-            ;_          (println "query id: " query-id)
-            handler-fn (get-handler query-id)]
-        ;(console :info "DO NOT HAVE CACHED")
-        ;(console :info "handler out: " (handler-fn app query))
-        ;(console :info (str "subs. computing subscription"))
-        (assert handler-fn (str "Subscription handler for the following query is missing\n\n" (pr-str query-id) "\n"))
-
-        (trace/merge-trace! {:tags {:cached? false}})
-        (if (nil? handler-fn)
-          (do (trace/merge-trace! {:error true})
-              (console :error (str "No subscription handler registered for: " query-id "\n\nReturning a nil subscription.")))
+        [query-id args] query]
+    (assert (or (= 1 cnt) (= 2 cnt)) (str "Query must contain only one map for subscription " query-id))
+    (when (= 2 cnt) (assert (map? (get query 1)) (str "Args to the query vector must be one map for subscription " query-id)))
+    (js/console.log "SUBSCRIBE called: " query)
+    (trace/with-trace {:operation (first query)
+                       :op-type   :sub/create
+                       :tags      {:query-v query}}
+      ;(console :info (str "subs. cache-lookup: " query))
+      (let [cached (cache-lookup app query)]
+        (if (and true #_(ratom/reactive-context?) cached)
           (do
-            ;(console :info "Have handler. invoking")
-            (cache-and-return! get-subscription-cache app query (handler-fn app query))))))))
+            (trace/merge-trace! {:tags {:cached?  true
+                                        :reaction (ratom/reagent-id cached)}})
+            (log/info "CACHED")
+            (console :info (str "subs. returning cached " query ", " #_(pr-str cached)))
+            cached)
+          (let [handler-fn (get-handler query-id)]
+            (console :info "DO NOT HAVE CACHED")
+            (console :info "handler out: " (handler-fn app query))
+            (console :info (str "subs. computing subscription"))
+            (assert handler-fn (str "Subscription handler for the following query is missing\n\n" (pr-str query-id) "\n"))
+
+            (trace/merge-trace! {:tags {:cached? false}})
+            (if (nil? handler-fn)
+              (do (trace/merge-trace! {:error true})
+                  (console :error (str "No subscription handler registered for: " query-id "\n\nReturning a nil subscription.")))
+              (do
+                (js/console.log "SUBSCRIBE")
+                (js/console.log "Have handler. invoking with args: " args)
+                (cache-and-return! get-subscription-cache app query (handler-fn app args))))))))))
 
 ;; -- reg-sub -----------------------------------------------------------------
 
@@ -122,15 +125,15 @@
   the computation is put inside a reaction - ie a callback for later invocation when subscribe is called and derefed."
   [inputs-fn computation-fn query-id]
   (fn subs-handler-fn
-    [app query-vec]
-    (let [[kw args] query-vec
-          subscriptions (inputs-fn app args)
+    [app args]
+    (js/console.log "subs-handler-fn args: " args)
+    (let [subscriptions (inputs-fn app args)
           reaction-id   (atom nil)
           reaction      (ratom/make-reaction
                           (fn []
-                            (trace/with-trace {:operation kw
+                            (trace/with-trace {:operation query-id
                                                :op-type   :sub/run
-                                               :tags      {:query-v  query-vec
+                                               :tags      {:query-v  [query-id args]
                                                            :reaction @reaction-id}}
 
                               (let [subscription-output (computation-fn (deref-input-signals subscriptions query-id) args)]
@@ -185,7 +188,7 @@
 
                                   ;; a single `inputs` fn
                                   1 (let [f (first input-args)]
-                                      ;(console :info "CASE 1")
+                                      (console :info "CASE 1")
                                       (when-not (fn? f)
                                         (console :error err-header "2nd argument expected to be an inputs function, got:" f))
                                       f)
@@ -209,5 +212,6 @@
                                     (fn inp-fn
                                       ([app] (map #(subscribe get-handler cache-lookup get-subscription-cache app %) vecs))
                                       ([app _] (map #(subscribe get-handler cache-lookup get-subscription-cache app %) vecs)))))]
-    (console :info "registering subscription: " query-id)
+    (js/console.log "registering subscription: " query-id)
+    (js/console.log "input args: " input-args)
     (register-handler! query-id (make-subs-reaction inputs-fn memoized-computation-fn query-id))))

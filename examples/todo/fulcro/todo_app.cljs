@@ -40,10 +40,14 @@
 
 (def ui-comment (c/computed-factory Comment {:keyfn :comment/id}))
 
-(defsc Todo [this props]
+(defsc Todo [this {:todo/keys [text state completed-at]}]
   {:query         [:todo/id :todo/text :todo/state :todo/completed-at]
    :ident         :todo/id
-   :initial-state (fn [text] (make-todo text))})
+   :initial-state (fn [text] (make-todo text))}
+  (dom/div
+    {}
+    "Todo:" (dom/div text)
+    (dom/div "status: " (pr-str state))))
 
 (def ui-todo (c/computed-factory Todo {:keyfn :todo/id}))
 
@@ -102,10 +106,10 @@
 
 (defsc TodoList [this props]
   {:ident         (fn [] [:component/id ::todo-list])
-   :query         []
-   ::subs/signals (fn [] {:todos          [::all-todos]
-                          :complete-todos [::complete-todos]})
-   }
+   :query         [:list-id]
+   ::subs/signals (fn [this {:keys [list-id]}]
+                    {:todos          [::todos-list {:list-id list-id}]
+                     :complete-todos [::complete-todos {:list-id list-id}]})}
   (let [{:keys [todos complete-todos]} (subs/signals-map this)]
     (dom/div
       (dom/h1 "Todos")
@@ -151,10 +155,10 @@
 ;  (dom/div "App:"
 ;    (ui-todo-list todo-list)))
 
-(defsc Root [this {:root/keys [todo]}]
-  {:initial-state {:root/todo {}}
-   :query         [{:root/todo (c/get-query TodoList)}]}
-  (dom/div {} (ui-todo-list todo)))
+(defsc Root [this {:root/keys [list-id]}]
+  {:initial-state {:root/list-id :root/todos}
+   :query         [:root/list-id]}
+  (dom/div {} (ui-todo-list {:list-id list-id})))
 
 (make-todo "one")
 (make-todo "two")
@@ -175,9 +179,7 @@
               [:todo/id #uuid"db9b8642-2781-42a7-97eb-1f6ed8262834"]
               [:todo/id #uuid"eba2982b-93c6-4ef5-910d-397054dfa020"]]}
 
-(defsub list-idents (fn [db {:keys [list-id] :as args}]
-                      (log/info "list -idents args: " args)
-                      (get db list-id)))
+
 
 ;; idea:
 ;; change design of the library to be:
@@ -193,12 +195,31 @@
 
 ;; never pass the query kw
 
+(defsub list-idents (fn [db {:keys [list-id] :as args}]
+                      (log/info "list -idents args: " args)
+                      (get db list-id)))
+
+;(reg-sub ::todos-list
+;  (fn [app {:keys [list-id]}]
+;    (.log js/console "HELLO")
+;    (log/info "todos list list id : " list-id)
+;    (let [todo-idents (list-idents app {:list-id list-id})]
+;      (mapv (fn [[_ i]] (subs/subscribe app [::todo {:todo/id i}])) todo-idents)))
+;  (fn [x]
+;    (log/info "::todos-list x: " x)
+;    x))
+
 (reg-sub ::todos-list
-  (fn [app {:keys [list-id]}]
-    (log/info "todos list list id : " list-id)
-    (let [todo-idents (list-idents app {:list-id list-id})]
-      (mapv (fn [[_ i]] (subs/subscribe app [::todo {:todo/id i}])) todo-idents)))
-  identity)
+  (fn INPUT [app args]
+    (log/info "::todos-list args: " args)
+    (let [todo-idents (list-idents app {:list-id :list-id})]
+      (log/info "todo idents: " todo-idents)
+      (mapv (fn [[_ i]] (subs/subscribe app [::todo {:todo/id i}])) todo-idents))
+    )
+  (fn [x]
+    (log/info "::todos-list x: " x)
+    x))
+
 
 (reg-sub :todo/id2 :-> :root/todos)
 (comment
@@ -212,5 +233,7 @@
   (complete-todos fulcro-app)
   (incomplete-todos fulcro-app)
   (subs/<sub fulcro-app [:todo/id2])
+
+  (subs/<sub fulcro-app [::list-idents {:list-id :root/todos}])
   (subs/<sub fulcro-app [::todos-list {:list-id :root/todos}])
   )

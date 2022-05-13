@@ -41,7 +41,13 @@
 (defn register-handler!
   "Returns `handler-fn` after associng it in the map."
   [id handler-fn]
-  (swap! handler-registry_ assoc-in (subs-state-path subs-key id) (fn [& args] (apply handler-fn args)))
+  (log/info "Registering sub: " id)
+  (js/console.log "============Registering sub: " id)
+  (swap! handler-registry_ assoc-in (subs-state-path subs-key id)
+    (fn [& args]
+      (log/info "Calling handler with args: " args)
+      (js/console.log "-------------------------------Calling handler with args: " args)
+      (apply handler-fn args)))
   handler-fn)
 
 (defn clear-handlers

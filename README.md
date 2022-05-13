@@ -87,7 +87,7 @@ Doing this will throw an exception:
 (subscribe [::my-sub "anything that is not a hashmap"])
 ```
 
-## Event keyword is never passed to any callbacks
+## Subscription keyword is never passed to any callbacks
 
 I'm sure you may notice if you've used re-frame before that the query id is never used in actual code - neither to 
 produce the input signals, or in the computation function.

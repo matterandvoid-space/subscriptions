@@ -11,13 +11,7 @@
 
 (sut/defsub sub2 :-> :sub2)
 
-(def schema {:todo/tags {:db/cardinality :db.cardinality/many}
-             ;:todo/id   {:db/valueType :db.type/ref}
-             ;:todo/text {:db/valueType :db.type/string}
-             :todo/id   {:db/unique :db.unique/identity}
-             :todo/done {:db/index true}
-             :todo/due  {:db/index true}})
-
+(def schema {:todo/id {:db/unique :db.unique/identity}})
 (defonce conn (d/create-conn schema))
 (defonce dscript-db_ (ratom/atom (d/db conn)))
 (comment @dscript-db_)
@@ -56,9 +50,6 @@
         (log/info "compute all todos")
         (d/q '[:find [(pull ?e [*]) ...] :where [?e :todo/id]] db)))
 
-;(sut/defsub last-tx
-;  (fn [conn] (d/q '[:find [(pull ?e [*]) ...] :where [?e :todo/id]] (d/db conn)))
-;  )
 (sut/defsub sorted-todos :<- [::all-todos] :-> (partial sort-by :todo/text))
 (sut/defsub rev-sorted-todos :<- [::sorted-todos] :-> reverse)
 (sut/defsub sum-lists :<- [::all-todos] :<- [::rev-sorted-todos] :-> (partial mapv count))

@@ -45,8 +45,11 @@
 
   -write-example.html
   (do
-    (fs/create-dirs (fs/file "public" "examples"))
-    (write-html (fs/file "public" "examples" "index.html") "/examples/js/examples.js"))
+    (fs/create-dirs (fs/file "public" "fulcro-example"))
+    (write-html (fs/file "public" "fulcro-example" "index.html") "/fulcro-example/js/fulcro-example.js")
+
+    (fs/create-dirs (fs/file "public" "reagent-datascript-example"))
+    (write-html (fs/file "public" "reagent-datascript-example" "index.html") "/reagent-datascript-example/js/reagent-datascript-example.js"))
 
   dev
   {:depends [yarn-install -write-index.html -write-example.html]

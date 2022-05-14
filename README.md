@@ -22,11 +22,47 @@ The difference from upstream is when you invoke `(subscribe)` you pass in the ro
 
 # Examples
 
-Todo copy things from tests for datascript and for a plain hashmap.
+See the `examples` directory in the repo and shadow-cljs.edn for the builds if you clone the repo you 
+can run them locally.
 
 ## Use with a hashmap
 
 ## Use with datascript
+
+```clojure 
+(def schema {:todo/id {:db/unique :db.unique/identity}})
+(defonce conn (d/create-conn schema))
+(defonce dscript-db_ (ratom/atom (d/db conn)))
+
+(defn make-todo [id text] {:todo/id id :todo/text text})
+(def todo1 (make-todo #uuid"6848eac7-245c-4c5c-b932-8525279d4f0a" "todo1"))
+(def todo2 (make-todo #uuid"b13319dd-3200-40ec-b8ba-559e404f9aa5" "todo2"))
+
+;; This is the main thing to notice - by changing the ratom, any views subscribing to 
+;; the data will upate
+
+(defn transact! [conn data]
+  (d/transact! conn data)
+  (reset! dscript-db_ (d/db conn)))
+  
+(transact! conn [todo1 todo2])
+
+(defsub all-todos 
+  :-> (fn [db] (d/q '[:find [(pull ?e [*]) ...] :where [?e :todo/id]] db)))
+
+(sut/defsub sorted-todos :<- [::all-todos] :-> (partial sort-by :todo/text))
+(sut/defsub rev-sorted-todos :<- [::sorted-todos] :-> reverse)
+(sut/defsub sum-lists :<- [::all-todos] :<- [::rev-sorted-todos] :-> (partial mapv count))
+
+;; if you were to use these inside a reagent view the view will re-render when the data changes.
+(all-todos dscript-db_)
+(sorted-todos dscript-db_)
+(rev-sorted-todos dscript-db_)
+
+;; use the transact helper to ensure the ratom is updated as well as the db
+
+(transact! conn [(make-todo (random-uuid) "another todo")])
+```
 
 # Differences/modifications from upstream re-frame
 

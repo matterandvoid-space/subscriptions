@@ -82,15 +82,15 @@
     "Todo:" (dom/div text)
     (dom/div "status: " (pr-str state))))
 
-(reg-sub :todo/id (fn [_ [_ {:todo/keys [id]}]] (log/info ":todo/id " id) id))
+(reg-sub :todo/id (fn [_ {:todo/keys [id]}] (log/info ":todo/id " id) id))
 
 (reg-sub :todo/text
-  (fn [db [_ {:todo/keys [id]}]]
+  (fn [db {:todo/keys [id]}]
     (log/info ":todo/text")
     (get-in db [:todo/id id :todo/text])))
 
 (reg-sub ::todo
-  (fn [app [_ args]]
+  (fn [app args]
     (log/info "::todo inputs fn")
     ;(log/info "signas, input: " args)
     ;; so this is the structure to end up with
@@ -109,21 +109,12 @@
 (defsc Todo [this {:todo/keys [id text state]}]
   {:query         [:todo/id :todo/text :todo/state :todo/completed-at]
    :ident         :todo/id
-   ::subs/signals
-   (fn [this {:todo/keys [id]}]
-     (log/info "in todo signals  " id)
-     {:todo          [::todo {:todo/id id}]})
-
    :initial-state (fn [text] (make-todo text))}
-  (let [
-        ;{:keys [todo]} (subs/signals-map this)
-        ;{:todo/keys [text state completed-at]} todo
-        ]
-    (log/info "Rendering todo item: " text)
-    (dom/div
-      {}
-      (dom/div "Todo:" (dom/div text))
-      (dom/div "status: " (pr-str state)))))
+  (log/info "Rendering todo item: " text)
+  (dom/div
+    {}
+    (dom/div "Todo:" (dom/div text))
+    (dom/div "status: " (pr-str state))))
 
 (def ui-todo (c/computed-factory Todo {:keyfn :todo/id}))
 
@@ -170,6 +161,7 @@
       (dom/pre (pr-str todos))
       (dom/hr)
       (map ui-todo todos))))
+
 (def ui-todo-list (c/computed-factory TodoList))
 
 ;(defsc TodoList [this {:list/keys [id items filter title] :as props}]
@@ -273,20 +265,26 @@
 (reg-sub :todo/id2 :-> :root/todos)
 
 (comment
+  (def rr (r/make-reaction (fn [] (log/info "in reaction"))))
   (as-> fulcro-app XX
     ;(merge/merge-component! XX Todo (make-todo "helo"))
-    (merge/merge-component! XX Todo (make-todo "helo19") :append [:root/todos])
+    (merge/merge-component! XX Todo (make-todo "helo29") :append [:root/todos])
     (fulcro.app/current-state fulcro-app))
 
   (swap! (::fulcro.app/state-atom fulcro-app) update :dan-num inc)
   ;;
-  (let [id  #uuid"18ee1d24-6d71-4e49-927f-8fc04b42ce03"]
-    (swap! (::fulcro.app/state-atom fulcro-app) assoc-in [:todo/id id :todo/text]  "CHANGEd"))
+  ;; okayyyyyyyyyyyyyyyyyyyy
+  ;; this works
+  (let [id (-> (fulcro.app/current-state fulcro-app) :todo/id keys first)]
+    (change-todo-text! fulcro-app {:id id :text "XHANGEd8"}))
 
-  (as-> fulcro-app XX
-    ;(merge/merge-component! XX Todo (make-todo "helo"))
-    (merge/merge-component! XX Todo (make-todo "helo199") :append [:root/todos])
-    (fulcro.app/current-state fulcro-app))
+  ;; This will only work if the leaf component is rendered via a subscription
+  ;; whereas if you use
+  (let [id (-> (fulcro.app/current-state fulcro-app) :todo/id keys first)]
+    (swap! (::fulcro.app/state-atom fulcro-app) assoc-in [:todo/id id :todo/text] "XHANGEd4"))
+
+  (subs/<sub fulcro-app [::list-idents {:list-id :root/todos}])
+  (subs/<sub fulcro-app [::todos-list {:list-id :root/todos}])
 
   (fulcro.app/current-state fulcro-app)
   (all-todos fulcro-app)
@@ -294,26 +292,4 @@
   (incomplete-todos fulcro-app)
   (subs/<sub fulcro-app [:todo/id2])
 
-  (subs/<sub fulcro-app [::list-idents {:list-id :root/todos}])
-  (subs/<sub fulcro-app [::todos-list {:list-id :root/todos}])
-  )
-(def rr
-  (r/make-reaction (fn [] (log/info "in reaction"))))
-
-(comment
-
-  (swap! (::fulcro.app/state-atom fulcro-app) update :dan-num inc)
-  ;;
-  ;; okayyyyyyyyyyyyyyyyyyyy
-  ;; this works
-  (let [id (-> (fulcro.app/current-state fulcro-app) :todo/id keys first)]
-    (change-todo-text! fulcro-app {:id id :text "CHANFDSKLFJE"}))
-
-  ;; This will only work if the leaf component is rendered via a subscription
-  ;; whereas if you use
-  (let [id (-> (fulcro.app/current-state fulcro-app) :todo/id keys first)]
-    (swap! (::fulcro.app/state-atom fulcro-app) assoc-in [:todo/id id :todo/text]  "XHANGEd4"))
-
-  (subs/<sub fulcro-app [::list-idents {:list-id :root/todos}])
-  (subs/<sub fulcro-app [::todos-list {:list-id :root/todos}])
   )

@@ -19,7 +19,9 @@
     [com.fulcrologic.guardrails.core :refer [>def]]
     [clojure.walk :refer [prewalk]]))
 
-(defn- build-render [classsym thissym propsym compsym extended-args-sym body]
+(defn- build-render
+  "This functions runs the render body in a reagent Reaction."
+  [classsym thissym propsym compsym extended-args-sym body]
   (let [computed-bindings  (when compsym `[~compsym (c/get-computed ~thissym)])
         extended-bindings  (when extended-args-sym `[~extended-args-sym (c/get-extra-props ~thissym)])
         render-fn-sym      (symbol (str "render-" (name classsym)))]

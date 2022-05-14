@@ -6,6 +6,11 @@ wrapped in reagent.ratom/atom.
 
 This library only has a dependency on the `reagent.ratom` namespace from the reagent codebase.
 
+Subscriptions are a way to apply pure functions over a core data source to arrive at derived data from that source.
+
+The difference from just using function composition is that the layers are cached and the ability to execute code 
+in response to any of these values changing.
+
 # Integrations
 
 There are two API entry namespaces (for now) - one for use with fulcro and one for general use with any datasource.

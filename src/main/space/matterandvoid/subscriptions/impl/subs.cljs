@@ -57,6 +57,7 @@
 (defn subscribe
   [get-handler cache-lookup get-subscription-cache
    app query]
+  (log/info "subscribe q: " query)
   (assert (vector? query))
   (let [cnt (count query), [query-id] query]
     (assert (or (= 1 cnt) (= 2 cnt)) (str "Query must contain only one map for subscription " query-id))

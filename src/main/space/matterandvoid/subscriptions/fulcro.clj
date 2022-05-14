@@ -30,7 +30,6 @@
                          (let [~propsym (c/props ~thissym)
                                ~@computed-bindings
                                ~@extended-bindings]
-                           (.log js/console "RENDER props: " (c/props ~thissym))
                            ~@body))))]
          (setup-reaction! ~thissym render-fn#)
          (render-fn#)))))

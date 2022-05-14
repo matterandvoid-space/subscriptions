@@ -46,8 +46,8 @@
                                   (when ratom/debug-enabled?
                                     (when (contains? query-cache cache-key)
                                       (console :warn "re-frame: Adding a new subscription to the cache while there is an existing subscription in the cache" cache-key)))
-                                  (console :info "ABOUT TO ASSOC , cache key: " cache-key)
-                                  (console :info "ABOUT TO ASSOC , cache is : " query-cache)
+                                  ;(console :info "ABOUT TO ASSOC , cache key: " cache-key)
+                                  ;(console :info "ABOUT TO ASSOC , cache is : " query-cache)
                                   (assoc query-cache cache-key reaction)))
       (trace/merge-trace! {:tags {:reaction (ratom/reagent-id reaction)}})))
   reaction)
@@ -57,7 +57,7 @@
 (defn subscribe
   [get-handler cache-lookup get-subscription-cache
    app query]
-  (log/info "subscribe q: " query)
+  ;(log/info "subscribe q: " query)
   (assert (vector? query))
   (let [cnt (count query), [query-id] query]
     (assert (or (= 1 cnt) (= 2 cnt)) (str "Query must contain only one map for subscription " query-id))
@@ -119,8 +119,9 @@
   (map-signals deref signals))
 
 (defn make-subs-handler-fn
-  "This is where the inputs-fn is executed and
-  the computation is put inside a reaction - ie a callback for later invocation when subscribe is called and derefed."
+  "This is where the inputs-fn is executed and the computation is put inside a reaction - ie a callback for later
+  invocation when subscribe is called and derefed.
+  This is also where the args map is passed to both the inputs-function and the computation function instead of the complete query vector."
   [inputs-fn computation-fn query-id]
   (fn subs-handler-fn
     [app query-vec]
@@ -159,8 +160,7 @@
                                  (fn? op)
                                  (vector? op))
                              [(butlast args) (last args)]
-                             (let [ ;_    (js/console.log "IN ELSE: args" args)
-                                   args (drop-last 2 args)]
+                             (let [args (drop-last 2 args)]
                                (case op
                                  ;; return a function that calls the computation fn
                                  ;;  on the input signal, removing the query vector

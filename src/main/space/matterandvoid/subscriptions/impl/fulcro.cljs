@@ -99,7 +99,7 @@
 
 (def state-key "fulcro.subscriptions.state")
 (def reaction-key "fulcro.subscriptions.reaction")
-(def signals-key "signals")
+(def signals-values-key "signals-values")
 (def user-signals-key "user-signals")
 
 (defn refresh-component! [^js this]
@@ -140,17 +140,17 @@
   change over time. If they do then we need to dispose the reaction and setup a new one."
   [client-signals-key this signals-values-map]
   (doto (get-subscription-state this)
-    (obj/set signals-key signals-values-map)
+    (obj/set signals-values-key signals-values-map)
     (obj/set user-signals-key (get-user-signals-map client-signals-key this))))
 
-(defn get-cached-signals-map
+(defn get-cached-signals-values
   "Return the map of values."
   [client-signals-key this]
   (when (nil? (get-user-signals-map client-signals-key this))
     (throw (js/Error. (str "Missing signals function on component:\n\n" (c/component-name this)
                         "\n\nYou need to provide a function in the shape: (fn [this props] {:a-property [::a-subscription]}}\n\n"
                         "At the key: " (pr-str client-signals-key) " on your component options.\n"))))
-  (obj/get (get-subscription-state this) signals-key))
+  (obj/get (get-subscription-state this) signals-values-key))
 
 (defn get-cached-user-signals-map
   "Return the map of keyword->vectors as supplied on the component."
@@ -176,9 +176,8 @@
   (map-vals (partial <sub this) (get-user-signals-map client-signals-key this)))
 
 (defn reaction-callback* [client-signals-key reaction-key this]
-  (log/info "IN REACTION CB")
   (let [new-signal-values-map (subscribe-and-deref-signals-map client-signals-key this)
-        current-signal-values (get-cached-signals-map client-signals-key this)]
+        current-signal-values (get-cached-signals-values client-signals-key this)]
     (comment
       (def this' this)
       (let [app (c/any->app this')]

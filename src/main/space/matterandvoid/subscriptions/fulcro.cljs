@@ -118,7 +118,7 @@
   of the provided component.
 
   The values of the map are the values of the subscriptions, not the vectors the user supplied."
-  [this] (impl/get-cached-signals-map signals-key-on-component this))
+  [this] (impl/get-cached-signals-values signals-key-on-component this))
 
 (defn fulcro-app
   "Proxies to com.fulcrologic.fulcro.application/fulcro-app

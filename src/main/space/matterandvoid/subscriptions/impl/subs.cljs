@@ -72,12 +72,12 @@
           (do
             (trace/merge-trace! {:tags {:cached?  true
                                         :reaction (ratom/reagent-id cached)}})
-            ;(log/info "CACHED")
-            ;(console :info (str "subs. returning cached " query ", " #_(pr-str cached)))
+            (log/info "CACHED")
+            (console :info (str "subs. returning cached " query ", " #_(pr-str cached)))
             cached)
           (let [handler-fn (get-handler query-id)]
-            ;(console :info "DO NOT HAVE CACHED")
-            ;(console :info (str "subs. computing subscription"))
+            (console :info "DO NOT HAVE CACHED")
+            (console :info (str "subs. computing subscription"))
             (assert handler-fn (str "Subscription handler for the following query is missing\n\n" (pr-str query-id) "\n"))
 
             (trace/merge-trace! {:tags {:cached? false}})
@@ -86,7 +86,7 @@
                   (console :error (str "No subscription handler registered for: " query-id "\n\nReturning a nil subscription.")))
               (do
                 ;(js/console.log "SUBSCRIBE")
-                ;(js/console.log "Have handler. invoking with args: " query)
+                (js/console.log "subscribe NOT CACHED. Have handler. invoking with args: " query)
                 (cache-and-return! get-subscription-cache app query (handler-fn app query))))))))))
 
 ;; -- reg-sub -----------------------------------------------------------------

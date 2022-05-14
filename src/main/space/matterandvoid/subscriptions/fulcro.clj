@@ -17,24 +17,50 @@
     [com.fulcrologic.fulcro.algorithms.lookup :as ah]
     [com.fulcrologic.fulcro.raw.components :as rc]
     [com.fulcrologic.guardrails.core :refer [>def]]
-    [clojure.walk :refer [prewalk]]))
+    [clojure.walk :refer [prewalk]]
+    [space.matterandvoid.subscriptions.impl.fulcro :as-alias impl]))
+
+(defn- build-render-orig
+  "This functions runs the render body in a reagent Reaction."
+  [classsym thissym propsym compsym extended-args-sym body]
+  (let [computed-bindings (when compsym `[~compsym (c/get-computed ~thissym)])
+        extended-bindings (when extended-args-sym `[~extended-args-sym (c/get-extra-props ~thissym)])
+        render-fn-sym     (symbol (str "render-" (name classsym)))]
+    `(~'fn ~render-fn-sym [~thissym]
+       (let [render-fn#
+             (fn [] (c/wrapped-render ~thissym
+                      (fn []
+                        (let [~propsym (c/props ~thissym)
+                              ~@computed-bindings
+                              ~@extended-bindings]
+                          ~@body))))]
+         (setup-reaction! ~thissym render-fn#)
+         (render-fn#)))))
 
 (defn- build-render
   "This functions runs the render body in a reagent Reaction."
   [classsym thissym propsym compsym extended-args-sym body]
-  (let [computed-bindings  (when compsym `[~compsym (c/get-computed ~thissym)])
-        extended-bindings  (when extended-args-sym `[~extended-args-sym (c/get-extra-props ~thissym)])
-        render-fn-sym      (symbol (str "render-" (name classsym)))]
+  (let [computed-bindings (when compsym `[~compsym (c/get-computed ~thissym)])
+        extended-bindings (when extended-args-sym `[~extended-args-sym (c/get-extra-props ~thissym)])
+        render-fn-sym     (symbol (str "render-" (name classsym)))]
     `(~'fn ~render-fn-sym [~thissym]
        (let [render-fn#
-             (fn [] (c/wrapped-render ~thissym
-                       (fn []
-                         (let [~propsym (c/props ~thissym)
-                               ~@computed-bindings
-                               ~@extended-bindings]
-                           ~@body))))]
-         (setup-reaction! ~thissym render-fn#)
-         (render-fn#)))))
+                       (fn [] (c/wrapped-render ~thissym
+                                (fn []
+                                  (let [~propsym (c/props ~thissym)
+                                        ~@computed-bindings
+                                        ~@extended-bindings]
+                                    ~@body))))
+             ^clj reaction# (impl/get-component-reaction ~thissym)]
+         (if reaction#
+           (do
+             (log/info "render macro CALLING RUN")
+            (._run reaction# false))
+           (do
+             (log/info "RENDER macro calling setup reaction")
+             (setup-reaction! ~thissym render-fn#)
+             ;(render-fn#)
+             ))))))
 
 (defn component-will-unmount-form [client-component-will-unmount]
   `(fn [this#]
@@ -427,8 +453,8 @@
                              (map (fn [n] [(:dispatch-key n) n]))
                              query-nodes)
         {props :prop joins :join} (group-by :type query-nodes)
-        join-keys           (->> joins (map :dispatch-key) set)
-        prop-keys           (->> props (map :dispatch-key) set)]
+        join-keys          (->> joins (map :dispatch-key) set)
+        prop-keys          (->> props (map :dispatch-key) set)]
     {:join join-keys :leaf prop-keys}))
 
 ;; copied query handling from fulcro.form-state.derive-form-info

@@ -214,7 +214,7 @@
                                      (if (empty? (::ftx/submission-queue @fulcro-runtime-atom_))
                                        (do (log/info "no TXes, refreshing component" (c/component-name (c/get-class this)))
                                            (js/requestAnimationFrame (fn [_]
-                                                                       (log/info "Refreshing component" (c/component-name this))
+                                                                       ;(log/info "Refreshing component" (c/component-name this))
                                                                        (refresh-component! this))))
                                        (do
                                          (log/debug "NOT empty, looping")
@@ -250,7 +250,7 @@
   (dispose-current-reaction! this)
   (remove-reaction! this))
 
-(defn setup-reaction!
+(defn setup-reaction-orig!
   "Installs a Reaction on the provided component which will re-render the component when any of the subscriptions'
    values change."
   [client-signals-key this client-render]
@@ -260,6 +260,26 @@
 
   (let [signals-map (get-user-signals-map client-signals-key this)]
     (when (and (nil? (get-component-reaction this)) (some-signals? this signals-map))
+      (log/debug "RUNNING IN REACTION")
+      (ratom/run-in-reaction (fn []
+                               (set-subscription-signals-values-map! client-signals-key this
+                                 (subscribe-and-deref-signals-map client-signals-key this))
+                               (client-render this)) this reaction-key
+        (fn reactive-run [_]
+          (log/info "IN reactive run")
+          (reaction-callback* client-signals-key reaction-key this))
+        {:no-cache true}))))
+
+(defn setup-reaction!
+  "Installs a Reaction on the provided component which will re-render the component when any of the subscriptions'
+   values change."
+  [client-signals-key this client-render]
+  (when (user-signals-map-changed? client-signals-key this)
+    (log/debug "user signals changed! disposing !")
+    (cleanup! this))
+
+  (let [signals-map (get-user-signals-map client-signals-key this)]
+    (when (and (nil? (get-component-reaction this)))
       (log/debug "RUNNING IN REACTION")
       (ratom/run-in-reaction (fn []
                                (set-subscription-signals-values-map! client-signals-key this

@@ -173,9 +173,9 @@
 (defn map-vals [f m] (into {} (map (juxt key (comp f val))) m))
 
 (defn subscribe-and-deref-signals-map [client-signals-key this]
-  (map-vals (partial <sub this) (get-user-signals-map client-signals-key this)))
+  (map-vals #(<sub this %) (get-user-signals-map client-signals-key this)))
 
-(defn reaction-callback* [client-signals-key reaction-key this]
+(defn reaction-callback-orig* [client-signals-key reaction-key this]
   (let [new-signal-values-map (subscribe-and-deref-signals-map client-signals-key this)
         current-signal-values (get-cached-signals-values client-signals-key this)]
     (comment
@@ -224,6 +224,26 @@
                                            (log/debug "Max retries reached, not looping.")))))]
           (attempt-to-draw))))))
 
+(defn reaction-callback* [client-signals-key reaction-key this]
+  (log/debug "!! SIGNALS ARE DIFFERENT" (c/component-name this))
+  (let [fulcro-runtime-atom_ (::fulcro.app/runtime-atom (c/any->app this))
+        counter_             (volatile! 0)
+        max-loop             100
+        attempt-to-draw
+                             (fn attempt-to-draw []
+                               (if (empty? (::ftx/submission-queue @fulcro-runtime-atom_))
+                                 (do (log/info "no TXes, refreshing component" (c/component-name (c/get-class this)))
+                                     (js/requestAnimationFrame (fn [_]
+                                                                 ;(log/info "Refreshing component" (c/component-name this))
+                                                                 (refresh-component! this))))
+                                 (do
+                                   (log/debug "NOT empty, looping")
+                                   (vswap! counter_ inc)
+                                   (if (< @counter_ max-loop)
+                                     (js/setTimeout attempt-to-draw 16.67)
+                                     (log/debug "Max retries reached, not looping.")))))]
+    (attempt-to-draw)))
+
 (defn remove-reaction! [this]
   (obj/remove this reaction-key))
 
@@ -250,7 +270,7 @@
   (dispose-current-reaction! this)
   (remove-reaction! this))
 
-(defn setup-reaction!
+(defn setup-reaction-orig!
   "Installs a Reaction on the provided component which will re-render the component when any of the subscriptions'
    values change."
   [client-signals-key this client-render]
@@ -284,8 +304,13 @@
       (ratom/run-in-reaction (fn []
                                (set-subscription-signals-values-map! client-signals-key this
                                  (subscribe-and-deref-signals-map client-signals-key this))
-                               (client-render this)) this reaction-key
+                               (client-render this))
+        this
+        reaction-key
         (fn reactive-run [_]
           (log/info "IN reactive run")
           (reaction-callback* client-signals-key reaction-key this))
-        {:no-cache true}))))
+        {:no-cache true}
+        ))))
+
+(def setup-reaction! setup-reaction-use-reaction-cache!)

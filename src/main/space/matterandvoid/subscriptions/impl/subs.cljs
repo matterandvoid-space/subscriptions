@@ -27,7 +27,7 @@
   ;; this prevents memory leaks (caching subscription -> reaction) but still allows
   ;; executing outside of a (reagent.reaction) form, like in event handlers.
   (when (ratom/reactive-context?)
-    ;(console :debug "IN A REACTIVE CONTEXT")
+    (console :debug (str "IN A REACTIVE CONTEXT" query-v))
     (let [cache-key          query-v
           subscription-cache (get-subscription-cache app)]
       ;(console :debug "cache-and-return!" #_subscription-cache)
@@ -46,8 +46,8 @@
                                   (when ratom/debug-enabled?
                                     (when (contains? query-cache cache-key)
                                       (console :warn "re-frame: Adding a new subscription to the cache while there is an existing subscription in the cache" cache-key)))
-                                  ;(console :info "ABOUT TO ASSOC , cache key: " cache-key)
-                                  ;(console :info "ABOUT TO ASSOC , cache is : " query-cache)
+                                  (console :info "ABOUT TO ASSOC , cache key: " cache-key)
+                                  (console :info "ABOUT TO ASSOC , cache is : " query-cache)
                                   (assoc query-cache cache-key reaction)))
       (trace/merge-trace! {:tags {:reaction (ratom/reagent-id reaction)}})))
   reaction)
@@ -61,22 +61,26 @@
   (assert (vector? query))
   (let [cnt (count query), [query-id] query]
     (assert (or (= 1 cnt) (= 2 cnt)) (str "Query must contain only one map for subscription " query-id))
-    (when (= 2 cnt) (assert (map? (get query 1)) (str "Args to the query vector must be one map for subscription " query-id)))
+    (when (and (= 2 cnt) (not (map? (get query 1))))
+      (throw (js/Error. (str "Args to the query vector must be one map for subscription " query-id "\n"
+                          "Received: " (pr-str (get query 1))))))
     ;(js/console.log "SUBSCRIBE called: " query)
     (trace/with-trace {:operation (first query)
                        :op-type   :sub/create
                        :tags      {:query-v query}}
-      ;(console :info (str "subs. cache-lookup: " query))
+      (console :info (str "subs. cache-lookup: " query))
       (let [cached (cache-lookup app query)]
-        (if (and (ratom/reactive-context?) cached)
+        ;; this should be fine because the cached reaction will have the most up to date value
+        ;; the cache will be empty if the subscription is deref'ed outside a reactive context before it is deref'ed in a reactive one
+        ;; in that scenario the memoized computation fn will cache the result for that caller
+        (if cached
           (do
             (trace/merge-trace! {:tags {:cached?  true
                                         :reaction (ratom/reagent-id cached)}})
-            ;(log/info "CACHED")
-            ;(console :info (str "subs. returning cached " query ", " #_(pr-str cached)))
+            (console :info (str "subs. returning cached " query ", " (pr-str cached)))
             cached)
           (let [handler-fn (get-handler query-id)]
-            ;(console :info "DO NOT HAVE CACHED")
+            (console :info "subscribe DO NOT HAVE CACHED")
             ;(console :info (str "subs. computing subscription"))
             (assert handler-fn (str "Subscription handler for the following query is missing\n\n" (pr-str query-id) "\n"))
 
@@ -127,8 +131,8 @@
     [app query-vec]
     (assert (vector? query-vec))
     (let [args          (second query-vec)
-          ;_ (js/console.log "subs-handler-fn args: " args)
           subscriptions (inputs-fn app args)
+          ;_ (js/console.log "subs-handler-fn args: " args)
           reaction-id   (atom nil)
           reaction      (ratom/make-reaction
                           (fn []

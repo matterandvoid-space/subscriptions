@@ -55,7 +55,8 @@
   {:depends [yarn-install -write-index.html -write-example.html]
    :doc     "Starts a shadow-cljs watch on the dev build"
    :task    (do (println "Starting shadow-cljs compilations")
-                (run-shadow-watch '[dev test examples] (into *command-line-args* dev-aliases)))}
+                (run-shadow-watch '[dev test reagent-datascript-example fulcro-example]
+                  (into *command-line-args* dev-aliases)))}
 
   test
   {:depends [yarn-install]

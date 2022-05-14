@@ -20,7 +20,7 @@
     [clojure.walk :refer [prewalk]]
     [space.matterandvoid.subscriptions.impl.fulcro :as-alias impl]))
 
-(defn- build-render
+(defn- build-render-orig
   "This functions runs the render body in a reagent Reaction."
   [classsym thissym propsym compsym extended-args-sym body]
   (let [computed-bindings (when compsym `[~compsym (c/get-computed ~thissym)])
@@ -45,27 +45,28 @@
         render-fn-sym     (symbol (str "render-" (name classsym)))]
     `(~'fn ~render-fn-sym [~thissym]
        (let [render-fn#
-                       (fn [] (c/wrapped-render ~thissym
-                                (fn []
-                                  (let [~propsym (c/props ~thissym)
-                                        ~@computed-bindings
-                                        ~@extended-bindings]
-                                    ~@body))))
+                            (fn [] (c/wrapped-render ~thissym
+                                     (fn []
+                                       (let [~propsym (c/props ~thissym)
+                                             ~@computed-bindings
+                                             ~@extended-bindings]
+                                         ~@body))))
              ^clj reaction# (impl/get-component-reaction ~thissym)]
          (if reaction#
            (do
-             (log/info "render macro CALLING RUN")
-            (._run reaction# false))
+             ;(log/info "render macro CALLING RUN" '~classsym)
+             (._run reaction# false))
            (do
-             (log/info "RENDER macro calling setup reaction")
-             (setup-reaction! ~thissym render-fn#)
-             ;(render-fn#)
-             ))))))
+             ;(log/info "RENDER macro calling setup reaction" '~classsym)
+             (setup-reaction! ~thissym render-fn#)))))))
+
+(def build-render build-render-with-reaction-cache)
 
 (defn component-will-unmount-form [client-component-will-unmount]
-  `(fn [this#]
-     (cleanup! this#)
-     ~(when client-component-will-unmount `(~client-component-will-unmount this#))))
+  (let [this-sym (gensym "this")]
+    `(fn [~this-sym]
+       (cleanup! ~this-sym)
+       ~(when client-component-will-unmount `(~client-component-will-unmount ~this-sym)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; this is all copied from fulcro.components because they are all marked private and thus compilation fails

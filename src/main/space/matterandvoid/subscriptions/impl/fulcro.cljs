@@ -250,7 +250,7 @@
   (dispose-current-reaction! this)
   (remove-reaction! this))
 
-(defn setup-reaction-orig!
+(defn setup-reaction!
   "Installs a Reaction on the provided component which will re-render the component when any of the subscriptions'
    values change."
   [client-signals-key this client-render]
@@ -270,7 +270,7 @@
           (reaction-callback* client-signals-key reaction-key this))
         {:no-cache true}))))
 
-(defn setup-reaction!
+(defn setup-reaction-use-reaction-cache!
   "Installs a Reaction on the provided component which will re-render the component when any of the subscriptions'
    values change."
   [client-signals-key this client-render]

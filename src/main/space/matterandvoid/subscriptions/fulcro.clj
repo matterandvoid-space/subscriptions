@@ -20,7 +20,7 @@
     [clojure.walk :refer [prewalk]]
     [space.matterandvoid.subscriptions.impl.fulcro :as-alias impl]))
 
-(defn- build-render-orig
+(defn- build-render
   "This functions runs the render body in a reagent Reaction."
   [classsym thissym propsym compsym extended-args-sym body]
   (let [computed-bindings (when compsym `[~compsym (c/get-computed ~thissym)])
@@ -37,7 +37,7 @@
          (setup-reaction! ~thissym render-fn#)
          (render-fn#)))))
 
-(defn- build-render
+(defn- build-render-with-reaction-cache
   "This functions runs the render body in a reagent Reaction."
   [classsym thissym propsym compsym extended-args-sym body]
   (let [computed-bindings (when compsym `[~compsym (c/get-computed ~thissym)])

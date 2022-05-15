@@ -73,8 +73,8 @@ can run them locally.
 
 # Differences/modifications from upstream re-frame
 
-(inputs-fn to a reg-sub takes the storage (as a reagent.ratom/atom) 
-and the subscribe vector)
+- inputs function and compute fn are only passed your db and one arguments hashmap - not the subscription vector
+- memoized computation functions - reactions are not cached when used in a non-reactive call (like in event handlers)
 
 ## Memoized subscription computation functions.
 
@@ -106,9 +106,17 @@ for app-db is `reset!`.
 
 Another change in this library is that all subscriptions are forced to receive only one argument: a hashmap.
 
-Taking a tip from many successful clojure projects which are able to be extended and grown and integrated over time,
+On a team with lots of people working on one codebase if you remove points where decisions have to be made, especially when
+they are arbitrary decisions (like how do we pass arguments to subscriptions) - then you get uniformity/compatibility for free 
+and your codebase remains cohesive (at least in the domain of subscriptions in this case).
+
+I've had to deal with a large re-frame application where subscriptions were parameterized by components, and having to 
+take into account all parameters passing styles is a pain and can lead to subtle bugs.
+
 (as well as dealing with multiple subscription argument styles in a large re-frame app and attempting to refactor them, or
- combine them dynamically..)
+combine them dynamically..)
+
+Taking a tip from many successful clojure projects which are able to be extended and grown and integrated over time,
 This library forces all subscriptions arguments to be one hashmap - this forces you to name all your arguments and allows
 easily flowing data. It also encourages the use of fully qualified keywords which in turn makes using malli or schema or spec
 to validate the arguments, if you wish to, also much simpler.
@@ -138,7 +146,7 @@ the `:<-` input syntax, for example:
 
 ```clojure
 (defonce base-db (reagent.ratom/atom {:num-one 500 :num-two 5}))
-(sut/reg-sub ::first-sub (fn [db {:keys [kw]}] (kw db)))
+(sut/defsub first-sub (fn [db {:keys [kw]}] (kw db)))
 (sut/defsub second-sub :<- [::first-sub] :-> #(+ 100 %))
 (sut/defsub third-sub :<- [::first-sub] :<- [::second-sub] :-> #(reduce + %))
 
@@ -170,8 +178,9 @@ Here's an example where we query for a list of todos, where the data is normaliz
                                                                                                :state :incomplete}}}))
 (reg-sub ::item-ids #(get %1 (:list-id %2)))
 
+;; DAN : todo - this example is not correct do not use <sub  in inputs fn
 (reg-sub ::todos-list
-  (fn [ratom {:keys [list-id]}] ;; <-- here we don't need useless vector destructuring.
+  (fn [ratom {:keys [list-id]}] ;; <-- here we don't need useless sequential destructuring.
     (let [todo-ids (subs/<sub ratom [::item-ids {:list-id list-id}])]
       (mapv (fn [id] (subs/subscribe ratom [::todo {:todo/id id}])) todo-ids)))
   identity)
@@ -220,6 +229,13 @@ Open the shadow-cljs inspector page and open the page that hosts the tests.
 In short use `reagent.ratom/run-in-reaction`, see the reagent source for inspiration:
 
 https://github.com/reagent-project/reagent/blob/f64821ce2234098a837ac7e280969f98ab11342e/src/reagent/impl/component.cljs#L254
+
+or the fulcro integration:
+
+<todo>
+
+It takes a `run` function callback which will be invoked when any ratom's or Reactions are deref'd in the main function 
+pass to run-in-reaction. In this `run` function you perform the side-effecting re-render.
 
 # References 
 

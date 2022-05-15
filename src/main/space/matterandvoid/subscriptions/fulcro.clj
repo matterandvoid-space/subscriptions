@@ -17,48 +17,24 @@
     [com.fulcrologic.fulcro.algorithms.lookup :as ah]
     [com.fulcrologic.fulcro.raw.components :as rc]
     [com.fulcrologic.guardrails.core :refer [>def]]
-    [clojure.walk :refer [prewalk]]
     [space.matterandvoid.subscriptions.impl.fulcro :as-alias impl]))
-
-(defn- build-render-orig
-  "This functions runs the render body in a reagent Reaction."
-  [classsym thissym propsym compsym extended-args-sym body]
-  (let [computed-bindings (when compsym `[~compsym (c/get-computed ~thissym)])
-        extended-bindings (when extended-args-sym `[~extended-args-sym (c/get-extra-props ~thissym)])
-        render-fn-sym     (symbol (str "render-" (name classsym)))]
-    `(~'fn ~render-fn-sym [~thissym]
-       (let [render-fn#
-             (fn [] (c/wrapped-render ~thissym
-                      (fn []
-                        (let [~propsym (c/props ~thissym)
-                              ~@computed-bindings
-                              ~@extended-bindings]
-                          ~@body))))]
-         (setup-reaction! ~thissym render-fn#)
-         (render-fn#)))))
 
 (defn- build-render-with-reaction-cache
   "This functions runs the render body in a reagent Reaction."
-  [classsym thissym propsym compsym extended-args-sym body]
-  (let [computed-bindings (when compsym `[~compsym (c/get-computed ~thissym)])
+  [classsym thissym propsym computed-sym extended-args-sym body]
+  (let [computed-bindings (when computed-sym `[~computed-sym (c/get-computed ~thissym)])
         extended-bindings (when extended-args-sym `[~extended-args-sym (c/get-extra-props ~thissym)])
         render-fn-sym     (symbol (str "render-" (name classsym)))]
     `(~'fn ~render-fn-sym [~thissym]
-       (let [render-fn#
-                            (fn [] (c/wrapped-render ~thissym
-                                     (fn []
-                                       (let [~propsym (c/props ~thissym)
-                                             ~@computed-bindings
-                                             ~@extended-bindings]
-                                         ~@body))))
-             ^clj reaction# (impl/get-component-reaction ~thissym)]
-         (if reaction#
-           (do
-             ;(log/info "render macro CALLING RUN" '~classsym)
-             (._run reaction# false))
-           (do
-             ;(log/info "RENDER macro calling setup reaction" '~classsym)
-             (setup-reaction! ~thissym render-fn#)))))))
+       (let [render-fn# (fn [] (c/wrapped-render ~thissym
+                                 (fn []
+                                   (let [~propsym (c/props ~thissym)
+                                         ~@computed-bindings
+                                         ~@extended-bindings]
+                                     ~@body))))]
+         (if-let [^clj reaction# (impl/get-component-reaction ~thissym)]
+           (._run reaction# false)
+           (setup-reaction! ~thissym render-fn#))))))
 
 (def build-render build-render-with-reaction-cache)
 
@@ -69,7 +45,8 @@
        ~(when client-component-will-unmount `(~client-component-will-unmount ~this-sym)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; this is all copied from fulcro.components because they are all marked private and thus compilation fails
+;; this is all copied from fulcro.components because they are all marked private and thus compilation fails when trying
+;; to invoke them.
 
 (defn- is-link?
   "Returns true if the given query element is a link query like [:x '_]."
@@ -247,11 +224,11 @@
                             (throw (ana/error env (str "defsc " sym ": Illegal parameters to :initial-state " state-params ". Use a lambda if you want to write code for initial state. Template mode for initial state requires simple maps (or vectors of maps) as parameters to children. See Developer's Guide."))))
                           (cond
                             (not (or from-parameter? to-many? to-one?)) (throw (ana/error env (str "Initial value for a child (" k ") must be a map or vector of maps!")))
-                            to-one? `(com.fulcrologic.fulcro.components/get-initial-state ~child-class ~(parameterized state-params))
+                            to-one? `(c/get-initial-state ~child-class ~(parameterized state-params))
                             to-many? (mapv (fn [params]
-                                             `(com.fulcrologic.fulcro.components/get-initial-state ~child-class ~(parameterized params)))
+                                             `(c/get-initial-state ~child-class ~(parameterized params)))
                                        state-params)
-                            from-parameter? `(com.fulcrologic.fulcro.components/get-initial-state ~child-class ~(param-expr state-params))
+                            from-parameter? `(c/get-initial-state ~child-class ~(param-expr state-params))
                             :otherwise nil)))
         kv-pairs      (map (fn [k]
                              [k (if (is-child? k)
@@ -461,7 +438,8 @@
 ;; copied query handling from fulcro.form-state.derive-form-info
 (defn component->subscriptions
   "todo
-  The idea here is to register subscriptions for the given component based on its query. "
+  The idea here is to register subscriptions for the given component based on its query to reduce boilerplate.
+   This can be a normal function because reg-sub operates at runtime"
   [com])
 
 (defmacro defsub

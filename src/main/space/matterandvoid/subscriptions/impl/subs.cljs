@@ -75,8 +75,7 @@
         ;; in that scenario the memoized computation fn will cache the result for that caller
         (if cached
           (do
-            (trace/merge-trace! {:tags {:cached?  true
-                                        :reaction (ratom/reagent-id cached)}})
+            (trace/merge-trace! {:tags {:cached? true :reaction (ratom/reagent-id cached)}})
             (console :info (str "subs. returning cached " query ", " (pr-str cached)))
             cached)
           (let [handler-fn (get-handler query-id)]
@@ -180,10 +179,8 @@
                                   ;; no `inputs` function provided - give the default
                                   0
                                   (do
-                                    ;(console :info "CASE 0")
                                     (fn
                                       ([app]
-                                       ;(println "IN case 0 args: " app)
                                        (let [start-signal (get-input-db-signal app)]
                                          (when goog/DEBUG
                                            (when-not (ratom/ratom? start-signal)
@@ -198,30 +195,32 @@
 
                                   ;; a single `inputs` fn
                                   1 (let [f (first input-args)]
-                                      (console :info "CASE 1")
                                       (when-not (fn? f)
                                         (console :error err-header "2nd argument expected to be an inputs function, got:" f))
                                       f)
 
-                                  ;; one sugar pair
+                                  ;; one :<- pair
                                   2 (let [[marker signal-vec] input-args]
-                                      ;(console :info "CASE 2")
                                       (when-not (= :<- marker)
                                         (console :error err-header "expected :<-, got:" marker))
-                                      (fn inp-fn
-                                        ([app] (subscribe get-handler cache-lookup get-subscription-cache app signal-vec))
-                                        ([app _] (subscribe get-handler cache-lookup get-subscription-cache app signal-vec))))
+                                      (fn inputs-fn-
+                                        ([app]
+                                         (subscribe get-handler cache-lookup get-subscription-cache app signal-vec))
+                                        ([app args]
+                                         (subscribe get-handler cache-lookup get-subscription-cache app
+                                           (cond-> signal-vec (map? args) (conj args))))))
 
-                                  ;; multiple sugar pairs
+                                  ;; multiple :<- pairs
                                   (let [pairs   (partition 2 input-args)
                                         markers (map first pairs)
                                         vecs    (map second pairs)]
-                                    ;(console :info "CASE 3")
                                     (when-not (and (every? #{:<-} markers) (every? vector? vecs))
                                       (console :error err-header "expected pairs of :<- and vectors, got:" pairs))
                                     (fn inp-fn
                                       ([app] (map #(subscribe get-handler cache-lookup get-subscription-cache app %) vecs))
-                                      ([app _] (map #(subscribe get-handler cache-lookup get-subscription-cache app %) vecs)))))]
+                                      ([app args]
+                                       (map #(subscribe get-handler cache-lookup get-subscription-cache app (cond-> % (map? args) (conj args)))
+                                         vecs)))))]
     ;(js/console.log "registering subscription: " query-id)
     ;(js/console.log "input args: " input-args)
     (register-handler! query-id (make-subs-handler-fn inputs-fn memoized-computation-fn query-id))))

@@ -30,6 +30,8 @@ The difference from upstream is when you invoke `(subscribe)` you pass in the ro
 See the `examples` directory in the repo and shadow-cljs.edn for the builds if you clone the repo you 
 can run them locally.
 
+## Use with fulcro class components
+
 ## Use with a hashmap
 
 ## Use with datascript
@@ -71,7 +73,6 @@ can run them locally.
 
 # Differences/modifications from upstream re-frame
 
-
 (inputs-fn to a reg-sub takes the storage (as a reagent.ratom/atom) 
 and the subscribe vector)
 
@@ -106,19 +107,23 @@ for app-db is `reset!`.
 Another change in this library is that all subscriptions are forced to receive only one argument: a hashmap.
 
 Taking a tip from many successful clojure projects which are able to be extended and grown and integrated over time,
-(as well as dealing with multiple subscription argument styles in a large re-frame app and attempting to refactor them..)
+(as well as dealing with multiple subscription argument styles in a large re-frame app and attempting to refactor them, or
+ combine them dynamically..)
 This library forces all subscriptions arguments to be one hashmap - this forces you to name all your arguments and allows
-easily flowing data. It also encourages the use of fully qualified keywords.
+easily flowing data. It also encourages the use of fully qualified keywords which in turn makes using malli or schema or spec
+to validate the arguments, if you wish to, also much simpler.
 
 This format of a 2-tuple with a tag as the first element and data as the second shows up in lots of places, here is 
 a great talk about modeling information this way by Jeanine Adkisson from the 2014 Conj:
 
 [Jeanine Adkisson - Variants are Not Unions](https://www.youtube.com/watch?v=ZQkIWWTygio)
 
-Concretely, all subscribe calls must have this shape::
+Concretely, all subscribe calls must have this shape:
 
 ```clojure
-(subscribe [::my-sub {:arg1 5}])
+(subscribe [:subscription-keyword {:args 'map :here true}])
+;or with no args:
+(subscribe [:subscription-keyword])
 ```
 
 Doing this will throw an exception:
@@ -126,6 +131,19 @@ Doing this will throw an exception:
 (subscribe [::my-sub {:arg1 5} 'any-other :other "args"])
 ;; or this
 (subscribe [::my-sub "anything that is not a hashmap"])
+```
+
+Another nice benefit from adopting this policy is that we can then flow through the args to all input signals using 
+the `:<-` input syntax, for example:
+
+```clojure
+(defonce base-db (reagent.ratom/atom {:num-one 500 :num-two 5}))
+(sut/reg-sub ::first-sub (fn [db {:keys [kw]}] (kw db)))
+(sut/defsub second-sub :<- [::first-sub] :-> #(+ 100 %))
+(sut/defsub third-sub :<- [::first-sub] :<- [::second-sub] :-> #(reduce + %))
+
+(third-sub base-db {:kw :num-one}) ; => 1100
+(third-sub base-db {:kw :num-two}) ; => 110
 ```
 
 ## Subscription keyword is never passed to any callbacks

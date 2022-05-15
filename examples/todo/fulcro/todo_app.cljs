@@ -125,11 +125,11 @@
 (defn change-todo-text! [this args] (c/transact! this [(change-todo-text args)]))
 
 (defsc Todo [this {:todo/keys [text state completed-at]}]
-  {:query         [:todo/id :todo/text :todo/state :todo/completed-at]
-   :ident         :todo/id
+  {:query                [:todo/id :todo/text :todo/state :todo/completed-at]
+   :ident                :todo/id
    :componentWillUnmount (fn [this]
                            (log/info "TODO UNMOUNTING"))
-   :initial-state (fn [text] (make-todo text))}
+   :initial-state        (fn [text] (make-todo text))}
   (log/info "Rendering todo item: " text)
   (dom/div
     {}
@@ -139,40 +139,23 @@
 (comment
   (macroexpand
     '(defsc Todo [this {:todo/keys [text state completed-at]}]
-      {:query         [:todo/id :todo/text :todo/state :todo/completed-at]
-       :ident         :todo/id
-       :componentWillUnmount (fn [this]
-                               (log/info "TODO UNMOUNTING"))
-       :initial-state (fn [text] (make-todo text))}
-      (log/info "Rendering todo item: " text)
-      (dom/div
-        {}
-        (dom/div "Todo:" (dom/div text))
-        (dom/div "status: " (pr-str state))))
+       {:query                [:todo/id :todo/text :todo/state :todo/completed-at]
+        :ident                :todo/id
+        :componentWillUnmount (fn [this]
+                                (log/info "TODO UNMOUNTING"))
+        :initial-state        (fn [text] (make-todo text))}
+       (log/info "Rendering todo item: " text)
+       (dom/div
+         {}
+         (dom/div "Todo:" (dom/div text))
+         (dom/div "status: " (pr-str state))))
     )
   )
 
 (def ui-todo (c/computed-factory Todo {:keyfn :todo/id}))
 
-(defsc TodoListOrig [this props]
-  {:ident         (fn [] [:component/id ::todo-list])
-   :query         [:list-id]
-   ::subs/signals (fn [this {:keys [list-id]}]
-                    (log/info "in todo list get user signals, list id: " list-id)
-                    {:todos [::todos-list {:list-id list-id}]
-                     ;:complete-todos [::complete-todos {:list-id list-id}]
-                     })}
-  (log/info "In TodoList render fn")
-  (let [{:keys [todos complete-todos]} (subs/signals-map this)]
-    (def t' todos)
-    (dom/div
-      (dom/h1 "Todos")
-      (dom/pre (pr-str todos))
-      (dom/hr)
-      (map ui-todo todos))))
-
 (defsub todos-total (fn [app args]
-                      (subs/subscribe app [::todos-list args] ))
+                      (subs/subscribe app [::todos-list args]))
   (fn [todos] (count todos)))
 
 (defsc TodosTotal [this {:keys [list-id]}]
@@ -187,8 +170,7 @@
   (log/info "In TodoList render fn")
   (let [todos (todos-list this {:list-id list-id})]
     ;(def t' todos)
-    (dom/div
-      {}
+    (dom/div {}
       (dom/h1 "Todos")
       (ui-todos-total {:list-id list-id})
       (dom/pre (pr-str todos))

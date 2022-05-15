@@ -100,8 +100,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; todo this only supports class components right now, not hooks.
-
-(def signals-key-on-component ::signals)
+;; how about: `(use-subs [::sub1 {:args 1}] [::sub2 {:args 2}])`
 
 (defn cleanup! "Intended to be called when a component unmounts to clear the registered Reaction."
   [this] (impl/cleanup! this))
@@ -110,15 +109,7 @@
   "Installs a Reaction on the provided component which will re-render the component when any of the subscriptions'
    values change.
    Takes a component instance and a render function with signature: (fn render [this])"
-  [this client-render] (impl/setup-reaction! signals-key-on-component this client-render))
-
-(defn signals-map
-  "Returns a map of keywords to the most recently computed values of the subscriptions,
-  the map shape matches the shape of the map returned from the signals function from the component options
-  of the provided component.
-
-  The values of the map are the values of the subscriptions, not the vectors the user supplied."
-  [this] (impl/get-cached-signals-values signals-key-on-component this))
+  [this client-render] (impl/setup-reaction!  this client-render))
 
 (defn fulcro-app
   "Proxies to com.fulcrologic.fulcro.application/fulcro-app

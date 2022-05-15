@@ -262,8 +262,7 @@
                    []
                    (-> db
                      (update :root/todos conj [:todo/id id])
-                     (update :todo/id assoc id todo)
-                     )))
+                     (update :todo/id assoc id todo))))
           out2 (sut/<sub db-r_ [::todos-list {:list-id :root/todos}])]
       (log/info "out2: " out2)
       (is (=
@@ -271,3 +270,16 @@
               #:todo{:text "helo139", :id #uuid"31a54f54-a701-4e92-af91-78447f5294e6"}
               #:todo{:text "new one", :id id}) out2)))))
 
+
+(defonce base-db (ratom/atom {:num-one 500 :num-two 5}))
+
+(sut/reg-sub ::first-sub (fn [db {:keys [kw]}] (kw db)))
+(sut/defsub second-sub :<- [::first-sub] :-> #(+ 100 %))
+(sut/defsub third-sub :<- [::first-sub] :<- [::second-sub] :-> #(reduce + %))
+
+(deftest sugar-input-with-args
+  (testing ":<- inputs are passed the args map"
+    (is (= 600 (second-sub base-db {:kw :num-one})))
+    (is (= 105 (second-sub base-db {:kw :num-two})))
+    (is (= 1100 (third-sub base-db {:kw :num-one})))
+    (is (= 110 (third-sub base-db {:kw :num-two})))))

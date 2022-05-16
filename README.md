@@ -288,10 +288,6 @@ reagent:
 
 https://github.com/reagent-project/reagent
 
-interview with Juho Teperi on reagent
-
-https://player.fm/series/clojurestream-podcast/s4-e2-reagent-with-juho-teperi
-
 re-frame:
 
 https://day8.github.io/re-frame/re-frame

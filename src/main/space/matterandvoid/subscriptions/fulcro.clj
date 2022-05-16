@@ -19,25 +19,6 @@
     [com.fulcrologic.guardrails.core :refer [>def]]
     [space.matterandvoid.subscriptions.impl.fulcro :as-alias impl]))
 
-(defn- build-render-with-reaction-cache
-  "This functions runs the render body in a reagent Reaction."
-  [classsym thissym propsym computed-sym extended-args-sym body]
-  (let [computed-bindings (when computed-sym `[~computed-sym (c/get-computed ~thissym)])
-        extended-bindings (when extended-args-sym `[~extended-args-sym (c/get-extra-props ~thissym)])
-        render-fn-sym     (symbol (str "render-" (name classsym)))]
-    `(~'fn ~render-fn-sym [~thissym]
-       (let [render-fn# (fn [] (c/wrapped-render ~thissym
-                                 (fn []
-                                   (let [~propsym (c/props ~thissym)
-                                         ~@computed-bindings
-                                         ~@extended-bindings]
-                                     ~@body))))]
-         (if-let [^clj reaction# (impl/get-component-reaction ~thissym)]
-           (._run reaction# false)
-           (setup-reaction! ~thissym render-fn#))))))
-
-(def build-render build-render-with-reaction-cache)
-
 (defn component-will-unmount-form [client-component-will-unmount]
   (let [this-sym (gensym "this")]
     `(fn [~this-sym]
@@ -185,6 +166,17 @@
                  (not (is-legal-key? id-prop)) (throw (ana/error (merge env (meta template)) (str "The ID property " id-prop " of :ident does not appear in your :query")))
                  :otherwise `(~'fn ~'ident* [~'this ~'props] [~table (~id-prop ~'props)])))))
 
+(defn- build-render [classsym thissym propsym compsym extended-args-sym body]
+  (let [computed-bindings (when compsym `[~compsym (com.fulcrologic.fulcro.components/get-computed ~thissym)])
+        extended-bindings (when extended-args-sym `[~extended-args-sym (com.fulcrologic.fulcro.components/get-extra-props ~thissym)])
+        render-fn         (symbol (str "render-" (name classsym)))]
+    `(~'fn ~render-fn [~thissym]
+       (com.fulcrologic.fulcro.components/wrapped-render ~thissym
+         (fn []
+           (let [~propsym (com.fulcrologic.fulcro.components/props ~thissym)
+                 ~@computed-bindings
+                 ~@extended-bindings]
+             ~@body))))))
 
 (defn- build-hooks-render [classsym thissym propsym compsym extended-args-sym body]
   (let [computed-bindings (when compsym `[~compsym (com.fulcrologic.fulcro.components/get-computed ~thissym)])

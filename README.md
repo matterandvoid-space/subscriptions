@@ -146,12 +146,28 @@ the `:<-` input syntax, for example:
 
 ```clojure
 (defonce base-db (reagent.ratom/atom {:num-one 500 :num-two 5}))
-(sut/defsub first-sub (fn [db {:keys [kw]}] (kw db)))
-(sut/defsub second-sub :<- [::first-sub] :-> #(+ 100 %))
-(sut/defsub third-sub :<- [::first-sub] :<- [::second-sub] :-> #(reduce + %))
+(defsub first-sub (fn [db {:keys [kw]}] (kw db)))
+(defsub second-sub :<- [::first-sub] :-> #(+ 100 %))
+(defsub third-sub :<- [::first-sub] :<- [::second-sub] :-> #(reduce + %))
 
 (third-sub base-db {:kw :num-one}) ; => 1100
 (third-sub base-db {:kw :num-two}) ; => 110
+```
+
+If static arguments are declared on the subscription and args are passed to the subscrpition they are merged with the user
+specified value overriding the static ones - as in: `(merge static-args user-args)`
+
+```clojure
+(defonce base-db (reagent.ratom/atom {:num-one 500 :num-two 5}))
+(defsub first-sub (fn [db {:keys [kw]}] (kw db)))
+(defsub second-sub :<- [::first-sub] :-> #(+ 100 %))
+(defsub third-sub :<- [::first-sub {:kw :num-two}] :<- [::second-sub {:kw :num-two}] :-> #(reduce + %))
+
+(third-sub base-db {:kw :num-one}) ; => 1100
+(third-sub base-db {:kw :num-two}) ; => 110
+(third-sub base-db) ; => 110
+;; but invoking a subscription with no "default" parameters will throw in this case (kw will be null in first-sub):
+(second-sub base-db) ; =>  Cannot read properties of null (reading 'call')
 ```
 
 ## Subscription keyword is never passed to any callbacks
@@ -165,17 +181,15 @@ always passed the source of your data (usually a ratom) and the query args.
 Here's an example where we query for a list of todos, where the data is normalized
 
 ```clojure
-(defonce db_ (reageent.ratom/atom {:list-one [#uuid"c906f43e-b91d-464d-88cb-0c54988ee847"
-                                              #uuid"62864412-d146-4111-b339-8fb3f5f5d236"]
-                                   :todo/id {#uuid"c906f43e-b91d-464d-88cb-0c54988ee847" #:todo{:id #uuid"c906f43e-b91d-464d-88cb-0c54988ee847",
-                                                                                               :text "todo1",
-                                                                                               :state :incomplete},
-                                            #uuid"62864412-d146-4111-b339-8fb3f5f5d236" #:todo{:id #uuid"62864412-d146-4111-b339-8fb3f5f5d236",
-                                                                                               :text "todo2",
-                                                                                               :state :incomplete},
-                                            #uuid"f4aa3501-0922-47a5-8579-70a4f3b1398b" #:todo{:id #uuid"f4aa3501-0922-47a5-8579-70a4f3b1398b",
-                                                                                               :text "todo3",
-                                                                                               :state :incomplete}}}))
+(defonce db_ 
+  (reageent.ratom/atom
+    {:list-one [#uuid"c906f43e-b91d-464d-88cb-0c54988ee847" #uuid"62864412-d146-4111-b339-8fb3f5f5d236"]
+     :todo/id {#uuid"c906f43e-b91d-464d-88cb-0c54988ee847" #:todo{:id #uuid"c906f43e-b91d-464d-88cb-0c54988ee847",
+                                                                 :text "todo1", :state :incomplete},
+               #uuid"62864412-d146-4111-b339-8fb3f5f5d236" #:todo{:id #uuid"62864412-d146-4111-b339-8fb3f5f5d236",
+                                                                  :text "todo2", :state :incomplete},
+               #uuid"f4aa3501-0922-47a5-8579-70a4f3b1398b" #:todo{:id #uuid"f4aa3501-0922-47a5-8579-70a4f3b1398b",
+                                                                  :text "todo3", :state :incomplete}}}))
 (reg-sub ::item-ids #(get %1 (:list-id %2)))
 
 ;; DAN : todo - this example is not correct do not use <sub  in inputs fn

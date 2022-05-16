@@ -271,15 +271,25 @@
               #:todo{:text "new one", :id id}) out2)))))
 
 
-(defonce base-db (ratom/atom {:num-one 500 :num-two 5}))
+(defonce base-db (ratom/atom {:num-one 500 :num-two 5 :num-three 99}))
 
 (sut/reg-sub ::first-sub (fn [db {:keys [kw]}] (kw db)))
 (sut/defsub second-sub :<- [::first-sub] :-> #(+ 100 %))
 (sut/defsub third-sub :<- [::first-sub] :<- [::second-sub] :-> #(reduce + %))
+
+(sut/reg-sub ::first-sub-a (fn [db {:keys [kw]}] (kw db)))
+(sut/defsub second-sub-a :<- [::first-sub-a {:kw :num-three}] :-> #(+ 100 %))
+(sut/defsub third-sub-a :<- [::first-sub-a {:kw :num-three}] :<- [::second-sub-a] :-> #(reduce + %))
 
 (deftest sugar-input-with-args
   (testing ":<- inputs are passed the args map"
     (is (= 600 (second-sub base-db {:kw :num-one})))
     (is (= 105 (second-sub base-db {:kw :num-two})))
     (is (= 1100 (third-sub base-db {:kw :num-one})))
-    (is (= 110 (third-sub base-db {:kw :num-two})))))
+    (is (= 110 (third-sub base-db {:kw :num-two}))))
+
+  (testing ":<- inputs with static args map get merged"
+    (is (= 199 (second-sub-a base-db)))
+    (is (= 105 (second-sub-a base-db {:kw :num-two})))
+    (is (= 110 (third-sub-a base-db {:kw :num-two})))
+    (is (= 298 (third-sub-a base-db)))))

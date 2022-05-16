@@ -2,6 +2,7 @@
   (:require-macros [space.matterandvoid.subscriptions.fulcro])
   (:require
     [com.fulcrologic.fulcro.application :as fulcro.app]
+    [com.fulcrologic.fulcro.components :as c]
     [com.fulcrologic.fulcro.rendering.ident-optimized-render :as ident-optimized-render]
     [space.matterandvoid.subscriptions.impl.fulcro :as impl]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
@@ -109,7 +110,7 @@
   "Installs a Reaction on the provided component which will re-render the component when any of the subscriptions'
    values change.
    Takes a component instance and a render function with signature: (fn render [this])"
-  [this client-render] (impl/setup-reaction!  this client-render))
+  [this client-render] (impl/setup-reaction! this client-render))
 
 (defn fulcro-app
   "Proxies to com.fulcrologic.fulcro.application/fulcro-app
@@ -117,7 +118,23 @@
    Also uses ident-optimized-render/render! as the rendering algorithm if no :optimized-render! is passed in args."
   [args]
   {:pre [(map? args)]}
-  (let [args (cond-> args (not (:optimized-render! args))
+  (let [args (cond->
+               (-> args
+                 (assoc :render-middleware
+                        (fn [this render-fn]
+                          (let [client-middleware (or (:render-middleware args) (fn [_this f] (f)))]
+                            (log/info "IN render-middleware")
+                            (if-let [^clj reaction (impl/get-component-reaction this)]
+                              (._run reaction false)
+                              (setup-reaction! this (fn [] (client-middleware this render-fn)))))))
+                 ;(assoc :component-will-unmount-middleware
+                 ;       (fn [this cwu]
+                 ;         (let [client-cwu (or (:component-will-unmount-middleware args) (fn [_this f] (f)))]
+                 ;           (log/info "comp will unmount CLEANING UP" (c/component-name this))
+                 ;           (cleanup! this)
+                 ;           (client-cwu this cwu))))
+                 )
+               (not (:optimized-render! args))
                (assoc :optimized-render! ident-optimized-render/render!))]
     (assoc (fulcro.app/fulcro-app args)
       ::fulcro.app/state-atom (reagent.ratom/atom (:initial-db args {})))))

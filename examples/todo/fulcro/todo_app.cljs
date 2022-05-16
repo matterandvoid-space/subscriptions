@@ -1,6 +1,7 @@
 (ns todo.fulcro.todo-app
   (:require
     [com.fulcrologic.fulcro.algorithms.merge :as merge]
+    [com.fulcrologic.fulcro.algorithms.normalized-state :as nstate]
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [com.fulcrologic.fulcro.components :as c]
     [com.fulcrologic.fulcro.mutations :as mut :refer [defmutation]]
@@ -124,11 +125,17 @@
 
 (defn change-todo-text! [this args] (c/transact! this [(change-todo-text args)]))
 
+(defmutation rm-random-todo [_]
+  (action [{:keys [state]}]
+    (when-let [id (-> @state :todo/id keys first)]
+      (swap! state nstate/remove-entity [:todo/id id]))))
+
+(defn rm-random-todo! [this] (c/transact! this [(rm-random-todo)]))
+
 (defsc Todo [this {:todo/keys [text state completed-at]}]
   {:query                [:todo/id :todo/text :todo/state :todo/completed-at]
    :ident                :todo/id
-   :componentWillUnmount (fn [this]
-                           (log/info "TODO UNMOUNTING"))
+   ;:componentWillUnmount (fn [this] (log/info "TODO UNMOUNTING"))
    :initial-state        (fn [text] (make-todo text))}
   (log/info "Rendering todo item: " text)
   (dom/div
@@ -184,7 +191,14 @@
    :query         [:root/list-id]}
   (dom/div {} (ui-todo-list {:list-id list-id})))
 
-(defonce fulcro-app (subs/fulcro-app {:initial-db {}}))
+(defonce fulcro-app (subs/fulcro-app {:initial-db {}
+                                      :component-will-unmount-middleware
+                                      (fn [this cwu]
+                                        (log/info "in app's :component-will-unmount-middleware")
+                                        (cwu))
+                                      :render-middleware (fn [this f]
+                                                           (log/info "in app's render middle")
+                                                           (f))}))
 
 (defn ^:export ^:dev/after-load init [] (fulcro.app/mount! fulcro-app Root js/app))
 (comment
@@ -208,6 +222,7 @@
   ;; this works
   (let [id (-> (fulcro.app/current-state fulcro-app) :todo/id keys first)]
     (change-todo-text! fulcro-app {:id id :text "199XHANGEd8"}))
+  (rm-random-todo! fulcro-app)
 
   ;; This will only work if the leaf component is rendered via a subscription
   ;; whereas if you use transact, you don't have to think about that
@@ -226,7 +241,6 @@
   (subs/<sub fulcro-app [:todo/id2])
 
   )
-
 
 (def base-val (r/atom 0))
 (def reaction-one (r/make-reaction (fn [] (log/info "in reaction one")

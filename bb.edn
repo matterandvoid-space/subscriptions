@@ -20,7 +20,7 @@
                 ([mode builds aliases]
                  (shell
                    (cond-> (str "yarn run shadow-cljs " mode " " (str/join " " (cond-> builds (not (coll? builds)) vector)))
-                     (seq (some-> aliases (not (coll? aliases)) vector))
+                     (seq (cond-> aliases (and aliases (not (coll? aliases))) vector))
                      (str " -A" (str/join aliases))))))
               (def run-shadow-watch (partial run-shadow 'watch))
               (def run-shadow-release (partial run-shadow 'release))

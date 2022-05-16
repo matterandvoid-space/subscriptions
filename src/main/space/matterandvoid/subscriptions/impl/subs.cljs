@@ -208,7 +208,7 @@
                                          (subscribe get-handler cache-lookup get-subscription-cache app signal-vec))
                                         ([app args]
                                          (subscribe get-handler cache-lookup get-subscription-cache app
-                                           (cond-> signal-vec (map? args) (conj args))))))
+                                           (cond-> signal-vec (map? args) (update 1 merge args))))))
 
                                   ;; multiple :<- pairs
                                   (let [pairs   (partition 2 input-args)
@@ -219,7 +219,7 @@
                                     (fn inp-fn
                                       ([app] (map #(subscribe get-handler cache-lookup get-subscription-cache app %) vecs))
                                       ([app args]
-                                       (map #(subscribe get-handler cache-lookup get-subscription-cache app (cond-> % (map? args) (conj args)))
+                                       (map #(subscribe get-handler cache-lookup get-subscription-cache app (cond-> % (map? args) (update 1 merge args)))
                                          vecs)))))]
     ;(js/console.log "registering subscription: " query-id)
     ;(js/console.log "input args: " input-args)

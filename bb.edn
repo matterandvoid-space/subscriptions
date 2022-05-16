@@ -40,7 +40,7 @@
 
   -write-index.html
   (do
-    (fs/create-dirs (fs/file "public" "examples"))
+    (fs/create-dirs (fs/file "public" "dev"))
     (write-html (fs/file "public" "dev" "index.html") "/dev/js/dev.js"))
 
   -write-example.html

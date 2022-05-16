@@ -1,10 +1,28 @@
+This library extracts the subscriptions half of re-frame into a stand-alone library with the key difference that 
+the data source is (app-db reactive atom in re-frame) an explicit argument to subscriptions.
+
+This unlocks the utility of these for some creative integrations between changing out the data str
+
+This unlocks both ends of the subscriptions chain to be free variables - you can use any backing source of data - like datascript
+or a javascript object (maybe from a third party integration), it's up to you!
+- and the UI layer - there is one simple integration point for using a UI library - you guessed it - anything that can
+- return a react element.
+
+
+both ends of the spectrum - new data structures/stores backing the core ratom as well as plugging in different rendering
+integrations to display the data reactively.
+
 This is an extraction of re-frame subscriptions into its own library, where the db (as a reagent.ratom/atom) is always
 passed explicitly to `(subscribe)` calls instead of accessed via a global Var.
 
 The original motivation was to use subscriptions with fulcro, but the library can be used with any data source that is 
 wrapped in a `reagent.ratom/atom`.
 
-This library only has a dependency on the `reagent.ratom` namespace from the reagent codebase.
+In fact that is the library's only dependency from reagent, the `reagent.ratom` namespace. 
+The UI integrations are added on top of this core.
+is on the data at its core - this makes integrating simple.
+
+library only has a dependency on the `reagent.ratom` namespace from the reagent codebase.
 
 Subscriptions are a way to apply pure functions over a core data source to arrive at derived data from that source.
 
@@ -227,6 +245,25 @@ data when a new value for app-db is `reset!`.
 As long as you follow the rules/intended design of using subscriptions this will not matter to you - the rule is 
 you can only compute on the inputs specified by the subscription mechanisms - if your functions are not pure you 
 will have a bad time (you will see stale values).
+
+
+
+The function used for memoization can be changed via this helper function:
+```clojure
+(subs/set-memoize! memoize-fn)
+```
+Now any subsequent calls to `reg-sub` will have their computation functions wrapped in the memoization function specified
+which is `memoize-fn` in this example. 
+
+Thus if you want to disable the memoization cache you can:
+```clojure
+(subs/set-memoize! identity)
+```
+
+Or if you want to change to your own caching policy/implementation you can do so.
+
+It also means you can cache some subscriptions and not others by changing the function before subsequent `reg-sub` calls.
+
 
 ## `defsub` macro
 

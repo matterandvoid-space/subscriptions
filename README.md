@@ -1,15 +1,15 @@
 This is an extraction of re-frame subscriptions into its own library, where the db (as a reagent.ratom/atom) is always
 passed explicitly to `(subscribe)` calls instead of accessed via a global Var.
 
-The original intent was to use subscriptions with fulcro, but the library can be used with any data source that is 
-wrapped in reagent.ratom/atom.
+The original motivation was to use subscriptions with fulcro, but the library can be used with any data source that is 
+wrapped in a `reagent.ratom/atom`.
 
 This library only has a dependency on the `reagent.ratom` namespace from the reagent codebase.
 
 Subscriptions are a way to apply pure functions over a core data source to arrive at derived data from that source.
 
-The difference from just using function composition is that the layers are cached and the ability to execute code 
-in response to any of these values changing.
+The difference from just using function composition is that the layers are cached, and having the ability to execute code 
+in response to any of these values changing over time.
 
 # Integrations
 
@@ -20,7 +20,7 @@ See docs/fulcro.md for details on usage with fulcro.
 The reg-sub API is the same as in re-frame (the subscription handlers are stored in a global var, but this can be easily
 changed if you desire, and then the API becomes: `(reg-sub your-registry-value :hello (fn [db] (:hello db)))`)
 
-The difference from upstream is when you invoke `(subscribe)` you pass in the root of the subscription DAG: 
+The difference from upstream re-frame is when you invoke `(subscribe)` you pass in the root of the subscription directed acyclic graph: 
 ```clojure
 (subscribe (reagent.ratom/atom {:hello 200}) [:hello])
 ```
@@ -73,53 +73,35 @@ can run them locally.
 
 # Differences/modifications from upstream re-frame
 
-- inputs function and compute fn are only passed your db and one arguments hashmap - not the subscription vector
-- memoized computation functions - reactions are not cached when used in a non-reactive call (like in event handlers)
+Details below, but the two big differences are:
 
-## Memoized subscription computation functions.
-
-The underlying reagent.ratom/Reaction used in re-frame is cached - this library also does this.
-
-The issue is that this leads to memory leaks if you attempt to invoke a subscription outside of the reactive propagation stage.
-
-That is, the reaction cache is used for example in a re-frame web app when a `reset!` is called on the reagent.ratom/atom
-app-db - this triggers reagent code that will re-render views, it is during this stage that the subscription computation function
-runs and the reaction cache is successfully used.
-
-The key part is that reagent adds an on-dispose handler for the reaction which is invoked when a component unmounts.
-
-Thus, if you try to use a subscription outside of the reactive context the subscription's reaction will be cached
-but never disposed, consuming memory that is never relinquished until the application is restarted.
-
-This library incorporates two changes to make sure there are no memory leaks and that subscriptions can be used in any context 
-- with a cache in both contexts.
-
-The changes are:
-
-- do not cache reactions if we are not in a reactive context (reagent indicates a reactive context by binding a dynamic variable.)
-- memoize all subscription computation functions with a bounded cache that evicts the least recently used subscription when full.
-
-This is possible because subscriptions are pure functions and the layer 2 accessor subscriptions will invalidate when a new value 
-for app-db is `reset!`.
+1. The input signal function and the compute function are only passed your db and one hashmap as arguments - not the subscription vector.
+2. The reagent Reaction that backs a subscription computatoin function is only cached in a reactive context, and the 
+   computation function itself is memoized with a bounded cache.
 
 ## Only one map for all queries
 
-Another change in this library is that all subscriptions are forced to receive only one argument: a hashmap.
+All subscriptions are forced to receive only one argument: a hashmap.
 
 On a team with lots of people working on one codebase if you remove points where decisions have to be made, especially when
 they are arbitrary decisions (like how do we pass arguments to subscriptions) - then you get uniformity/compatibility for free 
 and your codebase remains cohesive (at least in the domain of subscriptions in this case).
 
-I've had to deal with a large re-frame application where subscriptions were parameterized by components, and having to 
-take into account all parameters passing styles is a pain and can lead to subtle bugs.
+I've had to deal with a large re-frame application where subscriptions were parameterized by components, and having to
+take into account all parameter passing styles is a pain and can lead to subtle bugs when combining parameters across a codebase 
+and doing so dynamically.
 
-(as well as dealing with multiple subscription argument styles in a large re-frame app and attempting to refactor them, or
-combine them dynamically..)
+Taking a tip from many successful clojure projects which are able to be extended and grown and integrated over time
+(e.g. fulco, pathom, pedestal, malli), this library forces all subscriptions to take at most one argument which must be a hashmap.
 
-Taking a tip from many successful clojure projects which are able to be extended and grown and integrated over time,
-This library forces all subscriptions arguments to be one hashmap - this forces you to name all your arguments and allows
-easily flowing data. It also encourages the use of fully qualified keywords which in turn makes using malli or schema or spec
-to validate the arguments, if you wish to, also much simpler.
+Some of the benefits are:
+
+- All arguments are forced to be named, aiding readability
+- You can easily flow data through the system, like you might want to do when creating subscription utilities used across 
+  components in your application, like having components that can be parameterized with subscriptions as well as parameterizing
+  the arguments to those subscriptions.
+- This in turn encourages the use of fully qualified keywords
+- Which in turn makes using malli or schema or spec to validate the arguments much simpler (e.g. having a registry of keyword to schema/spec).
 
 This format of a 2-tuple with a tag as the first element and data as the second shows up in lots of places, here is 
 a great talk about modeling information this way by Jeanine Adkisson from the 2014 Conj:
@@ -154,7 +136,7 @@ the `:<-` input syntax, for example:
 (third-sub base-db {:kw :num-two}) ; => 110
 ```
 
-If static arguments are declared on the subscription and args are passed to the subscrpition they are merged with the user
+If static arguments are declared on the subscription and args are also passed to the subscrpition they are merged with the user
 specified value overriding the static ones - as in: `(merge static-args user-args)`
 
 ```clojure
@@ -176,7 +158,7 @@ I'm sure you may notice if you've used re-frame before that the query id is neve
 produce the input signals, or in the computation function.
 
 This library removes another point where a decision has to be made about how the callbacks will be called - they are 
-always passed the source of your data (usually a ratom) and the query args.
+always passed the source of your data (usually a ratom for inputs fn, and the db value for compute fn) and the query args.
 
 Here's an example where we query for a list of todos, where the data is normalized
 
@@ -185,7 +167,7 @@ Here's an example where we query for a list of todos, where the data is normaliz
   (reageent.ratom/atom
     {:list-one [#uuid"c906f43e-b91d-464d-88cb-0c54988ee847" #uuid"62864412-d146-4111-b339-8fb3f5f5d236"]
      :todo/id {#uuid"c906f43e-b91d-464d-88cb-0c54988ee847" #:todo{:id #uuid"c906f43e-b91d-464d-88cb-0c54988ee847",
-                                                                 :text "todo1", :state :incomplete},
+                                                                  :text "todo1", :state :incomplete},
                #uuid"62864412-d146-4111-b339-8fb3f5f5d236" #:todo{:id #uuid"62864412-d146-4111-b339-8fb3f5f5d236",
                                                                   :text "todo2", :state :incomplete},
                #uuid"f4aa3501-0922-47a5-8579-70a4f3b1398b" #:todo{:id #uuid"f4aa3501-0922-47a5-8579-70a4f3b1398b",
@@ -214,29 +196,78 @@ And the same thing for layer 2:
 If you _really_ need the query id you can just assoc it onto the args map. One less thing to worry about.
 
 This style also means there is no need for the `:=>` syntax sugar (but `:->` is still useful for functions that only need
-to operate on the db).
+to operate on the db or the single computed value).
+
+## Memoized subscription computation functions.
+
+The underlying reagent.ratom/Reaction used in re-frame is cached - this library also does this.
+
+The issue is that this leads to memory leaks if you attempt to invoke a subscription outside of the reactive propagation stage.
+
+That is, the reaction cache is used for example in a re-frame web app when a `reset!` is called on the reagent.ratom/atom
+app-db - this triggers reagent code that will re-render views, it is during this stage that the subscription computation function
+runs and the reaction cache is successfully used.
+
+The key part is that reagent adds an on-dispose handler for the reaction which is invoked when a component unmounts.
+
+Thus, if you try to use a subscription outside of the reactive context (and that is never used by a currently mounted component)
+the subscription's reaction will be cached but never disposed, consuming memory that is never relinquished until the application is restarted.
+
+This library incorporates two changes to make sure there are no memory leaks and yet that subscriptions can be used in any context
+while still being cached.
+
+The changes are:
+
+- do not cache reactions if we are not in a reactive context (reagent indicates a reactive context by binding a dynamic variable.)
+- memoize all subscription computation functions with a bounded cache that evicts the least recently used subscription when full.
+
+This is possible because subscriptions are pure functions and the layer 2 accessor subscriptions will invalidate for new 
+data when a new value for app-db is `reset!`.
+
+As long as you follow the rules/intended design of using subscriptions this will not matter to you - the rule is 
+you can only compute on the inputs specified by the subscription mechanisms - if your functions are not pure you 
+will have a bad time (you will see stale values).
 
 ## `defsub` macro
 
-Creates a function that derefs the subscription.
-
-There is a tiny macro in addition to registering a subscription also creates a `defn` with the provided name.
-When this function is invoked it proxies to: `(deref (subscribe [::subscription-here arg]))`
+There is a tiny macro in this library which in addition to registering a subscription also creates a `defn` with the provided name.
+When this function is invoked it subscribes and derefs: `(deref (subscribe [::subscription-here arg]))`
 
 This allows for better editor integration such as jump-to-definition support as well as searching for the use of the
 subscription across a codebase.
 
 You could also use your own defsub macro to add instrumentation, for example, around subscriptions.
 
-# Development 
+# Implementation details
 
-clone the repo and: 
+The codebase is quite tiny (the subs namespace, pretty much the same as in re-frame), but if you haven't played with 
+reagent Reactions or Ratoms before it can be hard to follow. I found that playing with simple examples helped me to reason
+about what is going on.
 
-```bash
-bb dev
+
+Subscriptions are implemented as reagent Reaction javascript objects and using one helper function `run-in-reaction`.
+Reactions have a current value like a clojurescript atom, but they also have the characteristic that when their function body
+executes if they deref any ratoms or reactions then the reaction will remember these in a list of watches, and whenever 
+any of those dependent data sources changes, the function body will run again.
+
+```clojure
+(def base-data (ratom/atom 0))
+(def sub1 (ratom/make-reaction (fn [] (.log js/console "sub1") (inc @base-data))))
+(def sub2 (ratom/make-reaction (fn [] (.log js/console "sub2") (inc @sub1))))
+(def sub3 (ratom/make-reaction (fn [] (.log js/console "sub3") (inc @sub2))))
+
+(deref sub1)
+(deref sub2)
+(deref sub3)
+(swap! base-data inc)
 ```
+even though the base-data was swap!'d there is no reactivity yet.
+To get that we use the reagent helper function `run-in-reaction`, which lets us specify one function to run right now
+and again using a reaction will track any dependent reactions. The next piece is that it lets you pass a callback to fire
+when any dependent data fires. And this is where we render our views again.
 
-Open the shadow-cljs inspector page and open the page that hosts the tests.
+I would not have been able to figure this out if the reagent component namespace didn't already exist demonstrating how 
+to make this work in practice.
 
 # Integrating this library with other view layers
 
@@ -253,6 +284,14 @@ pass to run-in-reaction. In this `run` function you perform the side-effecting r
 
 # References 
 
+reagent:
+
+https://github.com/reagent-project/reagent
+
+interview with Juho Teperi on reagent
+
+https://player.fm/series/clojurestream-podcast/s4-e2-reagent-with-juho-teperi
+
 re-frame:
 
 https://day8.github.io/re-frame/re-frame
@@ -261,4 +300,14 @@ Mike Thompson on the history of re-frame:
 
 https://player.fm/series/clojurestream-podcast/s4-e3-re-frame-with-mike-thompson
 
-https://soundcloud.com/clojurestream/s4-e3-re-frame-with-mike-thompson
+# Development and contributing
+
+clone the repo and:
+
+```bash
+bb dev
+```
+
+Open the shadow-cljs inspector page and open the page that hosts the tests.
+
+

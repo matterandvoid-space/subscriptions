@@ -273,6 +273,20 @@
                           )))
 
 (def temp-reaction (r/make-reaction nil))
+
+(comment
+  (do
+    (def base-data (r/atom 0))
+    (def r1 (r/make-reaction (fn [] (.log js/console "r1") (inc @base-data))))
+    (def r2 (r/make-reaction (fn [] (.log js/console "r2") (inc @r1))))
+    (def r3 (r/make-reaction (fn [] (.log js/console "r3") (inc @r2))))))
+
+(comment
+  (deref r1)
+  (deref r2)
+  @r3
+  (swap! base-data inc))
+
 (def res (r/deref-capture (fn []
                             (log/info "in the func")
                             @r

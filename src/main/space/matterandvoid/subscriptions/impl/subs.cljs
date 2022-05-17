@@ -26,8 +26,12 @@
   [get-subscription-cache app query-v reaction]
   ;; this prevents memory leaks (caching subscription -> reaction) but still allows
   ;; executing outside of a (reagent.reaction) form, like in event handlers.
+  (log/info "CACHE AND RETURN")
   (when (ratom/reactive-context?)
-    (console :debug (str "IN A REACTIVE CONTEXT" query-v))
+    ;(log/info "REACTIVE YES" query-v)
+    ;(log/info "REACTIVE YES reaction" reaction)
+    ;(console :debug (str "IN A REACTIVE CONTEXT" query-v))
+    (def reaction' reaction)
     (let [cache-key          query-v
           subscription-cache (get-subscription-cache app)]
       ;(console :debug "cache-and-return!" #_subscription-cache)
@@ -46,10 +50,11 @@
                                   (when ratom/debug-enabled?
                                     (when (contains? query-cache cache-key)
                                       (console :warn "re-frame: Adding a new subscription to the cache while there is an existing subscription in the cache" cache-key)))
-                                  (console :info "ABOUT TO ASSOC , cache key: " cache-key)
-                                  (console :info "ABOUT TO ASSOC , cache is : " query-cache)
+                                  ;(console :info "ABOUT TO ASSOC , cache key: " cache-key)
+                                  ;(console :info "ABOUT TO ASSOC , cache is : " query-cache)
                                   (assoc query-cache cache-key reaction)))
       (trace/merge-trace! {:tags {:reaction (ratom/reagent-id reaction)}})))
+
   reaction)
 
 ;; -- subscribe ---------------------------------------------------------------
@@ -57,10 +62,15 @@
 (defn subscribe
   [get-handler cache-lookup get-subscription-cache
    app query]
+  ;(log/info "\n\n--------------------------------------------")
   ;(log/info "subscribe q: " query)
   (assert (vector? query))
-  (let [cnt (count query), [query-id] query]
+  (let [cnt      (count query),
+        query-id (first query)
+        ;[query-id] query
+        ]
     (assert (or (= 1 cnt) (= 2 cnt)) (str "Query must contain only one map for subscription " query-id))
+    (log/info "STEP 1")
     (when (and (= 2 cnt) (not (map? (get query 1))))
       (throw (js/Error. (str "Args to the query vector must be one map for subscription " query-id "\n"
                           "Received: " (pr-str (get query 1))))))
@@ -68,26 +78,34 @@
     (trace/with-trace {:operation (first query)
                        :op-type   :sub/create
                        :tags      {:query-v query}}
-      (console :info (str "subs. cache-lookup: " query))
+      (log/info "STEP 2")
+      ;(console :info (str "subs. cache-lookup: " query))
       (let [cached (cache-lookup app query)]
         ;; this should be fine because the cached reaction will have the most up to date value
         ;; the cache will be empty if the subscription is deref'ed outside a reactive context before it is deref'ed in a reactive one
         ;; in that scenario the memoized computation fn will cache the result for that caller
+        (log/info "STEP 3")
         (if cached
           (do
+            (log/info "STEP 4")
             (trace/merge-trace! {:tags {:cached? true :reaction (ratom/reagent-id cached)}})
-            (console :info (str "subs. returning cached " query ", " (pr-str cached)))
+            ;(console :info (str "subs. returning cached " query ", " (pr-str cached)))
             cached)
           (let [handler-fn (get-handler query-id)]
-            (console :info "subscribe DO NOT HAVE CACHED")
+            (log/info "STEP 5")
+            ;(console :info "subscribe DO NOT HAVE CACHED")
+            ;(console :info "ABOUT TO ASSOC , cache is : " @(get-subscription-cache app))
             ;(console :info (str "subs. computing subscription"))
             (assert handler-fn (str "Subscription handler for the following query is missing\n\n" (pr-str query-id) "\n"))
 
+            (log/info "STEP 6")
             (trace/merge-trace! {:tags {:cached? false}})
             (if (nil? handler-fn)
               (do (trace/merge-trace! {:error true})
+                  (log/info "STEP 7")
                   (console :error (str "No subscription handler registered for: " query-id "\n\nReturning a nil subscription.")))
               (do
+                (log/info "STEP 8")
                 ;(js/console.log "SUBSCRIBE")
                 ;(js/console.log "subscribe NOT CACHED. Have handler. invoking with args: " query)
                 (cache-and-return! get-subscription-cache app query (handler-fn app query))))))))))
@@ -121,6 +139,7 @@
       ))
   (map-signals deref signals))
 
+(def subs' #js[])
 (defn make-subs-handler-fn
   "This is where the inputs-fn is executed and the computation is put inside a reaction - ie a callback for later
   invocation when subscribe is called and derefed.
@@ -129,9 +148,10 @@
   (fn subs-handler-fn
     [app query-vec]
     (assert (vector? query-vec))
+    (log/info "Making subs handler " query-vec)
     (let [args          (second query-vec)
+          _ (js/console.log "subs-handler-fn args: " args)
           subscriptions (inputs-fn app args)
-          ;_ (js/console.log "subs-handler-fn args: " args)
           reaction-id   (atom nil)
           reaction      (ratom/make-reaction
                           (fn []
@@ -141,6 +161,10 @@
                                                :tags      {:query-v  [query-id args]
                                                            :reaction @reaction-id}}
 
+
+                              ;(log/info "In reaction cb execute computation fn: " args)
+                              (.push subs' [query-vec subscriptions])
+                              (def sub' subscriptions)
                               (let [subscription-output (computation-fn (deref-input-signals subscriptions query-id) args)]
                                 (trace/merge-trace! {:tags {:value subscription-output}})
                                 subscription-output))))]
@@ -148,8 +172,10 @@
       reaction)))
 
 (def memoize-fn memoize/memoize-fn)
+(def args-merge-fn merge)
 
-(defn set-memoize! [f] (set! memoize-fn f))
+(defn set-memoize-fn! [f] (set! memoize-fn f))
+(defn set-args-merge-fn! [f] (set! args-merge-fn f))
 
 (defn reg-sub
   "db, fully qualified keyword for the query id
@@ -175,6 +201,7 @@
         memoized-computation-fn (memoize-fn computation-fn)
 
         err-header              (str "space.matterandvoid.subscriptions: reg-sub for " query-id ", ")
+        merge-update-args       (fn [subs-vec args*] (cond-> subs-vec (map? args*) (update 1 args-merge-fn args*)))
         inputs-fn               (case (count input-args)
                                   ;; no `inputs` function provided - give the default
                                   0
@@ -204,11 +231,10 @@
                                       (when-not (= :<- marker)
                                         (console :error err-header "expected :<-, got:" marker))
                                       (fn inputs-fn-
-                                        ([app]
-                                         (subscribe get-handler cache-lookup get-subscription-cache app signal-vec))
-                                        ([app args]
-                                         (subscribe get-handler cache-lookup get-subscription-cache app
-                                           (cond-> signal-vec (map? args) (update 1 merge args))))))
+                                        ([app] (subscribe get-handler cache-lookup get-subscription-cache app signal-vec))
+                                        ([app args*]
+                                         (log/info "one pair: args " (merge-update-args signal-vec args*))
+                                         (subscribe get-handler cache-lookup get-subscription-cache app (merge-update-args signal-vec args*)))))
 
                                   ;; multiple :<- pairs
                                   (let [pairs   (partition 2 input-args)
@@ -216,10 +242,19 @@
                                         vecs    (map second pairs)]
                                     (when-not (and (every? #{:<-} markers) (every? vector? vecs))
                                       (console :error err-header "expected pairs of :<- and vectors, got:" pairs))
+
+                                    ;; note the use of mapv here, it allows reactions to be created outside a reactive context
+                                    ;; like for example when rendering in a fulcro app to draw the first frame.
+                                    ;; if you return a seq in that situation an infinite loop occurs.
                                     (fn inp-fn
-                                      ([app] (map #(subscribe get-handler cache-lookup get-subscription-cache app %) vecs))
-                                      ([app args]
-                                       (map #(subscribe get-handler cache-lookup get-subscription-cache app (cond-> % (map? args) (update 1 merge args)))
+                                      ([app] (mapv #(subscribe get-handler cache-lookup get-subscription-cache app %) vecs))
+                                      ([app args*]
+                                       (map #(do
+                                               (let [args2 (merge-update-args % args*)]
+                                                 ;(log/info "args2: " args2)
+                                                 ;(log/info "args*: " args*)
+                                                 ;(log/info "% : " %)
+                                                 (subscribe get-handler cache-lookup get-subscription-cache app args2)))
                                          vecs)))))]
     ;(js/console.log "registering subscription: " query-id)
     ;(js/console.log "input args: " input-args)

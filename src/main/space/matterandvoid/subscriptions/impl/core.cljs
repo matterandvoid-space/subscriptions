@@ -30,7 +30,8 @@
 ;----------
 ;; api
 
-(defn set-memoize! [f] (subs/set-memoize! f))
+(defn set-memoize-fn! [f] (subs/set-memoize-fn! f))
+(defn set-args-merge-fn! [f] (subs/set-args-merge-fn! f))
 
 (defn reg-sub
   [query-id & args]

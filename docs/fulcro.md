@@ -6,8 +6,11 @@ See the readme for references to learn more.
 
 # Why?
 
-Fulcro provides powerful features and abstractions but its rendering model is backward to how most humans think about 
-UI development. 
+Bring reactive UI updates for derived data to fulcro.
+
+Fulcro provides powerful features and abstractions but its rendering model makes dealing with derived data difficult 
+to work with. Combined with the realization that a UI is mostly rendering derived data I didn't see a tractable way forward to 
+continue using fulcro without a solution to this problem.
 
 The way I think about this is that most UI libraries have a "pull" mental model where a component (the leaf) asks
 for data it needs to render. Whereas in fulcro the model is "push" - a mutation augments the data and then tells the leaves to redraw,
@@ -44,15 +47,17 @@ In bullet points:
     responsibility of figuring out derived data to the application author does not scale, especially when you add more devs.
 - One of the early and exciting selling points of Om/Fulcro was targeted refresh of only the components whose data has changed.
   There has recently been a move away from this render optimization because it is so hard to make sure all the components
-  onscreen are redrawn that need to be. This library makes targeted refresh tractable (well really reagent does that and Mike's
+  onscreen are redrawn that need to be. This library makes targeted refresh tractable (well really reagent does that and Mike Thompson's
   incredible discovery/invention of subscriptions).
 
 # How?
 
-There is a `defsc` macro in this library which has the same exact API as the one in fulcro, but wraps the render function of
-the component in a `reagent.ratom/run-in-reaction` - and provides it with a callback that will re-render the component
-whenever any of the values of the subscriptions the component is subscribed to change. The data for bookkeeping is stored on the
-component JS instance itself, and cleanup happens on component unmount.
+Using render middleware that renders each fulcro component in a reagent Reaction using `reagent.ratom/run-in-reaction` 
+When any data the render function is subscribed to (any ratom/reactions it derefed during render change)
+a callback fires that will re-render the component.
+
+There is currently a duplicate `defsc` macro needed because fulcro does not support cleanup middleware for class components.
+When a component unmounts we remove the listener created by `run-in-reaction`.
 
 Nothing else about using fulcro components has changed, they will still re-render following the usual fulcro usage.
 
@@ -64,7 +69,7 @@ Example:
 (defonce fulcro-app (subs/fulcro-app {:initial-db {:key1 500 :key2 "hi"}}))
 
 (subs/defsub key1 :-> :key1)
-;; shorthand for:
+;; :-> is shorthand for:
 
 (subs/defsub key1 (fn [db] (:key1 db)))
 
@@ -77,12 +82,8 @@ Example:
 
 (subs/defsc MyComponent [this props]
   {:query         (fn [] [::some-prop1 ::some-prop2])
-   ::subs/signals  (fn [this props] 
-                    {:key1-value [::key1]})
    :ident         (fn [_] [:component/id ::my-component])}
-  (let [{:keys [key1-value]} (subs/signals-map this)]
-    (dom/div (str "Key1's value is: " (pr-str key1)))))
-    
+    (dom/div (str "Key1's value is: " (pr-str (key1 this)))))
 
 (comment 
   ;; eval this in a repl and see the UI update
@@ -133,19 +134,19 @@ In short: always mutate the fulcro state atom as usual: you must use `transact!`
 
 For the best integration the fulcro rule applies: pretend there is no watch on the fulcro state atom.
 
-You're going to have a bad time if you try to use `swap!` because fulcro caches a component's props on the component insntance
-so if a parent component uses a subscription but it does not and instead renders its props - its parent will refresh 
-via the reaction firing, but the leaf/child will not because fulcro is rendering its cached props
+You're going to have a bad time if you try to use `swap!` because fulcro caches a component's props on the component instance
+so if a parent component uses a subscription but the child does not and instead renders its props - its parent will refresh 
+via the reaction firing, but the leaf/child will not because fulcro is rendering its cached props.
 
 TODO:
 
 show an example of what this looks like
 
-# No hooks support
+# No hooks support yet
 
 This library currently only supports integrating with fulcro components which produce JavaScript React class components.
 
-If using hooks is something that interests you, PRs are welcome.
+If using hooks is something that interests you, PRs are welcome, I intend to add support for function components though.
 
 # Future ideas
 

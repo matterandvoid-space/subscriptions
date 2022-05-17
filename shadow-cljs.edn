@@ -1,0 +1,35 @@
+{:deps
+ {:aliases [:dev :test]}
+
+ :dev-http
+ {8099 "public"}
+
+ :builds
+
+ {:test
+  {:target    :browser-test
+   :test-dir  "public/test/js"
+   :ns-regexp "-test$"
+   :devtools  {:http-port 8022
+               :http-root "public/test/js"}}
+
+  :ci-tests
+  {:target           :karma
+   :js-options       {:js-provider :shadow}
+   :compiler-options {:static-fns false} ; required for mocking to work
+   :output-to        "target/ci.js"
+   :ns-regexp        "-test$"}
+
+  :fulcro-example
+  {:target  :browser :output-dir "public/fulcro-example/js" :asset-path "/js"
+   :modules {:fulcro-example {:entries [todo.fulcro.todo-app]
+                              :init-fn todo.fulcro.todo-app/init}}}
+
+  :reagent-datascript-example
+  {:target  :browser :output-dir "public/reagent-datascript-example/js" :asset-path "/js"
+   :modules {:reagent-datascript-example {:entries [reagent-datascript]
+                                          :init-fn reagent-datascript/init}}}
+
+  :dev
+  {:target  :browser :output-dir "public/dev/js" :asset-path "/js"
+   :modules {:dev {:entries [dev.entry]}}}}}

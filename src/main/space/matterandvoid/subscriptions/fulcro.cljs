@@ -6,10 +6,12 @@
     [com.fulcrologic.fulcro.rendering.ident-optimized-render :as ident-optimized-render]
     [space.matterandvoid.subscriptions.impl.fulcro :as impl]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
-    [reagent.ratom]
+    [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
+    [goog.object :as g]
     [taoensso.timbre :as log]))
 
-(defn set-memoize! [f] (impl/set-memoize! f))
+(defn set-memoize-fn! [f] (impl/set-memoize-fn! f))
+(defn set-args-merge-fn! [f] (impl/set-args-merge-fn! f))
 
 (defn reg-sub
   "A call to `reg-sub` associates a `query-id` with two functions ->
@@ -116,25 +118,37 @@
   "Proxies to com.fulcrologic.fulcro.application/fulcro-app
    and then assoc'es a reagent.ratom/atom for the fulcro state-atom with :initial-db if present in the args map.
    Also uses ident-optimized-render/render! as the rendering algorithm if no :optimized-render! is passed in args."
-  [args]
-  {:pre [(map? args)]}
-  (let [args (cond->
-               (-> args
-                 (assoc :render-middleware
-                        (fn [this render-fn]
-                          (let [client-middleware (or (:render-middleware args) (fn [_this f] (f)))]
-                            (log/info "IN render-middleware")
-                            (if-let [^clj reaction (impl/get-component-reaction this)]
-                              (._run reaction false)
-                              (setup-reaction! this (fn [] (client-middleware this render-fn)))))))
-                 ;(assoc :component-will-unmount-middleware
-                 ;       (fn [this cwu]
-                 ;         (let [client-cwu (or (:component-will-unmount-middleware args) (fn [_this f] (f)))]
-                 ;           (log/info "comp will unmount CLEANING UP" (c/component-name this))
-                 ;           (cleanup! this)
-                 ;           (client-cwu this cwu))))
-                 )
-               (not (:optimized-render! args))
-               (assoc :optimized-render! ident-optimized-render/render!))]
-    (assoc (fulcro.app/fulcro-app args)
-      ::fulcro.app/state-atom (reagent.ratom/atom (:initial-db args {})))))
+  ([] (fulcro-app {}))
+  ([args]
+   {:pre [(map? args)]}
+   (let [args (cond->
+                (-> args
+                  (assoc :render-middleware
+                         (fn [this render-fn]
+                           (let [final-render-fn
+                                 (if (:render-middleware args)
+                                   (fn [] ((:render-middleware args) this render-fn))
+                                   render-fn)]
+                             (log/info "IN render-middleware")
+                             (if-let [^clj reaction (impl/get-component-reaction this)]
+                               (do
+                                 (when goog/DEBUG
+                                   ;; deals with hot reloading when the render function body changes
+                                   (log/info "have reaction set!ing new render fn: " (c/component-name this))
+                                   (set! (.-f reaction) final-render-fn))
+                                 (._run reaction false))
+                               (setup-reaction! this final-render-fn)))))
+
+                  ;; this is not supported in upstream fulcro, so we have to use `defsc` macro.
+
+                  ;(assoc :component-will-unmount-middleware
+                  ;       (fn [this cwu]
+                  ;         (let [client-cwu (or (:component-will-unmount-middleware args) (fn [_this f] (f)))]
+                  ;           (log/info "comp will unmount CLEANING UP" (c/component-name this))
+                  ;           (cleanup! this)
+                  ;           (client-cwu this cwu))))
+                  )
+                (not (:optimized-render! args))
+                (assoc :optimized-render! ident-optimized-render/render!))]
+     (assoc (fulcro.app/fulcro-app args)
+       ::fulcro.app/state-atom (ratom/atom (:initial-db args {}))))))

@@ -281,6 +281,8 @@
 (sut/defsub second-sub-a :<- [::first-sub-a {:kw :num-three}] :-> #(+ 100 %))
 (sut/defsub third-sub-a :<- [::first-sub-a {:kw :num-three}] :<- [::second-sub-a] :-> #(reduce + %))
 
+(sut/defsub fourth-sub-a :<- [::first-sub-a] :<- [::second-sub-a] (fn [[a b]] (* a b)))
+
 (deftest sugar-input-with-args
   (testing ":<- inputs are passed the args map"
     (is (= 600 (second-sub base-db {:kw :num-one})))
@@ -292,4 +294,5 @@
     (is (= 199 (second-sub-a base-db)))
     (is (= 105 (second-sub-a base-db {:kw :num-two})))
     (is (= 110 (third-sub-a base-db {:kw :num-two})))
-    (is (= 298 (third-sub-a base-db)))))
+    (is (= 298 (third-sub-a base-db)))
+    (is (= 525 (fourth-sub-a base-db {:kw :num-two})))))

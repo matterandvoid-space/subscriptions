@@ -1,5 +1,6 @@
 (ns todo.fulcro.todo-app
   (:require
+    [todo.fulcro.todo-app2 :as todos2]
     [com.fulcrologic.fulcro.algorithms.merge :as merge]
     [com.fulcrologic.fulcro.algorithms.normalized-state :as nstate]
     [com.fulcrologic.fulcro.application :as fulcro.app]
@@ -40,7 +41,7 @@
               true (update :args-history conj args)))
          (get (:args->data @cache_) args))))))
 
-(subs/set-memoize! memoize-fn)
+(subs/set-memoize-fn! memoize-fn)
 ;(subs/set-memoize! identity)
 
 (defn make-todo
@@ -200,7 +201,10 @@
                                                            (log/info "in app's render middle")
                                                            (f))}))
 
-(defn ^:export ^:dev/after-load init [] (fulcro.app/mount! fulcro-app Root js/app))
+(defn ^:export ^:dev/after-load init []
+  (todos2/init)
+  ;(fulcro.app/mount! fulcro-app Root js/app)
+  )
 (comment
   (macroexpand
     '(defsc Root [this {:root/keys [list-id]}]
@@ -287,25 +291,21 @@
   @r3
   (swap! base-data inc))
 
-(def res (r/deref-capture (fn []
-                            (log/info "in the func")
-                            @r
-                            )
-           temp-reaction
-           ))
+;(def res (r/deref-capture (fn [] (log/info "in the func") @r ) temp-reaction ))
 
-(def x
-  (r/->Reaction
-    (fn []
-      (log/info "In reaction") 500)
-    :state ;; state
-    true ;; dirty?
-    false ;; nocache?
-    nil ; watching
-    nil ; watches
-    nil ;autorun
-    nil ; caught
-    ))
+(comment
+  (def x
+    (r/->Reaction
+      (fn []
+        (log/info "In reaction") 500)
+      :state ;; state
+      true ;; dirty?
+      false ;; nocache?
+      nil ; watching
+      nil ; watches
+      nil ;autorun
+      nil ; caught
+      )))
 (comment
   (.-state x)
   (deref x)

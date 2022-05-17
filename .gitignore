@@ -12,7 +12,6 @@ out/
 compiled/
 node_modules/
 *~
-/shadow-cljs.edn
 /.shadow-cljs/
 .cpcache
 test-output

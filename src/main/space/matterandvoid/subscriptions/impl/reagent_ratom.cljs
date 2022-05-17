@@ -1,4 +1,5 @@
 (ns space.matterandvoid.subscriptions.impl.reagent-ratom
+  (:refer-clojure :exclude [atom])
   (:require [reagent.ratom]))
 
 ;; Make sure the Google Closure compiler sees this as a boolean constant,
@@ -14,6 +15,7 @@
   ;; See https://shadow-cljs.github.io/docs/UsersGuide.html#infer-externs
   (satisfies? reagent.ratom/IReactiveAtom ^js x))
 
+(def atom reagent.ratom/atom)
 (defn deref? [x] (satisfies? IDeref x))
 (defn make-reaction [f] (reagent.ratom/make-reaction f))
 (defn run-in-reaction [f obj key run opts] (reagent.ratom/run-in-reaction f obj key run opts))

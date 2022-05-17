@@ -1,30 +1,22 @@
-This library extracts the subscriptions half of re-frame into a stand-alone library with the key difference that 
-the data source is (app-db reactive atom in re-frame) an explicit argument to subscriptions.
+This library extracts the subscriptions half of re-frame into a stand-alone library with a few differences, the key one 
+being that the data source is an explicit argument you pass to subscriptions.
 
-This unlocks the utility of these for some creative integrations between changing out the data str
+This unlocks the utility of subscriptions for some creative integrations.
 
-This unlocks both ends of the subscriptions chain to be free variables - you can use any backing source of data - like datascript
-or a javascript object (maybe from a third party integration), it's up to you!
-- and the UI layer - there is one simple integration point for using a UI library - you guessed it - anything that can
-- return a react element.
-
-
-both ends of the spectrum - new data structures/stores backing the core ratom as well as plugging in different rendering
-integrations to display the data reactively.
-
-This is an extraction of re-frame subscriptions into its own library, where the db (as a reagent.ratom/atom) is always
-passed explicitly to `(subscribe)` calls instead of accessed via a global Var.
+It allows both ends of the subscriptions chain to be free variables 
+- you can use any backing source of data - like datascript or a javascript object (maybe from a third party integration), it's up to you!
+- the UI layer - there is one simple integration point for rendering with any react cljs rendering library.
 
 The original motivation was to use subscriptions with fulcro, but the library can be used with any data source that is 
 wrapped in a `reagent.ratom/atom`.
 
 In fact that is the library's only dependency from reagent, the `reagent.ratom` namespace. 
 The UI integrations are added on top of this core.
-is on the data at its core - this makes integrating simple.
 
-library only has a dependency on the `reagent.ratom` namespace from the reagent codebase.
-
-Subscriptions are a way to apply pure functions over a core data source to arrive at derived data from that source.
+If you haven't used re-frame, subscriptions are a way to apply pure functions over a core data source to arrive at derived data from that source.
+They also allow "subscribing" to a piece of derived data - that is, specifying a callback function to invoke when the data changes,
+with the intention of committing effects - changing the state of the world - in this library that is usually affecting 
+the state of pixels on a display attached to a computer.
 
 The difference from just using function composition is that the layers are cached, and having the ability to execute code 
 in response to any of these values changing over time.
@@ -35,8 +27,12 @@ There are two API entry namespaces (for now) - one for use with fulcro and one f
 
 See docs/fulcro.md for details on usage with fulcro.
 
-The reg-sub API is the same as in re-frame (the subscription handlers are stored in a global var, but this can be easily
-changed if you desire, and then the API becomes: `(reg-sub your-registry-value :hello (fn [db] (:hello db)))`)
+The reg-sub API is the same as in re-frame 
+_aside_: the subscription handlers are stored in a global var, but this can be easily
+  changed if you desire, and then the API becomes:
+```clojure
+(reg-sub your-registry-value :hello (fn [db] (:hello db)))
+```
 
 The difference from upstream re-frame is when you invoke `(subscribe)` you pass in the root of the subscription directed acyclic graph: 
 ```clojure
@@ -45,7 +41,7 @@ The difference from upstream re-frame is when you invoke `(subscribe)` you pass 
 
 # Examples
 
-See the `examples` directory in the repo and shadow-cljs.edn for the builds if you clone the repo you 
+See the `examples` directory in the repo and `shadow-cljs.edn` for the build names if you clone the repo you 
 can run them locally.
 
 ## Use with fulcro class components
@@ -247,33 +243,49 @@ you can only compute on the inputs specified by the subscription mechanisms - if
 will have a bad time (you will see stale values).
 
 
-
 The function used for memoization can be changed via this helper function:
+
 ```clojure
-(subs/set-memoize! memoize-fn)
+(subs/set-memoize-fn! memoize-fn)
 ```
 Now any subsequent calls to `reg-sub` will have their computation functions wrapped in the memoization function specified
 which is `memoize-fn` in this example. 
 
 Thus if you want to disable the memoization cache you can:
 ```clojure
-(subs/set-memoize! identity)
+(subs/set-memoize-fn! identity)
 ```
 
 Or if you want to change to your own caching policy/implementation you can do so.
 
 It also means you can cache some subscriptions and not others by changing the function before subsequent `reg-sub` calls.
 
-
 ## `defsub` macro
 
-There is a tiny macro in this library which in addition to registering a subscription also creates a `defn` with the provided name.
-When this function is invoked it subscribes and derefs: `(deref (subscribe [::subscription-here arg]))`
+There is a tiny macro in this library which in addition to registering a subscription also outputs a `defn` with the provided name.
+When this function is invoked it subscribes and derefs to the subscription with passing along any arguments.
+
+Here is an example:
+
+```clojure
+(defsub sorted-todos :<- [::all-todos] :-> (partial sort-by :todo/text))
+;; expands to:
+(do
+  (reg-sub ::sorted-todos  :<- [::all-todos] :-> (partial sort-by :todo/text))
+  
+  (defn sorted-todos 
+    ([ratom] (deref (subs/subscribe ratom [::sorted-todos])))
+    ([ratom args] (deref (subs/subscribe ratom [::sorted-todos args])))))
+```
 
 This allows for better editor integration such as jump-to-definition support as well as searching for the use of the
 subscription across a codebase.
 
-You could also use your own defsub macro to add instrumentation, for example, around subscriptions.
+Also, because the subscriptions are memory-safe to use in a non-reactive context they are really just functions, how they're implemented
+is just a detail.
+
+You could also use your own defsub macro to, for example, instrument the calls to subscriptions or manipulate the args map 
+for all subscriptions.
 
 # Implementation details
 
@@ -312,12 +324,8 @@ In short use `reagent.ratom/run-in-reaction`, see the reagent source for inspira
 
 https://github.com/reagent-project/reagent/blob/f64821ce2234098a837ac7e280969f98ab11342e/src/reagent/impl/component.cljs#L254
 
-or the fulcro integration:
-
-<todo>
-
 It takes a `run` function callback which will be invoked when any ratom's or Reactions are deref'd in the main function 
-pass to run-in-reaction. In this `run` function you perform the side-effecting re-render.
+passed to run-in-reaction. In this `run` function you perform the side-effecting re-render.
 
 # References 
 

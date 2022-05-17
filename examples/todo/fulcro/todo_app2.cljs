@@ -2,6 +2,7 @@
   (:require
     [com.fulcrologic.fulcro.algorithms.merge :as merge]
     [com.fulcrologic.fulcro.algorithms.normalized-state :as nstate]
+    [com.fulcrologic.fulcro.algorithms.form-state :as fs]
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [com.fulcrologic.fulcro.components :as c]
     [com.fulcrologic.fulcro.mutations :as mut :refer [defmutation]]
@@ -9,11 +10,6 @@
     [space.matterandvoid.subscriptions.fulcro :as subs :refer [defsc defsub reg-sub]]
     [reagent.ratom :as r]
     [taoensso.timbre :as log]))
-
-
-
-(subs/set-memoize! memoize-fn)
-;(subs/set-memoize! identity)
 
 (defn make-todo
   ([text] (make-todo (random-uuid) text))
@@ -32,25 +28,10 @@
 (defsub complete-todos :<- [::all-todos] :-> #(filter (comp #{:complete} :todo/state) %))
 (defsub incomplete-todos :<- [::all-todos] :-> #(filter (comp #{:incomplete} :todo/state) %))
 
-(defsc Comment [this {:comment/keys [text at]}]
-  {:query         [:comment/id :comment/text :comment/at]
-   :ident         :comment/id
-   :initial-state (fn [text] (make-comment text))}
-  (dom/div
-    (dom/div "Comment: ") (dom/p text) (dom/p (str "at " (.toLocaleString at)))))
+(reg-sub :todo/id (comp :todo/id second))
+(reg-sub :todo/text (fn [db {:todo/keys [id]}] (get-in db [:todo/id id :todo/text])))
 
-(def ui-comment (c/computed-factory Comment {:keyfn :comment/id}))
-
-
-(reg-sub :todo/id (fn [_ {:todo/keys [id]}]
-                    (log/info ":todo/id subscription comp fn " id) id))
-
-(reg-sub :todo/text
-  (fn [db {:todo/keys [id]}]
-    (log/info "IN ::todo/text sub computation fn")
-    (get-in db [:todo/id id :todo/text])))
-
-(reg-sub ::todo
+(defsub todo
   (fn [app args]
     (log/info "IN ::todo sub inputs fn")
     {:todo/text (subs/subscribe app [:todo/text args])
@@ -70,25 +51,24 @@
 
 (reg-sub ::todo-table :-> (fn [db] (-> db :todo/id)))
 
-(reg-sub ::todo-list-expanded
-  (fn [app {:keys [list-id] :as args}]
-    (log/info "IN ::todos-list inputs fn: " args)
-    [(subs/subscribe app [::list-idents {:list-id list-id}])
-     (subs/subscribe app [::todo-table])])
+;; now any subscriptions that use ::todo-table as an input signal will only update if todo-table's output changes.
+
+(defsub todos-list :<- [::list-idents] :<- [::todo-table]
+  (fn [[idents table]] (mapv #(get table (second %)) idents)))
+
+(defsub todos-list-orig
+  ;(fn [app args] [(subs/subscribe app [::list-idents args]) (subs/subscribe app [::todo-table args])])
+  (fn [app args]
+    (mapv (fn [v]
+           (log/info "sub to: " (update v 1 merge args))
+           (subs/subscribe app (update v 1 merge args)))
+      [[::list-idents] [::todo-table]]))
   (fn [[idents table]]
     (log/info "subsc ::todo-list-expanded idents" idents)
     (log/info "subsc ::todo-list-expanded table" table)
     (mapv #(get table (second %)) idents)))
 
-(defsub todos-list
-  (fn [app {:keys [list-id] :as args}]
-    (log/info "IN ::todos-list inputs fn: " args)
-    (subs/subscribe app [::todo-list-expanded args]))
-  (fn [x]
-    (log/info "IN ::todos-list computation fn: " x)
-    x))
-
-(reg-sub :todo/id2 :-> :root/todos)
+(defsub todos-total :<- [::todos-list] :-> count)
 
 (defmutation change-todo-text
   [{:keys [id text]}]
@@ -104,38 +84,41 @@
 
 (defn rm-random-todo! [this] (c/transact! this [(rm-random-todo)]))
 
+(declare Todo)
+
+(defn add-random-todo! [app]
+  (merge/merge-component! (c/any->app app) Todo (make-todo (str "todo-" (rand-int 1000))) :append [:root/todos]))
+
 (defsc Todo [this {:todo/keys [text state completed-at]}]
-  {:query                [:todo/id :todo/text :todo/state :todo/completed-at]
-   :ident                :todo/id
-   ;:componentWillUnmount (fn [this] (log/info "TODO UNMOUNTING"))
-   :initial-state        (fn [text] (make-todo text))}
+  {:query         [:todo/id :todo/text :todo/state :todo/completed-at fs/form-config-join]
+   :ident         :todo/id
+   ::fs/fields    #{:todo/text :todo/state}
+   :initial-state (fn [text] (make-todo (or text "")))}
   (log/info "Rendering todo item: " text)
   (dom/div
     {}
+    (dom/label
+      "Text:"
+      (dom/input {:value text}))
     (dom/div "Todo:" (dom/div text))
     (dom/div "status: " (pr-str state))))
 
-(comment
-  (macroexpand
-    '(defsc Todo [this {:todo/keys [text state completed-at]}]
-       {:query                [:todo/id :todo/text :todo/state :todo/completed-at]
-        :ident                :todo/id
-        :componentWillUnmount (fn [this]
-                                (log/info "TODO UNMOUNTING"))
-        :initial-state        (fn [text] (make-todo text))}
-       (log/info "Rendering todo item: " text)
-       (dom/div
-         {}
-         (dom/div "Todo:" (dom/div text))
-         (dom/div "status: " (pr-str state))))
-    )
-  )
+(macroexpand
+  '(defsc Todo [this {:todo/keys [text state completed-at]}]
+    {:query         [:todo/id :todo/text :todo/state :todo/completed-at fs/form-config-join]
+     :ident         :todo/id
+     ::fs/fields    #{:todo/text :todo/state}
+     :initial-state (fn [text] (make-todo (or text "")))}
+    (log/info "Rendering todo item: " text)
+    (dom/div
+      {}
+      (dom/label
+        "Text:"
+        (dom/input {:value text}))
+      (dom/div "Todo:" (dom/div text))
+      (dom/div "status: " (pr-str state)))))
 
 (def ui-todo (c/computed-factory Todo {:keyfn :todo/id}))
-
-(defsub todos-total (fn [app args]
-                      (subs/subscribe app [::todos-list args]))
-  (fn [todos] (count todos)))
 
 (defsc TodosTotal [this {:keys [list-id]}]
   {:query [:list-id]}
@@ -146,11 +129,17 @@
 (defsc TodoList [this {:keys [list-id]}]
   {:ident (fn [] [:component/id ::todo-list])
    :query [:list-id]}
-  (log/info "In TodoList render fn")
-  (let [todos (todos-list this {:list-id list-id})]
+  (log/info "In TodoList render fn change10")
+
+  (let [todos #_[]
+        (todos-list this {:list-id list-id})]
     ;(def t' todos)
     (dom/div {}
       (dom/h1 "Todos")
+
+      (dom/p "hi")
+      (dom/button {:style {:padding 20} :onClick #(add-random-todo! this)} "Add")
+
       (ui-todos-total {:list-id list-id})
       (dom/pre (pr-str todos))
       (dom/hr)
@@ -163,122 +152,30 @@
    :query         [:root/list-id]}
   (dom/div {} (ui-todo-list {:list-id list-id})))
 
-(defonce fulcro-app (subs/fulcro-app {:initial-db {}
-                                      :component-will-unmount-middleware
-                                      (fn [this cwu]
-                                        (log/info "in app's :component-will-unmount-middleware")
-                                        (cwu))
-                                      :render-middleware (fn [this f]
-                                                           (log/info "in app's render middle")
-                                                           (f))}))
+(defonce fulcro-app (subs/fulcro-app))
 
-(defn ^:export ^:dev/after-load init [] (fulcro.app/mount! fulcro-app Root js/app))
-(comment
-  (macroexpand
-    '(defsc Root [this {:root/keys [list-id]}]
-       {:initial-state {:root/list-id :root/todos}
-        :query         [:root/list-id]}
-       (dom/div {} (ui-todo-list {:list-id list-id}))))
+(defmutation force-draw [_]
+  (action [{:keys [state]}] (swap! state update :draw-count inc)))
+
+(defn ^:export init []
+  (fulcro.app/mount! fulcro-app Root js/app)
+
+  ;(c/transact! fulcro-app [(force-draw)])
+
+  ;(fulcro.app/force-root-render! [fulcro-app])
   )
+(defn  ^:dev/after-load refresh []
+  (fulcro.app/unmount! fulcro-app)
+  (fulcro.app/mount! fulcro-app Root js/app {:initialize-state? false})
+  (subs/clear-subscription-cache! fulcro-app)
+  ;(c/transact! fulcro-app [(force-draw)])
 
-(comment
-  (def rr (r/make-reaction (fn [] (log/info "in reaction"))))
-  (as-> fulcro-app XX
-    ;(merge/merge-component! XX Todo (make-todo "helo"))
-    (merge/merge-component! XX Todo (make-todo "helo429") :append [:root/todos])
-    (fulcro.app/current-state fulcro-app))
-
-  ;(swap! (::fulcro.app/state-atom fulcro-app) update :dan-num inc)
-  ;;
-  ;; okayyyyyyyyyyyyyyyyyyyy
-  ;; this works
-  (let [id (-> (fulcro.app/current-state fulcro-app) :todo/id keys first)]
-    (change-todo-text! fulcro-app {:id id :text "199XHANGEd8"}))
-  (rm-random-todo! fulcro-app)
-
-  ;; This will only work if the leaf component is rendered via a subscription
-  ;; whereas if you use transact, you don't have to think about that
-  ;(let [id (-> (fulcro.app/current-state fulcro-app) :todo/id keys first)]
-  ;  (swap! (::fulcro.app/state-atom fulcro-app) assoc-in [:todo/id id :todo/text] "22XHANGEd4"))
-
-  (subs/<sub fulcro-app [::list-idents {:list-id :root/todos}])
-  (subs/<sub fulcro-app [::todos-list {:list-id :root/todos}])
-
-  (fulcro.app/current-state fulcro-app)
-  (keys fulcro-app)
-  (:com.fulcrologic.fulcro.application/algorithms fulcro-app)
-  (all-todos fulcro-app)
-  (complete-todos fulcro-app)
-  (incomplete-todos fulcro-app)
-  (subs/<sub fulcro-app [:todo/id2])
-
+  ;(fulcro.app/force-root-render! [fulcro-app])
   )
+(comment (fulcro.app/current-state fulcro-app))
 
-(def base-val (r/atom 0))
-(def reaction-one (r/make-reaction (fn [] (log/info "in reaction one")
-                                     (inc @base-val))))
 
-(def reaction-two (r/make-reaction (fn [] (log/info "in reaction two") (+ 10 @reaction-one))))
-(def reaction-three (r/make-reaction (fn [] (log/info "in reaction three") (+ 10 @reaction-two))))
 
-(comment
-  @base-val
-
-  (let [js-val #js{}]
-    (r/run-in-reaction
-      (fn []
-        (log/info "the value of reaction 3: " @reaction-three)
-        (+ @reaction-three 10)
-        )
-      js-val
-      "reaction_key"
-      (fn [new-js-val] (log/info "IN reactive RUN"))
-      nil
-      ))
-
-  @reaction-three
-  (swap! base-val inc))
-
-(def r (r/make-reaction (fn []
-                          (log/info "In reaction r")
-                          500
-                          )))
-
-(def temp-reaction (r/make-reaction nil))
-
-(comment
-  (do
-    (def base-data (r/atom 0))
-    (def r1 (r/make-reaction (fn [] (.log js/console "r1") (inc @base-data))))
-    (def r2 (r/make-reaction (fn [] (.log js/console "r2") (inc @r1))))
-    (def r3 (r/make-reaction (fn [] (.log js/console "r3") (inc @r2))))))
-
-(comment
-  (deref r1)
-  (deref r2)
-  @r3
-  (swap! base-data inc))
-
-(def res (r/deref-capture (fn []
-                            (log/info "in the func")
-                            @r
-                            )
-           temp-reaction
-           ))
-
-(def x
-  (r/->Reaction
-    (fn []
-      (log/info "In reaction") 500)
-    :state ;; state
-    true ;; dirty?
-    false ;; nocache?
-    nil ; watching
-    nil ; watches
-    nil ;autorun
-    nil ; caught
-    ))
-(comment
-  (.-state x)
-  (deref x)
-  (deref r))
+;; todo:
+;; add input form instead of merge-comp in the repl
+;; add mutation

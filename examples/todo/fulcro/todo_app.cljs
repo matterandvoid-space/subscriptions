@@ -1,4 +1,4 @@
-(ns todo.fulcro.todo-app2
+(ns todo.fulcro.todo-app
   (:require
     [com.fulcrologic.fulcro.algorithms.merge :as merge]
     [com.fulcrologic.fulcro.algorithms.normalized-state :as nstate]

@@ -21,10 +21,17 @@ the state of pixels on a display attached to a computer.
 The difference from just using function composition is that the layers are cached, and that you can execute code 
 in response to any of these values changing over time.
 
+One other introductory note: The API in this codebase may have breaking changes in the future if new patterns emerge from actual usage.
+This seems unlikely, but I'm putting this warning here to allow for mutative/non-accretive changes to the codebase if they
+are warranted, during the early stages of use.
+
 # Integrations
 
 There are two API entry namespaces (for now) - one for use with fulcro `space.matterandvoid.subscriptions.fulcro` 
 and one for general use with any datasource, `space.matterandvoid.subscriptions.core`
+
+To avoid dependency conflicts this library does not declare a dependency on fulcro or on reagent. Please add the version
+of these libraries you would like to your own project.
 
 See docs/fulcro.md for details on usage with fulcro.
 
@@ -173,6 +180,10 @@ Details below, but the three big differences are:
 2. `subscribe` calls must be invoked with the base data source and optionally one argument which must be a hashmap.
 3. The reagent Reaction that backs a subscription computation function is only cached in a reactive context, and the 
    computation function itself is memoized with a bounded cache, making subscriptions safe to use in any context.
+
+And one smaller difference:
+
+This is a ClojureScript library, no attempt is made to support execution in clojure.
 
 ## Only one map for all queries
 
@@ -381,9 +392,10 @@ reagent Reactions or Ratoms before it can be hard to follow. I found that playin
 about what is going on.
 
 Subscriptions are implemented as reagent Reaction javascript objects (`deftype` in cljs) and using one helper function `run-in-reaction`.
-Reactions have a current value like a clojurescript atom, but they also have the characteristic that when their function body
-executes if they deref any ratoms or reactions then the reaction will remember these in a list of watches, and whenever 
-any of those dependent data sources changes, the function body will run again.
+Reactions have a current value like a clojurescript atom, but they also have an attached function (the `f` member on the type)
+the characteristic that when this function body executes if it deref's any ratoms or reactions then the reaction will 
+remember these in a list of watches. This list of watches is what run-in-reaction uses to fire another callback in response
+to any depedent reactions/ratoms updating. - See the reagent.ratom namespace, especially `deref-capture`, `in-context`, and `notify-deref-watcher!`.
 
 The implementation of this in reagent is quite elegant - the communication is done via a javascript object as shared memory
 (the reaction or ratom) between the call stack using a dynamic variable.

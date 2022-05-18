@@ -232,7 +232,7 @@ the `:<-` input syntax, for example:
 (third-sub base-db {:kw :num-two}) ; => 110
 ```
 
-If static arguments are declared on the subscription and args are also passed to the subscrpition they are merged with the user
+If static arguments are declared on the input signals and args are also passed to the subscrpition they are merged with the user
 specified value overriding the static ones - as in: `(merge static-args user-args)`
 
 ```clojure
@@ -352,7 +352,7 @@ It also means you can cache some subscriptions and not others by changing the fu
 ## `defsub` macro
 
 There is a tiny macro in this library which in addition to registering a subscription also outputs a `defn` with the provided name.
-When this function is invoked it subscribes and derefs to the subscription with passing along any arguments.
+When this function is invoked it subscribes and derefs the subscription while passing along any arguments.
 
 Here is an example:
 
@@ -415,11 +415,10 @@ The implementation of this in reagent is quite elegant - the communication is do
 (swap! base-data inc)
 ```
 To get reactivity we use the reagent helper function `run-in-reaction`, which lets us specify one function to run right now
-and again using a reaction will track any dependent reactions. The next piece is that it lets you pass a callback to fire
-when any dependent data fires. And this is where we render our views again.
+and one to run reactively. For UIs the reactive callback is where we redraw a component.
 
 I would not have been able to figure this out if the reagent component namespace didn't already exist demonstrating how 
-to make this work in practice - so definitly refer to the source and play around at a repl to explore this.
+to make this work in practice - definitely refer to the source and play around at a repl to explore this.
 
 # Integrating this library with other view layers
 
@@ -454,5 +453,4 @@ clone the repo and:
 ```bash
 bb dev
 ```
-
-Open the shadow-cljs builds page and then open the page that hosts the tests.
+Open the shadow-cljs builds page and then open the page that hosts the tests or an example app

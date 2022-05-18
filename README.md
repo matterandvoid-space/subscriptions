@@ -1,5 +1,5 @@
-This library extracts the subscriptions half of re-frame into a stand-alone library with a few differences, the key one 
-being that the data source is an explicit argument you pass to subscriptions.
+This library extracts the subscriptions half of [re-frame](https://github.com/day8/re-frame) into a stand-alone library,
+it also makes a few with adjustments, the key one being that the data source is an explicit argument you pass to subscriptions.
 
 This unlocks the utility of subscriptions for some creative integrations.
 
@@ -23,7 +23,8 @@ in response to any of these values changing over time.
 
 # Integrations
 
-There are two API entry namespaces (for now) - one for use with fulcro and one for general use with any datasource.
+There are two API entry namespaces (for now) - one for use with fulcro `space.matterandvoid.subscriptions.fulcro` 
+and one for general use with any datasource, `space.matterandvoid.subscriptions.core`
 
 See docs/fulcro.md for details on usage with fulcro.
 
@@ -40,8 +41,8 @@ The difference from upstream re-frame is when you invoke `(subscribe)` you pass 
 
 # Examples
 
-See the `examples` directory in the repo and `shadow-cljs.edn` for the build names if you clone 
-the repo you can run them locally.
+There are working examples in this repo in the `examples` directory. See `shadow-cljs.edn` for the build names. 
+You can clone the repo you can run them locally.
 
 ## Use with fulcro class components
 

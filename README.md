@@ -1,5 +1,5 @@
 This library extracts the subscriptions half of [re-frame](https://github.com/day8/re-frame) into a standalone library,
-it also makes a few with adjustments, the key one being that the data source is an explicit argument you pass to subscriptions.
+it also makes a few adjustments, the key one being that the data source is an explicit argument you pass to subscriptions.
 
 This unlocks the utility of subscriptions for some creative integrations.
 

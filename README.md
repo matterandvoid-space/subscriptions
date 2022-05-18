@@ -42,7 +42,7 @@ The difference from upstream re-frame is when you invoke `(subscribe)` you pass 
 # Examples
 
 There are working examples in this repo in the `examples` directory. See `shadow-cljs.edn` for the build names. 
-You can clone the repo you can run them locally.
+You can clone the repo and run them locally.
 
 ## Use with fulcro class components
 
@@ -138,7 +138,7 @@ You can clone the repo you can run them locally.
 (def todo2 (make-todo #uuid"b13319dd-3200-40ec-b8ba-559e404f9aa5" "todo2"))
 
 ;; This is the main thing to notice - by changing the ratom, any views subscribing to 
-;; the data will upate
+;; the data will update
 
 (defn transact! [conn data]
   (d/transact! conn data)
@@ -168,7 +168,7 @@ You can clone the repo you can run them locally.
 Details below, but the three big differences are:
 
 1. The input signal function is only passed two arguments: your ratom and a single hashmap of arguments.
-   The compute function is only passed your db and one hashmap as arguments 
+   The compute function is only passed your db and one hashmap as arguments.
    Niether gets passed the vector which was passed to `subscribe`.
 2. `subscribe` calls must be invoked with the base data source and optionally one argument which must be a hashmap.
 3. The reagent Reaction that backs a subscription computation function is only cached in a reactive context, and the 
@@ -207,16 +207,16 @@ a great talk about modeling information this way by Jeanine Adkisson from the 20
 Concretely, all subscribe calls must have this shape:
 
 ```clojure
-(subscribe [:subscription-keyword {:args 'map :here true}])
+(subscribe data-source [:subscription-keyword {:args 'map :here true}])
 ;or with no args:
-(subscribe [:subscription-keyword])
+(subscribe data-source [:subscription-keyword])
 ```
 
 Doing this will throw an exception:
 ```clojure
-(subscribe [::my-sub {:arg1 5} 'any-other :other "args"])
+(subscribe data-source [::my-sub {:arg1 5} 'any-other :other "args"])
 ;; or this
-(subscribe [::my-sub "anything that is not a hashmap"])
+(subscribe data-source [::my-sub "anything that is not a hashmap"])
 ```
 
 Another nice benefit from adopting this policy is that we can then flow through the args to all input signals using 

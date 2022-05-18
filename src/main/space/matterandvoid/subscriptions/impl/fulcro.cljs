@@ -20,6 +20,12 @@
 ;; for other proxy interfaces (other than fulcro storage) this has to be an atom of a map.
 ;; this is here for now just to inspect it at the repl
 (defonce subs-cache (atom {}))
+;; here we also have the option of storing the subscription cache in the fulcro app.
+;; that way it will be visible to fulcro users
+;; (you probably want it nested one level like under ::subscriptions key or something
+;; so there isn't an explosion in the top level keyspace
+;; it's a tradeoff, it may make more sense to just add integration with fulcro inspect via the
+;; existing tracing calls.
 (defn get-subscription-cache [app] subs-cache #_(atom {}))
 (defn cache-lookup [app query-v] (when app (get @(get-subscription-cache app) query-v)))
 
@@ -101,7 +107,7 @@
 
 (defn refresh-component! [^js this]
   (when (c/mounted? this)
-    (log/info "Refreshing component" (c/component-name this))
+    (log/debug "Refreshing component" (c/component-name this))
     (.forceUpdate this)))
 
 (defn get-component-reaction [this]
@@ -115,15 +121,18 @@
         attempt-to-draw
                              (fn attempt-to-draw []
                                (if (empty? (::ftx/submission-queue @fulcro-runtime-atom_))
-                                 (do (log/info "no TXes, refreshing component" (c/component-name (c/get-class this)))
-                                     (js/requestAnimationFrame (fn [_]
-                                                                 ;(log/info "Refreshing component" (c/component-name this))
-                                                                 (refresh-component! this))))
                                  (do
-                                   (log/debug "NOT empty, looping")
+                                   ;(log/info "no TXes, refreshing component" (c/component-name (c/get-class this)))
+                                   (js/requestAnimationFrame (fn [_]
+                                                               ;(log/info "Refreshing component" (c/component-name this))
+                                                               (refresh-component! this))))
+                                 (do
+                                   ;(log/debug "NOT empty, looping")
                                    (vswap! counter_ inc)
                                    (if (< @counter_ max-loop)
                                      (js/setTimeout attempt-to-draw 16.67)
+                                     ;; we probably want to throw in this case:
+                                     ;(throw)
                                      (log/debug "Max retries reached, not looping.")))))]
     (attempt-to-draw)))
 

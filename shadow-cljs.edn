@@ -22,14 +22,10 @@
 
   :fulcro-example
   {:target  :browser :output-dir "public/fulcro-example/js" :asset-path "/js"
-   :modules {:fulcro-example {:entries [todo.fulcro.todo-app]
-                              :init-fn todo.fulcro.todo-app/init}}}
+   :modules {:fulcro-example {:entries [todo.fulcro.todo-app2]
+                              :init-fn todo.fulcro.todo-app2/init}}}
 
   :reagent-datascript-example
   {:target  :browser :output-dir "public/reagent-datascript-example/js" :asset-path "/js"
    :modules {:reagent-datascript-example {:entries [reagent-datascript]
-                                          :init-fn reagent-datascript/init}}}
-
-  :dev
-  {:target  :browser :output-dir "public/dev/js" :asset-path "/js"
-   :modules {:dev {:entries [dev.entry]}}}}}
+                                          :init-fn reagent-datascript/init}}}}}

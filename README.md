@@ -14,11 +14,11 @@ In fact that is the library's only dependency from reagent, the `reagent.ratom` 
 The UI integrations are added on top of this core.
 
 If you haven't used re-frame, subscriptions are a way to apply pure functions over a core data source to arrive at derived data from that source.
-They also allow "subscribing" to a piece of derived data - that is, specifying a callback function to invoke when the data changes,
+They also allow "subscribing" to a piece of derived data - that is, specifying a callback function to be invoked when the data changes,
 with the intention of committing effects - changing the state of the world - in this library that is usually affecting 
 the state of pixels on a display attached to a computer.
 
-The difference from just using function composition is that the layers are cached, and having the ability to execute code 
+The difference from just using function composition is that the layers are cached, and that you can execute code 
 in response to any of these values changing over time.
 
 # Integrations
@@ -28,27 +28,104 @@ There are two API entry namespaces (for now) - one for use with fulcro and one f
 See docs/fulcro.md for details on usage with fulcro.
 
 The reg-sub API is the same as in re-frame 
-_aside_: the subscription handlers are stored in a global var, but this can be easily
-  changed if you desire, and then the API becomes:
+_aside_: the subscription handlers are stored in a global var, but this can be easily changed if you desire, and then the API becomes:
 ```clojure
 (reg-sub your-registry-value :hello (fn [db] (:hello db)))
 ```
 
-The difference from upstream re-frame is when you invoke `(subscribe)` you pass in the root of the subscription directed acyclic graph: 
+The difference from upstream re-frame is when you invoke `(subscribe)` you pass in the root of the subscription graph: 
 ```clojure
 (subscribe (reagent.ratom/atom {:hello 200}) [:hello])
 ```
 
 # Examples
 
-See the `examples` directory in the repo and `shadow-cljs.edn` for the build names if you clone the repo you 
-can run them locally.
+See the `examples` directory in the repo and `shadow-cljs.edn` for the build names if you clone 
+the repo you can run them locally.
 
 ## Use with fulcro class components
 
+```clojure 
+(defonce fulcro-app (subs/with-subscriptions (fulcro.app/fulcro-app {})))
+
+(defsub list-idents (fn [db {:keys [list-id]}] (get db list-id)))
+
+;; anytime you have a list of idents in fulcro the subscription pattern is to
+;; have input signals that subscribe to layer 2 subscriptions
+
+(reg-sub ::todo-table :-> (fn [db] (-> db :todo/id)))
+
+;; now any subscriptions that use ::todo-table as an input signal will only update if todo-table's output changes.
+
+(defsub todos-list :<- [::list-idents] :<- [::todo-table]
+  (fn [[idents table]]
+    (mapv #(get table (second %)) idents)))
+
+(defsub todos-total :<- [::todos-list] :-> count)
+
+(defsc Todo [this {:todo/keys [text state]}]
+  {:query         [:todo/id :todo/text :todo/state]
+   :ident         :todo/id
+   :initial-state (fn [text] (make-todo (or text "")))}
+  (dom/div {}
+    (dom/div "Todo:" (dom/div text))
+    (dom/div "status: " (pr-str state))))
+
+(def ui-todo (c/computed-factory Todo {:keyfn :todo/id}))
+
+(defsc TodosTotal [this {:keys [list-id]}] {}
+  (dom/h3 "Total todos: " (todos-total this {:list-id list-id})))
+
+(def ui-todos-total (c/factory TodosTotal))
+
+(defn add-random-todo! [app]
+  (merge/merge-component! (c/any->app app) Todo (make-todo (str "todo-" (rand-int 1000))) :append [:root/todos]))
+  
+(defsc TodoList [this {:keys [list-id]}]
+  {:ident (fn [] [:component/id ::todo-list])
+   :query [:list-id]}
+  (let [todos (todos-list this {:list-id list-id})]
+    (dom/div {}
+      (dom/button {:style {:padding 20 :margin "0 1rem"} :onClick #(add-random-todo! this)} "Add")
+      (when (> (todos-total this {:list-id list-id}) 0)
+        (dom/button {:style {:padding 20} :onClick #(rm-random-todo! this)} "Remove"))
+      (ui-todos-total {:list-id list-id})
+      (map ui-todo todos))))
+
+(def ui-todo-list (c/computed-factory TodoList))
+
+(defsc Root [this {:root/keys [list-id]}]
+  {:initial-state {:root/list-id :root/todos}
+   :query         [:root/list-id]}
+  (ui-todo-list {:list-id list-id}))
+  
+(fulcro.app/mount! fulcro-app Root js/app)
+```
+
 ## Use with a hashmap
 
-## Use with datascript
+```clojure 
+(defonce db_ (ratom/atom {}))
+
+(defn make-todo [id text] {:todo/id id :todo/text text})
+(def todo1 (make-todo #uuid"6848eac7-245c-4c5c-b932-8525279d4f0a" "todo1"))
+(def todo2 (make-todo #uuid"b13319dd-3200-40ec-b8ba-559e404f9aa5" "todo2"))
+(swap! db_ assoc :todos [todo1 todo2])
+
+(defsub all-todos :-> :todos)
+(defsub sorted-todos :<- [::all-todos] :-> (partial sort-by :todo/text))
+(defsub rev-sorted-todos :<- [::sorted-todos] :-> reverse)
+(defsub sum-lists :<- [::all-todos] :<- [::rev-sorted-todos] :-> (partial mapv count))
+
+;; if you were to use these inside a reagent view the view will re-render when the data changes.
+(all-todos db_)
+(sorted-todos db_)
+(rev-sorted-todos db_)
+
+(swap! db_ update :todos conj (make-todo (random-uuid) "another todo"))
+```
+
+## Use with Datascript
 
 ```clojure 
 (def schema {:todo/id {:db/unique :db.unique/identity}})
@@ -71,9 +148,9 @@ can run them locally.
 (defsub all-todos 
   :-> (fn [db] (d/q '[:find [(pull ?e [*]) ...] :where [?e :todo/id]] db)))
 
-(sut/defsub sorted-todos :<- [::all-todos] :-> (partial sort-by :todo/text))
-(sut/defsub rev-sorted-todos :<- [::sorted-todos] :-> reverse)
-(sut/defsub sum-lists :<- [::all-todos] :<- [::rev-sorted-todos] :-> (partial mapv count))
+(defsub sorted-todos :<- [::all-todos] :-> (partial sort-by :todo/text))
+(defsub rev-sorted-todos :<- [::sorted-todos] :-> reverse)
+(defsub sum-lists :<- [::all-todos] :<- [::rev-sorted-todos] :-> (partial mapv count))
 
 ;; if you were to use these inside a reagent view the view will re-render when the data changes.
 (all-todos dscript-db_)
@@ -87,11 +164,14 @@ can run them locally.
 
 # Differences/modifications from upstream re-frame
 
-Details below, but the two big differences are:
+Details below, but the three big differences are:
 
-1. The input signal function and the compute function are only passed your db and one hashmap as arguments - not the subscription vector.
-2. The reagent Reaction that backs a subscription computatoin function is only cached in a reactive context, and the 
-   computation function itself is memoized with a bounded cache.
+1. The input signal function is only passed two arguments: your ratom and a single hashmap of arguments.
+   The compute function is only passed your db and one hashmap as arguments 
+   Niether gets passed the vector which was passed to `subscribe`.
+2. `subscribe` calls must be invoked with the base data source and optionally one argument which must be a hashmap.
+3. The reagent Reaction that backs a subscription computation function is only cached in a reactive context, and the 
+   computation function itself is memoized with a bounded cache, making subscriptions safe to use in any context.
 
 ## Only one map for all queries
 
@@ -100,6 +180,7 @@ All subscriptions are forced to receive only one argument: a hashmap.
 On a team with lots of people working on one codebase if you remove points where decisions have to be made, especially when
 they are arbitrary decisions (like how do we pass arguments to subscriptions) - then you get uniformity/compatibility for free 
 and your codebase remains cohesive (at least in the domain of subscriptions in this case).
+This also allows for interesting dynamic use-cases as the hashmap can be easily manipulated across an entire codebase.
 
 I've had to deal with a large re-frame application where subscriptions were parameterized by components, and having to
 take into account all parameter passing styles is a pain and can lead to subtle bugs when combining parameters across a codebase 
@@ -165,6 +246,13 @@ specified value overriding the static ones - as in: `(merge static-args user-arg
 ;; but invoking a subscription with no "default" parameters will throw in this case (kw will be null in first-sub):
 (second-sub base-db) ; =>  Cannot read properties of null (reading 'call')
 ```
+
+Right now `merge` is used, but this function can be swapped out if you wish:
+
+```clojure
+(subs/set-args-merge-fn! your-lib/deep-merge)
+```
+This will affect all subsequent calls to `reg-sub`.
 
 ## Subscription keyword is never passed to any callbacks
 
@@ -289,15 +377,17 @@ for all subscriptions.
 
 # Implementation details
 
-The codebase is quite tiny (the subs namespace, pretty much the same as in re-frame), but if you haven't played with 
+The codebase is quite tiny (the impl.subs namespace, pretty much the same as in re-frame), but if you haven't played with 
 reagent Reactions or Ratoms before it can be hard to follow. I found that playing with simple examples helped me to reason
 about what is going on.
 
-
-Subscriptions are implemented as reagent Reaction javascript objects and using one helper function `run-in-reaction`.
+Subscriptions are implemented as reagent Reaction javascript objects (`deftype` in cljs) and using one helper function `run-in-reaction`.
 Reactions have a current value like a clojurescript atom, but they also have the characteristic that when their function body
 executes if they deref any ratoms or reactions then the reaction will remember these in a list of watches, and whenever 
 any of those dependent data sources changes, the function body will run again.
+
+The implementation of this in reagent is quite elegant - the communication is done via a javascript object as shared memory
+(the reaction or ratom) between the call stack using a dynamic variable.
 
 ```clojure
 (def base-data (ratom/atom 0))
@@ -305,18 +395,30 @@ any of those dependent data sources changes, the function body will run again.
 (def sub2 (ratom/make-reaction (fn [] (.log js/console "sub2") (inc @sub1))))
 (def sub3 (ratom/make-reaction (fn [] (.log js/console "sub3") (inc @sub2))))
 
-(deref sub1)
-(deref sub2)
-(deref sub3)
+(def obj (js-obj))
+(def r
+  (ratom/run-in-reaction
+    (fn []
+      ;; any ratoms/reactions deref'd here will be "watched"
+      
+      ;; here I am deref'ing the base so we can see it react - re-frame subscriptions will do this via the chain
+      ;; of input fns - these are deref'd by the leaf subscription
+      @base-data
+      (println "the sub3 is: " @sub3))
+    obj "reaction-key"
+    (fn react []
+      ;; here is our effect:
+      (println "Reacted!" @sub3))
+    ;; I honestly don't know what this does exactly, but reagent passes this, then so do I :)
+    {:no-cache true}))
 (swap! base-data inc)
 ```
-even though the base-data was swap!'d there is no reactivity yet.
-To get that we use the reagent helper function `run-in-reaction`, which lets us specify one function to run right now
+To get reactivity we use the reagent helper function `run-in-reaction`, which lets us specify one function to run right now
 and again using a reaction will track any dependent reactions. The next piece is that it lets you pass a callback to fire
 when any dependent data fires. And this is where we render our views again.
 
 I would not have been able to figure this out if the reagent component namespace didn't already exist demonstrating how 
-to make this work in practice.
+to make this work in practice - so definitly refer to the source and play around at a repl to explore this.
 
 # Integrating this library with other view layers
 
@@ -326,6 +428,9 @@ https://github.com/reagent-project/reagent/blob/f64821ce2234098a837ac7e280969f98
 
 It takes a `run` function callback which will be invoked when any ratom's or Reactions are deref'd in the main function 
 passed to run-in-reaction. In this `run` function you perform the side-effecting re-render.
+
+I haven't added any hooks integrations, so run-in-reaction may not make sense there, but reagent already has hooks support
+so shouldn't be a problem.
 
 # References 
 
@@ -349,6 +454,4 @@ clone the repo and:
 bb dev
 ```
 
-Open the shadow-cljs inspector page and open the page that hosts the tests.
-
-
+Open the shadow-cljs builds page and then open the page that hosts the tests.

@@ -50,8 +50,7 @@
 (defn <sub
   "Subscribe and deref a subscription, returning its value, not a reaction."
   [app query]
-  (let [value (subscribe app query)]
-    (when value @value)))
+  (when-let [value (subscribe app query)] @value))
 
 (defn clear-sub
   ([registry]

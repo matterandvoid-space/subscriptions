@@ -11,9 +11,10 @@
 (use-fixtures :each
   {:after (fn [] (vreset! counter_ 0))})
 
-(defonce app (sut/fulcro-app {:initial-db {:first     500
-                                           :first-sub 500
-                                           :a         "hi"}}))
+(defonce app (sut/with-subscriptions
+               (fulcro.app/fulcro-app {:initial-db {:first     500
+                                                    :first-sub 500
+                                                    :a         "hi"}})))
 
 (sut/reg-sub ::first
   (fn [db] (:first db)))

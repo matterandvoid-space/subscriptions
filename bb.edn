@@ -38,11 +38,6 @@
   yarn-install
   (shell "yarn install")
 
-  -write-index.html
-  (do
-    (fs/create-dirs (fs/file "public" "dev"))
-    (write-html (fs/file "public" "dev" "index.html") "/dev/js/dev.js"))
-
   -write-example.html
   (do
     (fs/create-dirs (fs/file "public" "fulcro-example"))
@@ -52,7 +47,7 @@
     (write-html (fs/file "public" "reagent-datascript-example" "index.html") "/reagent-datascript-example/js/reagent-datascript-example.js"))
 
   dev
-  {:depends [yarn-install -write-index.html -write-example.html]
+  {:depends [yarn-install -write-example.html]
    :doc     "Starts a shadow-cljs watch on the dev build"
    :task    (do (println "Starting shadow-cljs compilations")
                 (run-shadow-watch '[dev test reagent-datascript-example fulcro-example]

@@ -1,6 +1,8 @@
 (ns space.matterandvoid.subscriptions.fulcro
   (:require-macros [space.matterandvoid.subscriptions.fulcro])
   (:require
+    [com.fulcrologic.fulcro.algorithms.indexing :as fulcro.index]
+    [com.fulcrologic.fulcro.algorithm :as-alias fulcro.algo]
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [com.fulcrologic.fulcro.components :as c]
     [com.fulcrologic.fulcro.rendering.ident-optimized-render :as ident-optimized-render]
@@ -96,14 +98,13 @@
   forces the issue."
   [registry] (impl/clear-subscription-cache! registry))
 
-;; component rendering integrations
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; reactive refresh of components
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; todo this only supports class components right now, not hooks.
-;; how about: `(use-subs [::sub1 {:args 1}] [::sub2 {:args 2}])`
+;; maybe have a primitive that handles this: `(use-subscriptions)`
+;; and the macro can use that hook?
 
 (defn cleanup! "Intended to be called when a component unmounts to clear the registered Reaction."
   [this] (impl/cleanup! this))
@@ -114,41 +115,40 @@
    Takes a component instance and a render function with signature: (fn render [this])"
   [this client-render] (impl/setup-reaction! this client-render))
 
-(defn fulcro-app
-  "Proxies to com.fulcrologic.fulcro.application/fulcro-app
-   and then assoc'es a reagent.ratom/atom for the fulcro state-atom with :initial-db if present in the args map.
-   Also uses ident-optimized-render/render! as the rendering algorithm if no :optimized-render! is passed in args."
-  ([] (fulcro-app {}))
-  ([args]
-   {:pre [(map? args)]}
-   (let [args (cond->
-                (-> args
-                  (assoc :render-middleware
-                         (fn [this render-fn]
-                           (let [final-render-fn
-                                 (if (:render-middleware args)
-                                   (fn [] ((:render-middleware args) this render-fn))
-                                   render-fn)]
-                             (log/info "IN render-middleware")
-                             (if-let [^clj reaction (impl/get-component-reaction this)]
-                               (do
-                                 (when goog/DEBUG
-                                   ;; deals with hot reloading when the render function body changes
-                                   (log/info "have reaction set!ing new render fn: " (c/component-name this))
-                                   (set! (.-f reaction) final-render-fn))
-                                 (._run reaction false))
-                               (setup-reaction! this final-render-fn)))))
+(defn with-subscriptions
+  "Takes a fulcro app and adds support for using subscriptions
+  - Adds render middleware to run-in-reaction for class components
+  - Adds cleanup when a component is unmounted
+  - Changes the state atom to be a reagent.ratom/atom
+  - Changes the `optimized-render! algorithm to be the ident-optmized-render algorithm."
+  [app]
+  (-> app
+    (assoc ::fulcro.app/state-atom (ratom/atom @(::fulcro.app/state-atom app)))
+    (update ::fulcro.app/algorithms
+      assoc
+      ::fulcro.algo/optimized-render! ident-optimized-render/render!
 
-                  ;; this is not supported in upstream fulcro, so we have to use `defsc` macro.
+      ::fulcro.algo/render-middleware
+      (fn [this render-fn]
+        (let [final-render-fn
+              (if-let [middleware (::fulcro.algo/render-middleware app)]
+                (fn [] (middleware this render-fn))
+                render-fn)]
+          (if-let [^clj reaction (impl/get-component-reaction this)]
+            (do
+              (when goog/DEBUG
+                ;; deals with hot reloading when the render function body changes
+                (set! (.-f reaction) final-render-fn))
+              (._run reaction false))
+            (setup-reaction! this final-render-fn))))
 
-                  ;(assoc :component-will-unmount-middleware
-                  ;       (fn [this cwu]
-                  ;         (let [client-cwu (or (:component-will-unmount-middleware args) (fn [_this f] (f)))]
-                  ;           (log/info "comp will unmount CLEANING UP" (c/component-name this))
-                  ;           (cleanup! this)
-                  ;           (client-cwu this cwu))))
-                  )
-                (not (:optimized-render! args))
-                (assoc :optimized-render! ident-optimized-render/render!))]
-     (assoc (fulcro.app/fulcro-app args)
-       ::fulcro.app/state-atom (ratom/atom (:initial-db args {}))))))
+      ::fulcro.algo/drop-component!
+      (fn drop-component-middleware
+        ([this]
+         (log/info "Drop component!" (c/component-name this))
+         (cleanup! this)
+         (fulcro.index/drop-component! this))
+        ([this ident]
+         (log/info "Drop component!" (c/component-name this))
+         (cleanup! this)
+         (fulcro.index/drop-component! this ident))))))

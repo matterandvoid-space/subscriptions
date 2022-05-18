@@ -275,14 +275,12 @@ Here's an example where we query for a list of todos, where the data is normaliz
                                                                   :text "todo2", :state :incomplete},
                #uuid"f4aa3501-0922-47a5-8579-70a4f3b1398b" #:todo{:id #uuid"f4aa3501-0922-47a5-8579-70a4f3b1398b",
                                                                   :text "todo3", :state :incomplete}}}))
-(reg-sub ::item-ids #(get %1 (:list-id %2)))
+(reg-sub ::item-ids #(get %1 (:list-id %2))) ;; <- here the second arg is a hashmap
+(reg-sub ::todo-table :-> :todo/id)
 
-;; DAN : todo - this example is not correct do not use <sub  in inputs fn
-(reg-sub ::todos-list
-  (fn [ratom {:keys [list-id]}] ;; <-- here we don't need useless sequential destructuring.
-    (let [todo-ids (subs/<sub ratom [::item-ids {:list-id list-id}])]
-      (mapv (fn [id] (subs/subscribe ratom [::todo {:todo/id id}])) todo-ids)))
-  identity)
+(defsub todos-list :<- [::item-ids] :<- [::todo-table]
+  (fn [[ids table]]
+    (mapv #(get table %) ids)))
 
 (subs/<sub db_ [::todos-list {:list-id :list-one}])
 ```

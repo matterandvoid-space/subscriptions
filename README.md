@@ -427,8 +427,7 @@ https://github.com/reagent-project/reagent/blob/f64821ce2234098a837ac7e280969f98
 It takes a `run` function callback which will be invoked when any ratom's or Reactions are deref'd in the main function 
 passed to run-in-reaction. In this `run` function you perform the side-effecting re-render.
 
-I haven't added any hooks integrations, so run-in-reaction may not make sense there, but reagent already has hooks support
-so shouldn't be a problem.
+Hooks support might be different, you can consult the reagent sources for inspiration.
 
 # References 
 

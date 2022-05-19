@@ -22,6 +22,14 @@
 
   :fulcro-example
   {:target  :browser :output-dir "public/fulcro-example/js" :asset-path "/js"
+   :devtools          {:after-load pro.kala-app.weather.client.client-entry/refresh
+                       :preloads   [;; if using the chrome extension:
+                                    com.fulcrologic.fulcro.inspect.preload
+
+                                    ;; if using the electron app:
+                                    ;com.fulcrologic.fulcro.inspect.websocket-preload
+
+                                    com.fulcrologic.fulcro.inspect.dom-picker-preload]}
    :modules {:fulcro-example {:entries [todo.fulcro.todo-app]
                               :init-fn todo.fulcro.todo-app/init}}}
 

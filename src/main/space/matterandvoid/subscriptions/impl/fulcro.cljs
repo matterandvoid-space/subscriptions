@@ -19,11 +19,11 @@
 
 ;; for other proxy interfaces (other than fulcro storage) this has to be an atom of a map.
 ;; this is here for now just to inspect it at the repl
-(defonce subs-cache (atom {}))
-(comment @subs-cache
-  (let [k (first (keys @subs-cache))]
+(defonce subs-cache_ (atom {}))
+(comment @subs-cache_
+  (let [k (first (keys @subs-cache_))]
 
-    @(get @subs-cache k))
+    @(get @subs-cache_ k))
   ;; now all i need to do is
   ;; (reset! fulcro-state-atom
   ;;   (reduce-kv (fn [state k v] (assoc-in state [k] @v) @fulcro-state-atom @subs-cache)
@@ -41,13 +41,17 @@
 ;; so there isn't an explosion in the top level keyspace
 ;; it's a tradeoff, it may make more sense to just add integration with fulcro inspect via the
 ;; existing tracing calls.
-(defn get-subscription-cache [app] subs-cache #_(atom {}))
+(defn get-subscription-cache [app] subs-cache_ #_(atom {}))
 (defn cache-lookup [app query-v] (when app (get @(get-subscription-cache app) query-v)))
 
 (def app-state-key ::state)
 (def subs-key ::subs)
 (defn subs-state-path [k v] [app-state-key subs-key v])
 (defn state-path ([] [app-state-key]) ([k] [app-state-key k]) ([k v] [app-state-key k v]))
+
+(defn subs-cache->fulcro-app-state [app]
+  (swap! (::fulcro.app/state-atom app)
+    assoc-in [:space.matterandvoid/subscriptions] (subs/map-vals deref @subs-cache_)))
 
 (defonce handler-registry_ (atom {}))
 

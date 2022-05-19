@@ -35,7 +35,6 @@
   (when (implements? reagent.ratom/IReactiveAtom ^js reactive-val)
     (str (condp instance? reactive-val
            reagent.ratom/RAtom "ra"
-           reagent.ratom/RCursor "rc"
            reagent.ratom/Reaction "rx"
            reagent.ratom/Track "tr"
            "other")

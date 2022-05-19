@@ -20,6 +20,21 @@
 ;; for other proxy interfaces (other than fulcro storage) this has to be an atom of a map.
 ;; this is here for now just to inspect it at the repl
 (defonce subs-cache (atom {}))
+(comment @subs-cache
+  (let [k (first (keys @subs-cache))]
+
+    @(get @subs-cache k))
+  ;; now all i need to do is
+  ;; (reset! fulcro-state-atom
+  ;;   (reduce-kv (fn [state k v] (assoc-in state [k] @v) @fulcro-state-atom @subs-cache)
+  ;; store the subscriptions as normalized data
+  ;; to render a component and get the props in the right place
+  ;; you can look up the value
+
+  ;; first version of this (subscribe this [::query args]) in the component
+  ;; will lookup the value in app db for that cached value
+  )
+
 ;; here we also have the option of storing the subscription cache in the fulcro app.
 ;; that way it will be visible to fulcro users
 ;; (you probably want it nested one level like under ::subscriptions key or something

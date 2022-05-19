@@ -128,6 +128,10 @@
       assoc
       ::fulcro.algo/optimized-render! ident-optimized-render/render!
 
+      ::fulcro.algo/before-render (fn [app root-class]
+                                    (log/info "in before-render")
+                                    )
+
       ::fulcro.algo/render-middleware
       (fn [this render-fn]
         (let [final-render-fn

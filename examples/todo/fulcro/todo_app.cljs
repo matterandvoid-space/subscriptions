@@ -121,6 +121,45 @@
       (dom/hr)
       (map ui-todo todos))))
 
+(defn reactive [app-or-this & a]
+  (let [app (c/any->app app-or-this)]
+    ;; in this model you do not deref in the render
+    ;; you deref after tx
+    ))
+
+;; transact! =>
+;; the mutation  (or multiple) fire - the user's mutate function calls swap! (reset!) on the atom (ratom)
+;; at this point the subscriptions which the user cares about have not been deref'd - but the subscriptions were
+;; created (reg-sub) -> so then we deref the subscriptions -> this would result in new computations -> in the reactive
+;; update callback we want to update the state - but now I'm not sure.
+
+;; I am struggling with the idea of getting the values of the subscriptions out from them - how do you do this?
+;; can I use the same model? do I need a new model?
+
+;; no because the components are declared on the subscription so we want t
+
+(defsc TodoList2 [this {:keys [list-id]}]
+  {:ident (fn [] [:component/id ::todo-list])
+   :query [:list-id]}
+  (log/info "In TodoList render fn change10")
+
+  (let [todos (todos-list this {:list-id list-id})
+        todos2 (reactive this [::todos-list {:list-id list-id}])]
+    ;(def t' todos)
+    (dom/div {}
+      (dom/h1 "Todos")
+
+      (dom/p "hi")
+      (dom/button {:style {:padding 20 :margin "0 1rem"} :onClick #(add-random-todo! this)} "Add")
+
+      (when (> (todos-total this {:list-id list-id}) 0)
+        (dom/button {:style {:padding 20} :onClick #(rm-random-todo! this)} "Remove"))
+
+      (ui-todos-total {:list-id list-id})
+      (dom/pre (pr-str todos))
+      (dom/hr)
+      (map ui-todo todos))))
+
 (def ui-todo-list (c/computed-factory TodoList))
 
 (defsc Root [this {:root/keys [list-id]}]

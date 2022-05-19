@@ -1,3 +1,68 @@
+2022-05-19
+
+2 things;
+
+you can make an option to control if a component is reactive or not - whether it re-renders aside from the fulcro 
+rendering mechanism
+
+or you can opt-in to reactive (or opt out) make it a toggle?
+
+- you can copy the subscription cache to fulcro app db in before-render lifecycle hook
+- still need the render middleware and component cleanup installed on fulcro app
+- the render middleware is used to populate the subscription cache in both cases (reactive and non)
+- in the non-reactive version we just deref the subscriptions in the render body which will populate the 
+  subscription cache and allow rendering the most up to date information 
+- what is the point of copying to the app db then?
+- tony had the thought of storing the in the components ident?
+
+I'm not sure, but I would just start with:
+- still use run in reaction - the switch is in the reactive callback.
+- in one instance you don't re-render 
+- in another you do.
+
+The answer to tony's question about what happens with rendering if you read props and you have a reactive update.
+    my solution to this is that when a component refresh's reactively it waits for any fulcro transactions to finish
+as the reaction will be caused from a swap, so this may occur.
+I think this would answer the question.
+
+I don't fully understand how copying the data to app db solves the stale UI problem though - I think that's the part of 
+the picture I don't follow - how the subscription data is tied to the query system.
+is it intended to be in the query as well?
+
+
+so you can make this system configurable to the user:
+
+options to play with
+- don't touch the rendering optimization - let the user do that
+- reactive or not
+- copy to app db or not?
+
+doesn't if it's not reactive mean you have to copy to app db?
+
+
+I'm forgetting now - maybe his thought was to go with the subscriptions option on the component and then the 
+render middleware could use that?
+
+I think he was talking about adding a defsc macro and have the subscriptions as options on the component - like the query
+
+maybe the idea was that the query would be used and pull the data out of app db?
+
+if there's no difference between what is in app db and the current subscription value then you don't ever need to use 
+the value in app db.
+
+One downside of copying the subscriptions to app db is that you then double your memory usage for subscriptions, which
+could be significant.
+
+I think you can try just storing the subscription cache in the fulcro db under a key like your design supports.
+
+Then - thennnnnnnnnnnn you can just use queries AND the deref will still happen when rendering because the value 
+passed to the fulcro component will need to be deref'd - b/c it's a reaction.
+maybe you can do this in props middleware or render middleware
+
+props-middlware
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
 It would be ideal to allow extending the implementation of where the subscription cache and handler
 registry is stored:
 

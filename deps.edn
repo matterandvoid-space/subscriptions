@@ -22,12 +22,13 @@
            :dev
            {:extra-paths ["examples" "public"]
             :extra-deps  {org.slf4j/slf4j-nop       {:mvn/version "2.0.0-alpha7"}
-                          org.clojure/clojure       {:mvn/version "1.11.1" :scope "provided"}
-                          org.clojure/clojurescript {:mvn/version "1.11.4" :scope "provided"}
+                          lilactown/helix           {:mvn/version "0.1.6"}
+                          org.clojure/clojure       {:mvn/version "1.11.1"}
+                          org.clojure/clojurescript {:mvn/version "1.11.51"}
                           binaryage/devtools        {:mvn/version "1.0.6"}
                           datascript/datascript     {:mvn/version "1.3.13"}
                           reagent/reagent           {:mvn/version "1.1.1"}
                           com.fulcrologic/fulcro    {:mvn/version "3.5.20"}
-                          thheller/shadow-cljs      {:mvn/version "2.18.0"}}}}}
+                          thheller/shadow-cljs      {:mvn/version "2.19.0"}}}}}
 
 

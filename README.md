@@ -25,7 +25,10 @@ One other introductory note: The API in this codebase may have breaking changes 
 This seems unlikely, but I'm putting this warning here to allow for mutative/non-accretive changes to the codebase if they
 are warranted, during the early stages of use.
 
-# Integrations
+# Usage / Integrations
+
+_note_ this library depends on reagent, but given its prevalance and chance for version conflicts does not declare it 
+as a dependency, you must add it to your deps.
 
 There are two API entry namespaces (for now) - one for use with fulcro `space.matterandvoid.subscriptions.fulcro` 
 and one for general use with any datasource, `space.matterandvoid.subscriptions.core`

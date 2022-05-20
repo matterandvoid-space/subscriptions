@@ -28,8 +28,11 @@
               (defn write-html [file script]
                 (spit file
                   (str "<!doctype html>\n<html>\n  <head><meta charset=\"utf-8\"></head>\n"
-                    "  <body>\n    <div id=\"app\"></div>\n    <script charset='utf-8' src=\"" script
-                    "\"></script>\n  </body></html>\n"))))
+                    "  <body>\n    <div id=\"app\"></div>\n    <script charset=\"utf-8\" src=\"" script
+                    "\"></script>\n  </body></html>\n")))
+              (defn write-example-html [module]
+                (fs/create-dirs (fs/file "public" module))
+                (write-html (fs/file "public" module "index.html") (str/join "/" [(str "/" module) "js" (str module ".js")]))))
 
   :requires ([babashka.process :as p :refer [process]]
              [babashka.fs :as fs]
@@ -38,19 +41,17 @@
   yarn-install
   (shell "yarn install")
 
-  -write-example.html
+  write-example.html
   (do
-    (fs/create-dirs (fs/file "public" "fulcro-example"))
-    (write-html (fs/file "public" "fulcro-example" "index.html") "/fulcro-example/js/fulcro-example.js")
-
-    (fs/create-dirs (fs/file "public" "reagent-datascript-example"))
-    (write-html (fs/file "public" "reagent-datascript-example" "index.html") "/reagent-datascript-example/js/reagent-datascript-example.js"))
+    (write-example-html "helix-example")
+    (write-example-html "fulcro-example")
+    (write-example-html "reagent-datascript-example"))
 
   dev
-  {:depends [yarn-install -write-example.html]
+  {:depends [yarn-install write-example.html]
    :doc     "Starts a shadow-cljs watch on the dev build"
    :task    (do (println "Starting shadow-cljs compilations")
-                (run-shadow-watch '[dev test reagent-datascript-example fulcro-example]
+                (run-shadow-watch '[test reagent-datascript-example fulcro-example helix-example]
                   (into *command-line-args* dev-aliases)))}
 
   test

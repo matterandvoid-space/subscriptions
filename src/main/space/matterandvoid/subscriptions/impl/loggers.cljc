@@ -21,6 +21,7 @@
                                #())})
         ;; clojure versions
         #?(:clj {:log      (partial log :info)
+                 :info     (partial log :info)
                  :warn     (partial log :warn)
                  :error    (partial log :error)
                  :debug    (partial log :debug)

@@ -76,6 +76,7 @@
 (declare Todo)
 
 (defn add-random-todo! [app]
+  (log/info "ADD Random todo")
   (merge/merge-component! (c/any->app app) Todo (make-todo (str "todo-" (rand-int 1000))) :append [:root/todos]))
 
 ;; Components
@@ -108,7 +109,7 @@
         (todos-list this {:list-id list-id})]
     ;(def t' todos)
     (dom/div {}
-      (dom/h1 "Todos")
+      (dom/h1 "Todos2")
 
       (dom/p "hi")
       (dom/button {:style {:padding 20 :margin "0 1rem"} :onClick #(add-random-todo! this)} "Add")
@@ -171,13 +172,14 @@
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 (defonce fulcro-app
-  (subs/with-subscriptions (fulcro.app/fulcro-app {})))
+  (subs/with-reactive-subscriptions (fulcro.app/fulcro-app {})))
 
 (comment (fulcro.app/current-state fulcro-app))
 
 (defn ^:export init [] (fulcro.app/mount! fulcro-app Root js/app))
 
 (defn ^:dev/after-load refresh []
+  (fulcro.app/unmount! fulcro-app)
   (fulcro.app/mount! fulcro-app Root js/app {:initialize-state? false})
   (subs/clear-subscription-cache! fulcro-app))
 

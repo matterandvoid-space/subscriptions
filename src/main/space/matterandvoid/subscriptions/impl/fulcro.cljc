@@ -4,7 +4,7 @@
     [com.fulcrologic.fulcro.algorithms.normalized-state :refer [dissoc-in]]
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [com.fulcrologic.fulcro.components :as c]
-    [goog.object :as obj]
+    #?(:cljs [goog.object :as obj])
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
     [space.matterandvoid.subscriptions.impl.subs :as subs]
@@ -99,6 +99,7 @@
 
   To obtain the current value from the Signal, it must be dereferenced"
   [?app query]
+  (println " in subscribe")
   (subs/subscribe get-handler cache-lookup get-subscription-cache (c/any->app ?app) query))
 
 (defn <sub
@@ -124,45 +125,47 @@
 (def state-key "fulcro.subscriptions.state")
 (def reaction-key "fulcro.subscriptions.reaction")
 
-(defn refresh-component! [^js this]
+(defn refresh-component! [#?(:cljs ^js this :clj this)]
   (when (c/mounted? this)
-    (log/debug "Refreshing component" (c/component-name this))
-    (.forceUpdate this)))
+    (log/debug "Refreshing component22" (c/component-name this))
+    #?(:cljs (.forceUpdate this))))
 
 (defn get-component-reaction [this]
-  (obj/get this reaction-key))
+  #?(:cljs (obj/get this reaction-key)))
 
 (defn reaction-callback [this]
   (log/debug "!! Attempting to refresh component" (c/component-name this))
-  (let [fulcro-runtime-atom_ (::fulcro.app/runtime-atom (c/any->app this))
-        counter_             (volatile! 0)
-        max-loop             100
-        attempt-to-draw
-                             (fn attempt-to-draw []
-                               (if (empty? (::ftx/submission-queue @fulcro-runtime-atom_))
-                                 (do
-                                   ;(log/info "no TXes, refreshing component" (c/component-name (c/get-class this)))
-                                   (js/requestAnimationFrame (fn [_]
-                                                               ;(log/info "Refreshing component" (c/component-name this))
-                                                               (refresh-component! this))))
-                                 (do
-                                   ;(log/debug "NOT empty, looping")
-                                   (vswap! counter_ inc)
-                                   (if (< @counter_ max-loop)
-                                     (js/setTimeout attempt-to-draw 16.67)
-                                     ;; we probably want to throw in this case:
-                                     ;(throw)
-                                     (log/debug "Max retries reached, not looping.")))))]
-    (attempt-to-draw)))
+  #?(:cljs
+     (let [fulcro-runtime-atom_ (::fulcro.app/runtime-atom (c/any->app this))
+           counter_             (volatile! 0)
+           max-loop             100
+           attempt-to-draw
+                                (fn attempt-to-draw []
+                                  (if (empty? (::ftx/submission-queue @fulcro-runtime-atom_))
+                                    (do
+                                      ;(log/info "no TXes, refreshing component" (c/component-name (c/get-class this)))
+                                      (js/requestAnimationFrame (fn [_]
+                                                                  ;(log/info "Refreshing component" (c/component-name this))
+                                                                  (refresh-component! this))))
+                                    (do
+                                      ;(log/debug "NOT empty, looping")
+                                      (vswap! counter_ inc)
+                                      (if (< @counter_ max-loop)
+                                        (js/setTimeout attempt-to-draw 16.67)
+                                        ;; we probably want to throw in this case:
+                                        ;(throw)
+                                        (log/debug "Max retries reached, not looping.")))))]
+       (attempt-to-draw))))
 
 (defn remove-reaction! [this]
-  (obj/remove this reaction-key))
+  #?(:cljs (obj/remove this reaction-key)))
 
 (defn dispose-current-reaction!
   [this]
-  (when-let [reaction (get-component-reaction this)]
-    (log/info "Disposing current reaction: " reaction)
-    (ratom/dispose! reaction)))
+  #?(:cljs
+     (when-let [reaction (get-component-reaction this)]
+       (log/info "Disposing current reaction: " reaction)
+       (ratom/dispose! reaction))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; public api for components

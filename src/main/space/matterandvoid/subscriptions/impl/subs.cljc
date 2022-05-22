@@ -6,6 +6,9 @@
     [space.matterandvoid.subscriptions.impl.trace :as trace :include-macros true]
     [taoensso.timbre :as log]))
 
+(defn- error [& args]
+  #?(:cljs (js/Error. (apply str args)) :clj (Exception. ^String (apply str args))))
+
 ;; -- cache -------------------------------------------------------------------
 
 (defn clear-subscription-cache!
@@ -66,8 +69,7 @@
     (assert (or (= 1 cnt) (= 2 cnt)) (str "Query must contain only one map for subscription " query-id))
     ;(log/info "STEP 1")
     (when (and (= 2 cnt) (not (map? (get query 1))))
-      (throw (js/Error. (str "Args to the query vector must be one map for subscription " query-id "\n"
-                          "Received: " (pr-str (get query 1))))))
+      (throw (error "Args to the query vector must be one map for subscription " query-id "\n" "Received: " (pr-str (get query 1)))))
     ;(js/console.log "SUBSCRIBE called: " query)
     (trace/with-trace {:operation (first query)
                        :op-type   :sub/create
@@ -106,7 +108,7 @@
 
 ;; -- reg-sub -----------------------------------------------------------------
 
-(defn- map-vals
+(defn map-vals
   "Returns a new version of 'm' in which 'f' has been applied to each value.
   (map-vals inc {:a 4, :b 2}) => {:a 5, :b 3}"
   [f m]
@@ -141,7 +143,8 @@
     [app query-vec]
     (assert (vector? query-vec))
     (let [args          (second query-vec)
-          subscriptions (inputs-fn app args)
+          subscriptions #?(:cljs (inputs-fn app args)
+                           :clj (try (inputs-fn app args) (catch clojure.lang.ArityException _ (inputs-fn app))))
           reaction-id   (atom nil)
           reaction      (ratom/make-reaction
                           (fn []
@@ -149,17 +152,28 @@
                                                :op-type   :sub/run
                                                :tags      {:query-v  [query-id args]
                                                            :reaction @reaction-id}}
-                              (let [subscription-output (computation-fn (deref-input-signals subscriptions query-id) args)]
-                                (trace/merge-trace! {:tags {:value subscription-output}})
-                                subscription-output))))]
+
+                              #?(:cljs
+                                 (let [subscription-output (computation-fn (deref-input-signals subscriptions query-id) args)]
+                                   (trace/merge-trace! {:tags {:value subscription-output}})
+                                   subscription-output)
+                                 ;; Deal with less leniency on jvm for calling single-arity functions with 2 args
+                                 :clj (try
+                                        (let [subscription-output (computation-fn (deref-input-signals subscriptions query-id) args)]
+                                          (trace/merge-trace! {:tags {:value subscription-output}})
+                                          subscription-output)
+                                        (catch clojure.lang.ArityException _
+                                          (computation-fn (deref-input-signals subscriptions query-id))))))))]
       (reset! reaction-id (ratom/reagent-id reaction))
       reaction)))
 
 (def memoize-fn memoize/memoize-fn)
 (def args-merge-fn merge)
 
-(defn set-memoize-fn! [f] (set! memoize-fn f))
-(defn set-args-merge-fn! [f] (set! args-merge-fn f))
+(defn set-memoize-fn! [f] #?(:cljs (set! memoize-fn f)
+                             :clj  (alter-var-root #'memoize-fn (fn [_] f))))
+(defn set-args-merge-fn! [f] #?(:cljs (set! args-merge-fn f)
+                                :clj  (alter-var-root #'args-merge-fn (fn [_] f))))
 
 (defn reg-sub
   "db, fully qualified keyword for the query id
@@ -193,15 +207,15 @@
                                     (fn
                                       ([app]
                                        (let [start-signal (get-input-db-signal app)]
-                                         (when goog/DEBUG
-                                           (when-not (ratom/ratom? start-signal)
-                                             (throw (js/Error. (str "Your input signal must be a reagent.ratom. You provided: " (pr-str start-signal))))))
+                                         #?(:cljs (when goog/DEBUG
+                                                    (when-not (ratom/ratom? start-signal)
+                                                      (throw (error "Your input signal must be a reagent.ratom. You provided: " (pr-str start-signal))))))
                                          start-signal))
                                       ([app _]
                                        (let [start-signal (get-input-db-signal app)]
-                                         (when goog/DEBUG
-                                           (when-not (ratom/ratom? start-signal)
-                                             (throw (js/Error. (str "Your input signal must be a reagent.ratom. You provided: " (pr-str start-signal))))))
+                                         #?(:cljs (when goog/DEBUG
+                                                    (when-not (ratom/ratom? start-signal)
+                                                      (throw (error "Your input signal must be a reagent.ratom. You provided: " (pr-str start-signal))))))
                                          start-signal))))
 
                                   ;; a single `inputs` fn
@@ -217,7 +231,7 @@
                                       (fn inputs-fn-
                                         ([app] (subscribe get-handler cache-lookup get-subscription-cache app signal-vec))
                                         ([app args*]
-                                         (log/info "one pair: args " (merge-update-args signal-vec args*))
+                                         ;(log/info "one pair: args " (merge-update-args signal-vec args*))
                                          (subscribe get-handler cache-lookup get-subscription-cache app (merge-update-args signal-vec args*)))))
 
                                   ;; multiple :<- pairs

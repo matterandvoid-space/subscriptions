@@ -21,7 +21,6 @@
 (defn run-in-reaction [f obj key run opts] (reagent.ratom/run-in-reaction f obj key run opts))
 (defn add-on-dispose! [a-ratom f] (reagent.ratom/add-on-dispose! a-ratom f))
 (defn dispose! [a-ratom] (reagent.ratom/dispose! a-ratom))
-(defn set-timeout! [f ms] (js/setTimeout f ms))
 (defn ^boolean reactive-context? [] (reagent.ratom/reactive?))
 
 (defn reagent-id

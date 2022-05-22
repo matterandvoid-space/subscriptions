@@ -159,8 +159,13 @@
          (cleanup! this)
          (fulcro.index/drop-component! this ident))))))
 
+;; TODO this is currently not fully implemented.
 (defn with-subscriptions
   "Takes a fulcro app and adds support for using subscriptions
+  With this version of subscriptions integration with fulcro the intention is that fulcro manages all rendering and
+  subscriptions do not trigger reactive updates - instead they are executed after each fulcro transcation and swap! into the
+  fulcro state atom the derived state that the subscriptions computed (the subscription cache).
+
   - Adds render middleware to run-in-reaction for class components
   - Adds cleanup when a component is unmounted
   - Changes the state atom to be a reagent.ratom/atom

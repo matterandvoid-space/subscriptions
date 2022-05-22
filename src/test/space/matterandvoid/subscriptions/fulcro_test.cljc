@@ -1,26 +1,31 @@
 (ns space.matterandvoid.subscriptions.fulcro-test
   (:require
-    [cljs.test :refer [deftest is testing use-fixtures]]
+    [clojure.test :refer [deftest is testing use-fixtures]]
     [space.matterandvoid.subscriptions.subs :as subs]
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [space.matterandvoid.subscriptions.fulcro :as sut]))
 
-(enable-console-print!)
+#?(:cljs (enable-console-print!))
 (defonce counter_ (volatile! 0))
+(deref counter_)
+
+(def start-db {:first 500 :first-sub 500 :a "hi"})
+(defonce app (sut/with-reactive-subscriptions (fulcro.app/fulcro-app {:initial-db start-db})))
 
 (use-fixtures :each
-  {:after (fn [] (vreset! counter_ 0))})
-
-(defonce app (sut/with-subscriptions
-               (fulcro.app/fulcro-app {:initial-db {:first     500
-                                                    :first-sub 500
-                                                    :a         "hi"}})))
+  #?(:cljs {:after (fn [] (vreset! counter_ 0))}
+     :clj  (fn [f]
+             (f)
+             (reset! (::fulcro.app/state-atom app) start-db)
+             (sut/clear-subscription-cache! app)
+             (vreset! counter_ 0))))
 
 (sut/reg-sub ::first
   (fn [db] (:first db)))
 
 (sut/reg-sub ::second :<- [::first]
   (fn [args]
+    (println "secodn args: " args)
     (vswap! counter_ inc)
     (+ 10 args)))
 
@@ -109,6 +114,7 @@
     :<- [:b-sub]
     :-> (partial zipmap [:a :b]))
 
+  (reset! (::fulcro.app/state-atom app) {})
   (let [test-sub   (sut/subscribe app [:a-b-sub])
         test-sub-c (sut/subscribe app [:c-foo?-sub])
         test-sub-d (sut/subscribe app [:d-first-sub])

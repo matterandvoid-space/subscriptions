@@ -1,7 +1,5 @@
 (ns space.matterandvoid.subscriptions.subs
   (:require
-    [com.fulcrologic.fulcro.application :as fulcro.app]
-    [cljs.test :refer [deftest is testing]]
     [space.matterandvoid.subscriptions.fulcro :as sut]))
 
 (defonce counter_ (volatile! 0))

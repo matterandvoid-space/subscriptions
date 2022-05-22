@@ -20,7 +20,7 @@
                     :ns-default build2}
 
            :dev
-           {:extra-paths ["examples" "public"]
+           {:extra-paths ["examples" "public" "src/test"]
             :extra-deps  {org.slf4j/slf4j-nop       {:mvn/version "2.0.0-alpha7"}
                           lilactown/helix           {:mvn/version "0.1.6"}
                           org.clojure/clojure       {:mvn/version "1.11.1"}

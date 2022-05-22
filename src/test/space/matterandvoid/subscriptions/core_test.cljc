@@ -1,7 +1,7 @@
 (ns space.matterandvoid.subscriptions.core-test
   (:require
     [clojure.test :refer [deftest is testing use-fixtures]]
-    [reagent.ratom :as ratom]
+    [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [datascript.core :as d]
     [taoensso.timbre :as log]
     [space.matterandvoid.subscriptions.core :as sut]))
@@ -28,22 +28,26 @@
   (reset! dscript-db_ (d/db conn)))
 
 (use-fixtures :each
-  {:before (fn []
-             (transact! conn [todo1 todo2 todo3 todo4]))})
+  #?(:clj  (fn [f]
+             (reset! dscript-db_ (d/empty-db schema))
+             (transact! conn [todo1 todo2 todo3 todo4])
+             (f))
+     :cljs {:before (fn [] (transact! conn [todo1 todo2 todo3 todo4]))}))
 
 (defonce db (ratom/atom {:sub2 500 :hello "hello"}))
 
 (deftest basic-test
   (is (= 500 (sub2 db)))
   (is (= 500 (sub2 db {})))
-  (is (thrown-with-msg? js/Error #"Args to the query vector must be one map" (= 500 (sub2 db 13))))
+  (is (thrown-with-msg? #?(:cljs js/Error :clj Exception) #"Args to the query vector must be one map" (= 500 (sub2 db 13))))
   (is (= 500 (sut/<sub db [::sub2])))
   (is (= 500 @(sut/subscribe db [::sub2])))
   (is (= "hello" (sut/<sub db [:hello])))
   (is (= "hello" @(sut/subscribe db [:hello]))))
 
-(deftest invalid-start-signal
-  (is (thrown-with-msg? js/Error #"Your input signal must be a reagent.ratom" (sub2 (atom {})))))
+#?(:cljs
+   (deftest invalid-start-signal
+     (is (thrown-with-msg? js/Error #"Your input signal must be a reagent.ratom" (sub2 (atom {}))))))
 
 (sut/defsub all-todos
   :-> (fn [db]
@@ -130,15 +134,17 @@
     (d/db conn))
   )
 
-(defn bytes->mb [amount] (/ amount (js/Math.pow 1000 2)))
-(defn mb-str [amount] (str (bytes->mb amount) "MB"))
-(defn get-mem [] (.. js/performance -memory -usedJSHeapSize))
-(defn pr-mem [] (let [m (get-mem)] (println (mb-str m)) m))
+#?(:cljs
+   (do
+     (defn bytes->mb [amount] (/ amount (js/Math.pow 1000 2)))
+     (defn mb-str [amount] (str (bytes->mb amount) "MB"))
+     (defn get-mem [] (.. js/performance -memory -usedJSHeapSize))
+     (defn pr-mem [] (let [m (get-mem)] (println (mb-str m)) m))))
 
-(defn memory-test
-  []
-  (let [start-memory (get-mem)]
-    start-memory))
+#?(:cljs (defn memory-test
+           []
+           (let [start-memory (get-mem)]
+             start-memory)))
 
 ;; now I want to:
 ;; in a loop - make a db that has a lot of data
@@ -148,32 +154,33 @@
 ;; sut/reg-sub
 
 
-(defn mem-test-register []
-  ;; register subs
-  (let [curr-ns (namespace ::a)]
-    (reduce
-      (fn [acc num]
-        (let [kw (keyword curr-ns (str "a" num))]
-          (sut/reg-sub kw (fn [db] (get db kw)))
-          (assoc acc kw num)))
-      {}
-      (range (js/Math.pow 10 3))))
-  ;;
-  ;; now subscribe to them
-  )
+#?(:cljs
+   (defn mem-test-register []
+     ;; register subs
+     (let [curr-ns (namespace ::a)]
+       (reduce
+         (fn [acc num]
+           (let [kw (keyword curr-ns (str "a" num))]
+             (sut/reg-sub kw (fn [db] (get db kw)))
+             (assoc acc kw num)))
+         {}
+         (range (js/Math.pow 10 3))))
+     ;;
+     ;; now subscribe to them
+     ))
 
 
-(defn mem-test-subscribe
-  "Tests the memoization cache to ensure it will evict"
-  []
-  (let [start-mem (get-mem)]
-    ;; the default memoization size is 100, so 100 of these should be cached at a time.
-    (doseq [x (range 200 ;(js/Math.pow 10 4)
-                )]
-      (sut/<sub db [::sub2 (assoc {} x x)])
-      )
-    (let [end-mem (get-mem)]
-      [start-mem end-mem (mb-str (- end-mem start-mem))])))
+#?(:cljs (defn mem-test-subscribe
+           "Tests the memoization cache to ensure it will evict"
+           []
+           (let [start-mem (get-mem)]
+             ;; the default memoization size is 100, so 100 of these should be cached at a time.
+             (doseq [x (range 200 ;(js/Math.pow 10 4)
+                         )]
+               (sut/<sub db [::sub2 (assoc {} x x)])
+               )
+             (let [end-mem (get-mem)]
+               [start-mem end-mem (mb-str (- end-mem start-mem))]))))
 (comment
   (reduce
     (fn [acc n] (conj acc (conj (mem-test-subscribe) (pr-mem))))
@@ -211,11 +218,11 @@
 ;; so make a sub that takes in a vector of args
 ;; and does something with it -
 ;;
-(comment (mem-test))
-
-(comment
-  (sut/<sub (ratom/atom {::a1 200}) [::a1])
-  (println (mb-str (memory-test))))
+#?(:cljs
+   (comment
+     (mem-test)
+     (sut/<sub (ratom/atom {::a1 200}) [::a1])
+     (println (mb-str (memory-test)))))
 
 (def db-r_ (ratom/atom
              {:root/list-id :root/todos,
@@ -240,6 +247,8 @@
   (fn [{:todo/keys [id] :as input}]
     (when id input)))
 
+;; todo this is broken because you are deref'ing a sub in the inputs fn - need to refactor this.
+
 (sut/reg-sub ::todos-list
   (fn [r {:keys [list-id]}]
     (let [todo-idents (list-idents r {:list-id list-id})]
@@ -249,6 +258,9 @@
     (log/info "::todos-list x: " x)
     x))
 
+(comment (deref db-r_)
+  (sut/<sub db-r_ [::todos-list {:list-id :root/todos}])
+  )
 (deftest args-to-inputs-fn-test
   (let [out (sut/<sub db-r_ [::todos-list {:list-id :root/todos}])]
     (is (=
@@ -264,7 +276,7 @@
                      (update :root/todos conj [:todo/id id])
                      (update :todo/id assoc id todo))))
           out2 (sut/<sub db-r_ [::todos-list {:list-id :root/todos}])]
-      (log/info "out2: " out2)
+      (log/info "out2: " (into [] out2))
       (is (=
             (list #:todo{:text "helo138", :id #uuid"7dea2e3a-9b3d-4d35-a120-d65db43868cb"}
               #:todo{:text "helo139", :id #uuid"31a54f54-a701-4e92-af91-78447f5294e6"}

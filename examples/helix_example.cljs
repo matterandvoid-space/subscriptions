@@ -2,6 +2,11 @@
   (:require
     ["react-dom" :as react-dom]
     ["react" :as react]
+    [reagent.ratom :as ratom]
+    [taoensso.timbre :as log]
+    [space.matterandvoid.subscriptions.core :as subs :refer [defsub reg-sub]]
+    [space.matterandvoid.subscriptions.react-hook :refer [use-sub]]
+    [goog.object :as gobj]
     [helix.dom :as dom]))
 
 (defn D
@@ -20,11 +25,22 @@
        (println 'in 'two el)
        (react/createElement (name el) nil (into-array (into [props] c)))))))
 
+(defonce db_ (ratom/atom {:a-number 5}))
+
+(reg-sub :a-number :-> :a-number)
+
+(defn inc! [data_]
+  (swap! data_ update :a-number inc))
+
 (defn first-hook []
-  (let [[the-count set-count] (react/useState 0)]
-    (D :div
-      (D :div "else")
-      (D :button {:onClick #(set-count (inc the-count))}
+  (let [[the-count set-count] (react/useState 0)
+        sub-val (use-sub db_ [:a-number])]
+    (react/useEffect (fn [] (println "IN EFFECT")) #js[the-count])
+    (dom/div {:style {:padding 10 :border "1px dashed"}}
+      (dom/h3
+        (str "The number is : " sub-val))
+      (dom/button {:on-click #(inc! db_)} "INC!")
+      (D :button {:key "butt" :onClick #(set-count (inc the-count))}
         (str "count is " the-count)))))
 
 (defn my-react-comp [props]
@@ -41,3 +57,7 @@
   (println "HI")
   )
 
+(comment
+  (let [prop "hell"]
+    (js-obj "hello" 5 prop 100))
+  )

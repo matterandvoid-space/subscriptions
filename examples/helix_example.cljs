@@ -5,8 +5,9 @@
     [reagent.ratom :as ratom]
     [taoensso.timbre :as log]
     [space.matterandvoid.subscriptions.core :as subs :refer [defsub reg-sub]]
-    [space.matterandvoid.subscriptions.react-hook :refer [use-sub]]
+    [space.matterandvoid.subscriptions.react-hook :refer [use-sub use-sub-map]]
     [goog.object :as gobj]
+    [helix.core :refer [$]]
     [helix.dom :as dom]))
 
 (defn D
@@ -25,12 +26,21 @@
        (println 'in 'two el)
        (react/createElement (name el) nil (into-array (into [props] c)))))))
 
-(defonce db_ (ratom/atom {:a-number 5}))
+(defonce db_ (ratom/atom {:a-number    5
+                          :another-num 100}))
 
 (reg-sub :a-number :-> :a-number)
+(reg-sub :another-num :-> :another-num)
 
 (defn inc! [data_]
   (swap! data_ update :a-number inc))
+
+(defn second-hook []
+  (let [{:keys [my-number] :as args} (use-sub-map db_ {:my-number [:a-number]
+                                                       :number2   [:another-num]})]
+    (dom/div
+      (dom/h4 "another: " (:number2 args))
+      (str "second hook: " my-number))))
 
 (defn first-hook []
   (let [[the-count set-count] (react/useState 0)
@@ -39,6 +49,7 @@
     (dom/div {:style {:padding 10 :border "1px dashed"}}
       (dom/h3
         (str "The number is : " sub-val))
+      ($ second-hook)
       (dom/button {:on-click #(inc! db_)} "INC!")
       (D :button {:key "butt" :onClick #(set-count (inc the-count))}
         (str "count is " the-count)))))

@@ -1,7 +1,10 @@
+### Derived data flowing - from anywhere - to anywhere.
+
 This library extracts the subscriptions half of [re-frame](https://github.com/day8/re-frame) into a standalone library,
 it also makes a few adjustments, the key one being that the data source is an explicit argument you pass to subscriptions.
 
 This unlocks the utility of subscriptions for some creative integrations allowing both ends of the subscriptions chain to be free variables.
+
 
 - you can use any backing source of data - like datascript or a javascript object (maybe from a third party integration), it's up to you!
 - the UI layer - there is one simple integration point for rendering with any react cljs rendering library.

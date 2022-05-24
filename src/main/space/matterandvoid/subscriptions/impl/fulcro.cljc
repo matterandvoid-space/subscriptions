@@ -99,7 +99,6 @@
 
   To obtain the current value from the Signal, it must be dereferenced"
   [?app query]
-  (println " in subscribe")
   (subs/subscribe get-handler cache-lookup get-subscription-cache (c/any->app ?app) query))
 
 (defn <sub

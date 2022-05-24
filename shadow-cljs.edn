@@ -21,22 +21,21 @@
    :ns-regexp        "-test$"}
 
 
-  :helix-example {:target  :browser :output-dir "public/helix-example/js" :asset-path "/js"
-                  :dev     {:compiler-options {:output-feature-set :es6}}
-                  :modules {:helix-example {:entries [helix-example] :init-fn helix-example/init}}}
+  :hooks-example {:target  :browser :output-dir "public/hooks-example/js" :asset-path "/js"
+                  ;:dev     {:compiler-options {:output-feature-set :es6}}
+                  :modules {:hooks-example {:entries [hooks-example] :init-fn hooks-example/init}}}
 
   :fulcro-example
   {:target   :browser :output-dir "public/fulcro-example/js" :asset-path "/js"
-   :devtools {:after-load pro.kala-app.weather.client.client-entry/refresh
-              :preloads   [;; if using the chrome extension:
+   :devtools {:preloads   [;; if using the chrome extension:
                            com.fulcrologic.fulcro.inspect.preload
 
                            ;; if using the electron app:
                            ;com.fulcrologic.fulcro.inspect.websocket-preload
 
                            com.fulcrologic.fulcro.inspect.dom-picker-preload]}
-   :modules  {:fulcro-example {:entries [todo.fulcro.todo-app]
-                               :init-fn todo.fulcro.todo-app/init}}}
+   :modules  {:fulcro-example {:entries [fulcro-example]
+                               :init-fn fulcro-example/init}}}
 
   :reagent-datascript-example
   {:target  :browser :output-dir "public/reagent-datascript-example/js" :asset-path "/js"

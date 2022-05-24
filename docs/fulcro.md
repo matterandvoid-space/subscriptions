@@ -6,7 +6,7 @@ See the readme for references to learn more.
 
 # Why?
 
-Bring reactive UI updates for derived data to fulcro.
+Bring reactive UI rendering to fulcro.
 
 Fulcro provides powerful features and abstractions but its rendering model makes dealing with derived data difficult 
 to work with. Combined with the realization that a UI is mostly rendering derived data I didn't see a tractable way forward to 
@@ -55,51 +55,79 @@ In bullet points:
 Using render middleware that renders each fulcro component in a reagent Reaction using `reagent.ratom/run-in-reaction` 
 When any data the render function is subscribed to (any ratom/reactions it derefed during render change)
 a callback fires that will re-render the component.
-
-There is currently a duplicate `defsc` macro needed because fulcro does not support cleanup middleware for class components.
 When a component unmounts we remove the listener created by `run-in-reaction`.
 
 Nothing else about using fulcro components has changed, they will still re-render following the usual fulcro usage.
 
 Example:
 
+## Use with fulcro class components
+
 ```clojure 
-(require '[space.matterandvoid.subscriptions.fulcro :as subs])
+(defonce fulcro-app (subs/with-reactive-subscriptions (fulcro.app/fulcro-app {})))
 
-(defonce fulcro-app (subs/fulcro-app {:initial-db {:key1 500 :key2 "hi"}}))
+(defsub list-idents (fn [db {:keys [list-id]}] (get db list-id)))
 
-(subs/defsub key1 :-> :key1)
-;; :-> is shorthand for:
+;; anytime you have a list of idents in fulcro the subscription pattern is to
+;; have input signals that subscribe to layer 2 subscriptions
 
-(subs/defsub key1 (fn [db] (:key1 db)))
+(reg-sub ::todo-table :-> (fn [db] (-> db :todo/id)))
 
-;; and defsub expands to:
+;; now any subscriptions that use ::todo-table as an input signal will only update if todo-table's output changes.
 
-(subs/reg-sub ::key1 (fn [db] (:key1 db)))
-(defn key1 [db] (deref (subs/subscribe db [::key1])))
+(defsub todos-list :<- [::list-idents] :<- [::todo-table]
+  (fn [[idents table]]
+    (mapv #(get table (second %)) idents)))
 
-(key1 fulcro-app) ;; => 500
+(defsub todos-total :<- [::todos-list] :-> count)
 
-(subs/defsc MyComponent [this props]
-  {:query         (fn [] [::some-prop1 ::some-prop2])
-   :ident         (fn [_] [:component/id ::my-component])}
-    (dom/div (str "Key1's value is: " (pr-str (key1 this)))))
+(defsc Todo [this {:todo/keys [text state]}]
+  {:query         [:todo/id :todo/text :todo/state]
+   :ident         :todo/id
+   :initial-state (fn [text] (make-todo (or text "")))}
+  (dom/div {}
+    (dom/div "Todo:" (dom/div text))
+    (dom/div "status: " (pr-str state))))
 
-(comment 
-  ;; eval this in a repl and see the UI update
-  (swap! (::fulcro.app/state-atom update :key1 inc))
+(def ui-todo (c/computed-factory Todo {:keyfn :todo/id}))
+
+(defsc TodosTotal [this {:keys [list-id]}] {}
+  (dom/h3 "Total todos: " (todos-total this {:list-id list-id})))
+
+(def ui-todos-total (c/factory TodosTotal))
+
+(defn add-random-todo! [app]
+  (merge/merge-component! (c/any->app app) Todo (make-todo (str "todo-" (rand-int 1000))) :append [:root/todos]))
   
-  ;; defsub registers a subscription 
-  ;; you can inspect the values of subscription by passing in your fulcro app (or a component instance)
-  ;; 
-  (key1 fulcro-app)
-)
+(defsc TodoList [this {:keys [list-id]}]
+  {:ident (fn [] [:component/id ::todo-list])
+   :query [:list-id]}
+  (let [todos (todos-list this {:list-id list-id})]
+    (dom/div {}
+      (dom/button {:style {:padding 20 :margin "0 1rem"} :onClick #(add-random-todo! this)} "Add")
+      (when (> (todos-total this {:list-id list-id}) 0)
+        (dom/button {:style {:padding 20} :onClick #(rm-random-todo! this)} "Remove"))
+      (ui-todos-total {:list-id list-id})
+      (map ui-todo todos))))
+
+(def ui-todo-list (c/computed-factory TodoList))
+
+(defsc Root [this {:root/keys [list-id]}]
+  {:initial-state {:root/list-id :root/todos}
+   :query         [:root/list-id]}
+  (ui-todo-list {:list-id list-id}))
+  
+(fulcro.app/mount! fulcro-app Root js/app)
 ```
 
-the `subs/fulcro-app` call delegates to com.fulcrologic.application/fulcro-app and then assoc'es the ::fulcro.app/state-atom to be
-a reagent.ratom/atom with the initial-db value if one is passed in. It also assigns the rendering algorithm used by the app
-to use the ident-optimized render. The intention of this library is that all derived data is computed using subscriptions
+the `subs/with-reactive-subscriptions` call assoc'es the ::fulcro.app/state-atom to be a reagent.ratom/atom. 
+It also assigns the rendering algorithm used by the app to use the ident-optimized render. 
+The intention of this library is that all derived data is computed using subscriptions
 and rendered with their values - this way there are never any stale components on screen - just like in re-frame.
+
+## Use with fulcro hooks components
+
+See the `space.matterandvoid.subscriptions.react-hook-fulcro` namespace
 
 # Subscription authoring tips
 
@@ -116,7 +144,7 @@ Then in layer 3 subs you can select only the parts of the data tree from the lay
 pass those to another layer 3 sub - this way the leaf subscription which the UI will use to render - can be memoized while
 the layer 2 subs (by using db->tree) will ensure they pick up the newest dependent data from a fulcro query.
 
-The short way to say it is if your subscription takes as input an ident then you will likely get bit by the subscription
+The short way to say it is if your layer-3 subscription takes as input an ident then you will likely get bit by the subscription
 not updating properly.
 
 So:
@@ -137,16 +165,6 @@ For the best integration the fulcro rule applies: pretend there is no watch on t
 You're going to have a bad time if you try to use `swap!` because fulcro caches a component's props on the component instance
 so if a parent component uses a subscription but the child does not and instead renders its props - its parent will refresh 
 via the reaction firing, but the leaf/child will not because fulcro is rendering its cached props.
-
-TODO:
-
-show an example of what this looks like
-
-# No hooks support yet
-
-This library currently only supports integrating with fulcro components which produce JavaScript React class components.
-
-If using hooks is something that interests you, PRs are welcome, I intend to add support for function components though.
 
 # Future ideas
 

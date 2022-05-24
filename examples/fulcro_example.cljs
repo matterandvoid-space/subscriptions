@@ -1,4 +1,4 @@
-(ns todo.fulcro.todo-app
+(ns fulcro-example
   (:require
     [com.fulcrologic.fulcro.algorithms.merge :as merge]
     [com.fulcrologic.fulcro.algorithms.normalized-state :as nstate]
@@ -128,16 +128,12 @@
     ;; you deref after tx
     ))
 
+;; working on injecting derived state into fulcro app using application hook
 ;; transact! =>
 ;; the mutation  (or multiple) fire - the user's mutate function calls swap! (reset!) on the atom (ratom)
 ;; at this point the subscriptions which the user cares about have not been deref'd - but the subscriptions were
 ;; created (reg-sub) -> so then we deref the subscriptions -> this would result in new computations -> in the reactive
 ;; update callback we want to update the state - but now I'm not sure.
-
-;; I am struggling with the idea of getting the values of the subscriptions out from them - how do you do this?
-;; can I use the same model? do I need a new model?
-
-;; no because the components are declared on the subscription so we want t
 
 (defsc TodoList2 [this {:keys [list-id]}]
   {:ident (fn [] [:component/id ::todo-list])

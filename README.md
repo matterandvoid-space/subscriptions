@@ -1,11 +1,12 @@
 This library extracts the subscriptions half of [re-frame](https://github.com/day8/re-frame) into a standalone library,
 it also makes a few adjustments, the key one being that the data source is an explicit argument you pass to subscriptions.
 
-This unlocks the utility of subscriptions for some creative integrations.
+This unlocks the utility of subscriptions for some creative integrations allowing both ends of the subscriptions chain to be free variables.
 
-It allows both ends of the subscriptions chain to be free variables 
 - you can use any backing source of data - like datascript or a javascript object (maybe from a third party integration), it's up to you!
 - the UI layer - there is one simple integration point for rendering with any react cljs rendering library.
+
+- clojure support - there is no reactivity but the computation chain works.
 
 The original motivation was to use subscriptions with fulcro, but the library can be used with any data source that is 
 wrapped in a `reagent.ratom/atom`.
@@ -23,7 +24,7 @@ in response to any of these values changing over time.
 
 One other introductory note: The API in this codebase may have breaking changes in the future if new patterns emerge from actual usage.
 This seems unlikely, but I'm putting this warning here to allow for mutative/non-accretive changes to the codebase if they
-are warranted, during the early stages of use.
+are warranted during the early stages of use while avoiding perma-alpha/perma-beta status.
 
 # Usage / Integrations
 
@@ -44,7 +45,7 @@ _aside_: the subscription handlers are stored in a global var, but this can be e
 (reg-sub your-registry-value :hello (fn [db] (:hello db)))
 ```
 
-The difference from upstream re-frame is when you invoke `(subscribe)` you pass in the root of the subscription graph: 
+The difference from upstream re-frame is when you invoke `(subscribe)` you pass in the root of the subscription graph:
 ```clojure
 (subscribe (reagent.ratom/atom {:hello 200}) [:hello])
 ```
@@ -53,65 +54,6 @@ The difference from upstream re-frame is when you invoke `(subscribe)` you pass 
 
 There are working examples in this repo in the `examples` directory. See `shadow-cljs.edn` for the build names. 
 You can clone the repo and run them locally.
-
-## Use with fulcro class components
-
-```clojure 
-(defonce fulcro-app (subs/with-subscriptions (fulcro.app/fulcro-app {})))
-
-(defsub list-idents (fn [db {:keys [list-id]}] (get db list-id)))
-
-;; anytime you have a list of idents in fulcro the subscription pattern is to
-;; have input signals that subscribe to layer 2 subscriptions
-
-(reg-sub ::todo-table :-> (fn [db] (-> db :todo/id)))
-
-;; now any subscriptions that use ::todo-table as an input signal will only update if todo-table's output changes.
-
-(defsub todos-list :<- [::list-idents] :<- [::todo-table]
-  (fn [[idents table]]
-    (mapv #(get table (second %)) idents)))
-
-(defsub todos-total :<- [::todos-list] :-> count)
-
-(defsc Todo [this {:todo/keys [text state]}]
-  {:query         [:todo/id :todo/text :todo/state]
-   :ident         :todo/id
-   :initial-state (fn [text] (make-todo (or text "")))}
-  (dom/div {}
-    (dom/div "Todo:" (dom/div text))
-    (dom/div "status: " (pr-str state))))
-
-(def ui-todo (c/computed-factory Todo {:keyfn :todo/id}))
-
-(defsc TodosTotal [this {:keys [list-id]}] {}
-  (dom/h3 "Total todos: " (todos-total this {:list-id list-id})))
-
-(def ui-todos-total (c/factory TodosTotal))
-
-(defn add-random-todo! [app]
-  (merge/merge-component! (c/any->app app) Todo (make-todo (str "todo-" (rand-int 1000))) :append [:root/todos]))
-  
-(defsc TodoList [this {:keys [list-id]}]
-  {:ident (fn [] [:component/id ::todo-list])
-   :query [:list-id]}
-  (let [todos (todos-list this {:list-id list-id})]
-    (dom/div {}
-      (dom/button {:style {:padding 20 :margin "0 1rem"} :onClick #(add-random-todo! this)} "Add")
-      (when (> (todos-total this {:list-id list-id}) 0)
-        (dom/button {:style {:padding 20} :onClick #(rm-random-todo! this)} "Remove"))
-      (ui-todos-total {:list-id list-id})
-      (map ui-todo todos))))
-
-(def ui-todo-list (c/computed-factory TodoList))
-
-(defsc Root [this {:root/keys [list-id]}]
-  {:initial-state {:root/list-id :root/todos}
-   :query         [:root/list-id]}
-  (ui-todo-list {:list-id list-id}))
-  
-(fulcro.app/mount! fulcro-app Root js/app)
-```
 
 ## Use with a hashmap
 
@@ -173,20 +115,48 @@ You can clone the repo and run them locally.
 (transact! conn [(make-todo (random-uuid) "another todo")])
 ```
 
+I haven't used datascript much so there may be better/more efficient integrations, this is just one example.
+
+## Use with React hooks
+
+There are two react hooks in the `space.matterandvoid.subscriptions.react-hook` namespace `use-sub`, which takes one 
+subscription vector and `use-sub-map` which takes a hashmap of keywords to subscription vectors intended to be destructured.
+
+The same hooks for fulcro use are in `space.matterandvoid.subscriptions.react-hook-fulcro`
+
+See the examples source for a working example.
+
+```clojure 
+(defonce db_ (ratom/atom {}))
+
+(defn make-todo [id text] {:todo/id id :todo/text text})
+(def todo1 (make-todo #uuid"6848eac7-245c-4c5c-b932-8525279d4f0a" "todo1"))
+(def todo2 (make-todo #uuid"b13319dd-3200-40ec-b8ba-559e404f9aa5" "todo2"))
+(swap! db_ assoc :todos [todo1 todo2])
+
+(defsub all-todos :-> :todos)
+(defsub sorted-todos :<- [::all-todos] :-> (partial sort-by :todo/text))
+
+(defn a-react-hook-component []
+  (let [{:keys [my-todos] :as the-subs} (use-sub-map db_ {:my-todos [::all-todos]
+                                                          :sorted-todo-list [::sorted-todos]})]
+    (react/createElement "div" nil
+      (react/createElement "button" #js{:onClick #(swap! db_ update :todos conj (make-todo (random-uuid) "another todo"))}
+       "Add a todo")
+      (react/createElement "h4" nil "todos: " (pr-str my-todos))
+      (react/createElement "h4" nil "sorted todos: " (pr-str (:sorted-todo-list the-subs))))))
+```
+
 # Differences/modifications from upstream re-frame
 
 Details below, but the three big differences are:
 
-1. The input signal function is only passed two arguments: your ratom and a single hashmap of arguments.
+1. The input signals function is only passed two arguments: your data source (usually a ratom) and a single hashmap of arguments.
    The compute function is only passed your db and one hashmap as arguments.
-   Niether gets passed the vector which was passed to `subscribe`.
+   Neither gets passed the vector which was passed to `subscribe`.
 2. `subscribe` calls must be invoked with the base data source and optionally one argument which must be a hashmap.
 3. The reagent Reaction that backs a subscription computation function is only cached in a reactive context, and the 
    computation function itself is memoized with a bounded cache, making subscriptions safe to use in any context.
-
-And one smaller difference:
-
-This is a ClojureScript library, no attempt is made to support execution in clojure.
 
 ## Only one map for all queries
 
@@ -208,13 +178,13 @@ Some of the benefits are:
 
 - All arguments are forced to be named, aiding readability
 - You can easily flow data through the system, like you might want to do when creating subscription utilities used across 
-  components in your application, like having components that can be parameterized with subscriptions as well as parameterizing
+  components in your application, having components that can be parameterized with subscriptions as well as parameterizing
   the arguments to those subscriptions.
 - This in turn encourages the use of fully qualified keywords
 - Which in turn makes using malli or schema or spec to validate the arguments much simpler (e.g. having a registry of keyword to schema/spec).
 
-This format of a 2-tuple with a tag as the first element and data as the second shows up in lots of places, here is 
-a great talk about modeling information this way by Jeanine Adkisson from the 2014 Conj:
+This format of a 2-tuple with a tag as the first element and data as the second shows up in lots of places 
+(hiccup markup with no children, MapEntry), here is a great talk about modeling information this way by Jeanine Adkisson from the 2014 Conj:
 
 [Jeanine Adkisson - Variants are Not Unions](https://www.youtube.com/watch?v=ZQkIWWTygio)
 
@@ -246,8 +216,8 @@ the `:<-` input syntax, for example:
 (third-sub base-db {:kw :num-two}) ; => 110
 ```
 
-If static arguments are declared on the input signals and args are also passed to the subscrpition they are merged with the user
-specified value overriding the static ones - as in: `(merge static-args user-args)`
+If static arguments are declared on the input signals and args are also passed to the subscription at runtime the static 
+args are merged with the user specified one - as in: `(merge static-args user-args)`
 
 ```clojure
 (defonce base-db (reagent.ratom/atom {:num-one 500 :num-two 5}))
@@ -297,12 +267,9 @@ Here's an example where we query for a list of todos, where the data is normaliz
     (mapv #(get table %) ids)))
 
 (subs/<sub db_ [::todos-list {:list-id :list-one}])
-```
-And the same thing for layer 2:
 
-```clojure
 (reg-sub ::todo-text 
-  (fn [db {:todo/keys [id]}]  ;; <-- for layer 2 you are just passed the args
+  (fn [db {:todo/keys [id]}]  ;; <-- just passed the args map
     (get-in db [:todo/id id :todo/text])))
 
 (subs/<sub db_ [::todo-text {:todo-id #uuid"f4aa3501-0922-47a5-8579-70a4f3b1398b"}])
@@ -319,7 +286,7 @@ The underlying reagent.ratom/Reaction used in re-frame is cached - this library 
 
 The issue is that this leads to memory leaks if you attempt to invoke a subscription outside of the reactive propagation stage.
 
-That is, the reaction cache is used for example in a re-frame web app when a `reset!` is called on the reagent.ratom/atom
+That is, the reaction cache is used for example in a re-frame app when `reset!` is called on the reagent.ratom/atom
 app-db - this triggers reagent code that will re-render views, it is during this stage that the subscription computation function
 runs and the reaction cache is successfully used.
 
@@ -334,7 +301,7 @@ while still being cached.
 The changes are:
 
 - do not cache reactions if we are not in a reactive context (reagent indicates a reactive context by binding a dynamic variable.)
-- memoize all subscription computation functions with a bounded cache that evicts the least recently used subscription when full.
+- memoize all subscription computation functions with a bounded cache that evicts the least recently used subscription arguments when full.
 
 This is possible because subscriptions are pure functions and the layer 2 accessor subscriptions will invalidate for new 
 data when a new value for app-db is `reset!`.
@@ -342,7 +309,6 @@ data when a new value for app-db is `reset!`.
 As long as you follow the rules/intended design of using subscriptions this will not matter to you - the rule is 
 you can only compute on the inputs specified by the subscription mechanisms - if your functions are not pure you 
 will have a bad time (you will see stale values).
-
 
 The function used for memoization can be changed via this helper function:
 
@@ -388,6 +354,9 @@ is just a detail.
 You could also use your own defsub macro to, for example, instrument the calls to subscriptions or manipulate the args map 
 for all subscriptions.
 
+You probably don't want to use `defsub` for all subscriptions - possibly just those that are used in components,
+and if you really don't care for it you can just use reg-sub and subscribe.
+
 # Implementation details
 
 The codebase is quite tiny (the impl.subs namespace, pretty much the same as in re-frame), but if you haven't played with 
@@ -396,7 +365,7 @@ about what is going on.
 
 Subscriptions are implemented as reagent Reaction javascript objects (`deftype` in cljs) and using one helper function `run-in-reaction`.
 Reactions have a current value like a clojurescript atom, but they also have an attached function (the `f` member on the type)
-the characteristic that when this function body executes if it deref's any ratoms or reactions then the reaction will 
+which has the characteristic that when this function body executes if it deref's any ratoms or reactions then the reaction will
 remember these in a list of watches. This list of watches is what run-in-reaction uses to fire another callback in response
 to any depedent reactions/ratoms updating. - See the reagent.ratom namespace, especially `deref-capture`, `in-context`, and `notify-deref-watcher!`.
 
@@ -423,7 +392,7 @@ The implementation of this in reagent is quite elegant - the communication is do
     (fn react []
       ;; here is our effect:
       (println "Reacted!" @sub3))
-    ;; I honestly don't know what this does exactly, but reagent passes this, then so do I :)
+    ;; I honestly don't know what this :no-cache does exactly, but reagent passes this, then so do I :)
     {:no-cache true}))
 (swap! base-data inc)
 ```
@@ -442,7 +411,7 @@ https://github.com/reagent-project/reagent/blob/f64821ce2234098a837ac7e280969f98
 It takes a `run` function callback which will be invoked when any ratom's or Reactions are deref'd in the main function 
 passed to run-in-reaction. In this `run` function you perform the side-effecting re-render.
 
-Hooks support might be different, you can consult the reagent sources for inspiration.
+Or if you're using react hooks, then you don't need to do anything, use the provided hook in this library.
 
 # References 
 
@@ -458,6 +427,29 @@ Mike Thompson on the history of re-frame:
 
 https://player.fm/series/clojurestream-podcast/s4-e3-re-frame-with-mike-thompson
 
+On my journey to gain understanding with reagent and the re-frame implementation I found the following resources helpful 
+
+(you should definitely play with reagent primitives - reaction, ratom - in a repl)
+
+Historical versions of the re-frame readme provide more in-depth details of how subscriptions are implemented which are 
+no longer present in the current documentation. 0.5 for example I found very insightful.
+
+https://github.com/day8/re-frame/tree/v0.5.0#how-flow-happens-in-reagent
+
+FRP in ClojureScript with Javelin
+
+~75% of this talk is about reactive programming. The insights apply directly to subscriptions
+
+https://www.infoq.com/presentations/ClojureScript-Javelin/
+
+I found the symmetry of `(cell ,,,)` in Javelin and `(reaction ,,,)` in Reagent to be clarifying.
+
+Reagent docs on state and reactive updates
+
+https://github.com/reagent-project/reagent/blob/master/doc/ManagingState.md
+
+https://github.com/reagent-project/reagent/blob/master/doc/WhenDoComponentsUpdate.md
+
 # Development and contributing
 
 clone the repo and:
@@ -465,4 +457,4 @@ clone the repo and:
 ```bash
 bb dev
 ```
-Open the shadow-cljs builds page and then open the page that hosts the tests or an example app
+Open the shadow-cljs builds page and then open the page that hosts the tests or an example app.

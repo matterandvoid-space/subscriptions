@@ -3,8 +3,7 @@
     ["react" :as react]
     [goog.object :as gobj]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
-    [space.matterandvoid.subscriptions.core :as subs]
-    [taoensso.timbre :as log]))
+    [space.matterandvoid.subscriptions.core :as subs]))
 
 (defn use-sub
   "A react hook that subscribes to a subscription, the return value of the hook is the return value of the
@@ -20,20 +19,18 @@
         reaction-obj (react/useRef #js{})]
     (react/useEffect
       (fn setup-subscription []
-        (log/info "In use-sub on mount")
         (let [return-val
               (ratom/run-in-reaction
                 (fn [] (subs/<sub data-source query))
                 (.-current reaction-obj)
                 reaction-key
-                (fn on-react! [] (log/info "REACTED!")
-                  (set-render-count! (fn [c] (log/info "set rnder  count!" c) (inc c)))
+                (fn on-react! []
+                  (set-render-count! (fn [c] (inc c)))
                   (set-subscription-value! (subs/<sub data-source query)))
                 {:no-cache true})]
           (set-subscription-value! return-val)
-          (set-render-count! (fn [c] (log/info "set rnder  count!" c) (inc c))))
+          (set-render-count! (fn [c] (inc c))))
         (fn cleanup-subscription []
-          (log/info "in use-sub on unmount")
           (ratom/dispose! (gobj/get (.-current reaction-obj) reaction-key))))
       #js[])
 
@@ -41,12 +38,12 @@
 
 (defn use-sub-map
   "A react hook that subscribes to multiple subscriptions, the return value of the hook is the return value of the
-  subscriptions which will cause the consuming react function component to update when the subscription's value updates.
+  subscriptions which will cause the consuming react function component to update when the subscriptions' values update.
 
   Takes a data source (reagent ratom) and a hashmap
   - keys are keywords (qualified or simple) that you make up.
   - values are subscription vectors.
-  Returns a map with the same keys and the values all subscribed and deref'd (thus, being their current values)."
+  Returns a map with the same keys and the values are the subscriptions subscribed and deref'd (thus, being their current values)."
   [data-source query-map]
   (assert ratom/ratom? data-source)
   (let [[render-count set-render-count!] (react/useState 0)
@@ -59,21 +56,18 @@
                                  {})))]
     (react/useEffect
       (fn setup-subscription []
-        (log/info "In use-sub on mount")
         (let [return-val
               (ratom/run-in-reaction
                 deref-signals
                 (.-current reaction-obj)
                 reaction-key
                 (fn on-react! []
-                  (log/info "REACTED map!")
-                  (set-render-count! (fn [c] (log/info "set rnder  count!" c) (inc c)))
+                  (set-render-count! (fn [c] (inc c)))
                   (set-subscription-value! (deref-signals)))
                 {:no-cache true})]
           (set-subscription-value! return-val)
-          (set-render-count! (fn [c] (log/info "set rnder  count!" c) (inc c))))
+          (set-render-count! (fn [c] (inc c))))
         (fn cleanup-subscription []
-          (log/info "in use-sub on unmount")
           (ratom/dispose! (gobj/get (.-current reaction-obj) reaction-key))))
       #js[])
 

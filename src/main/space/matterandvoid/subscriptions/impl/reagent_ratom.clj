@@ -54,7 +54,7 @@
     (swap! on-dispose-callbacks dissoc a-ratom)
     (doseq [f callbacks] (f))))
 
-(defn reactive-context? [] true)
+(defn reactive-context? [] false)
 
 (defn reagent-id
   "Doesn't make sense in a Clojure context currently."

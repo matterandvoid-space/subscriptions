@@ -82,7 +82,6 @@
 (defn <sub
   "Subscribe and deref a subscription, returning its value, not a reaction."
   [?app query]
-  (println "JVM SUB")
   (impl/<sub ?app query))
 
 (defn clear-sub

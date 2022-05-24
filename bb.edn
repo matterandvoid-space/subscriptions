@@ -43,7 +43,7 @@
 
   write-example.html
   (do
-    (write-example-html "helix-example")
+    (write-example-html "hooks-example")
     (write-example-html "fulcro-example")
     (write-example-html "reagent-datascript-example"))
 
@@ -51,7 +51,7 @@
   {:depends [yarn-install write-example.html]
    :doc     "Starts a shadow-cljs watch on the dev build"
    :task    (do (println "Starting shadow-cljs compilations")
-                (run-shadow-watch '[test reagent-datascript-example fulcro-example helix-example]
+                (run-shadow-watch '[test reagent-datascript-example fulcro-example hooks-example]
                   (into *command-line-args* dev-aliases)))}
 
   test

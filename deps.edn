@@ -11,18 +11,12 @@
 
  :aliases {:test
            {:extra-paths ["src/test"]}
-
-           :build  {:deps
-                    {io.github.clojure/tools.build {:git/tag "v0.8.2" :git/sha "ba1a2bf"}}
-                    :ns-default build}
-
-           :build2 {:deps       {io.github.seancorfield/build-clj {:git/tag "v0.8.0" :git/sha "9bd8b8a"}}
-                    :ns-default build2}
+           :build {:deps       {io.github.seancorfield/build-clj {:git/tag "v0.8.0" :git/sha "9bd8b8a"}}
+                   :ns-default build}
 
            :dev
            {:extra-paths ["examples" "public" "src/test"]
             :extra-deps  {org.slf4j/slf4j-nop       {:mvn/version "2.0.0-alpha7"}
-                          lilactown/helix           {:mvn/version "0.1.6"}
                           org.clojure/clojure       {:mvn/version "1.11.1"}
                           org.clojure/clojurescript {:mvn/version "1.11.51"}
                           binaryage/devtools        {:mvn/version "1.0.6"}

@@ -1,30 +1,20 @@
 (ns build
-  (:require [clojure.tools.build.api :as b]))
+  (:require
+    [clojure.tools.build.api :as b]
+    [clojure.string :as str]
+    [org.corfield.build :as bb])
+  (:import [java.time LocalDate]))
 
 (def lib 'space.matterandvoid/subscriptions)
-(def version (format "0.6.%s" (b/git-count-revs nil)))
-(def class-dir "target/classes")
-(def basis (b/create-basis {:project "deps.edn"}))
+(def version (str/replace (str (LocalDate/now)) "-" "."))
 
-(def uber-file "target/uber.jar")
+(defn jar-it [opts]
+  (-> opts
+    (bb/clean)
+    (assoc :lib lib :version version :src-dirs ["src/main"] :src-pom "template/pom.xml")
+    (bb/jar)))
 
-(defn clean [_] (b/delete {:path "target"}))
-
-(defn prep [_]
-  (b/write-pom {:class-dir class-dir
-                :lib lib
-                :version version
-                :basis basis
-                :src-dirs ["src/main"]})
-  (b/copy-dir {:src-dirs ["src/main"] :target-dir class-dir}))
-
-(defn uber [_]
-  (println "basis is: " basis)
-  ;(b/compile-clj {:basis basis :src-dirs ["src/main"] :class-dir class-dir})
-  (b/jar  {:class-dir class-dir
-           :uber-file uber-file
-           :basis basis}))
-
-(defn all [_]
-  (clean nil) (prep nil) (uber nil))
-
+(defn deploy "Deploy the JAR to Clojars." [opts]
+  (-> opts
+    (assoc :lib lib :version version)
+    (bb/deploy)))

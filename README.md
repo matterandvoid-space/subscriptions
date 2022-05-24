@@ -28,6 +28,10 @@ are warranted during the early stages of use while avoiding perma-alpha/perma-be
 
 # Usage / Integrations
 
+Get the latest coordinates on clojars: 
+
+[![Clojars Project](https://img.shields.io/clojars/v/space.matterandvoid/subscriptions.svg)](https://clojars.org/space.matterandvoid/subscriptions)
+
 _note_ this library depends on reagent, but given its prevalance and chance for version conflicts does not declare it 
 as a dependency, you must add it to your deps.
 

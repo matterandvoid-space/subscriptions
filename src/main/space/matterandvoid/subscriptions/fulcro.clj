@@ -1,8 +1,5 @@
 (ns space.matterandvoid.subscriptions.fulcro
   (:require
-    [cljs.analyzer :as ana]
-    [cljs.env :as cljs-env]
-    [clojure.spec.alpha :as s]
     [space.matterandvoid.subscriptions.impl.fulcro :as impl]
     [com.fulcrologic.fulcro.algorithm :as-alias fulcro.algo]
     [com.fulcrologic.fulcro.algorithms.indexing :as fulcro.index]

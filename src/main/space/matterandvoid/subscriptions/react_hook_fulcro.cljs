@@ -13,7 +13,7 @@
   Arguments are a fulcro application whose state atom is a reagent ratom and a subscription query vector
   (a vector of a keyword and an optional hashmap of arguments)."
   [data-source query]
-  (assert (fulcro.app/fulcro-app? data-source))
+  (when goog/DEBUG (assert (fulcro.app/fulcro-app? data-source)))
   (let [[render-count set-render-count!] (react/useState 0)
         [subscription-value set-subscription-value!] (react/useState nil)
         reaction-key "reaction"
@@ -46,8 +46,8 @@
   - values are subscription vectors.
   Returns a map with the same keys and the values are the subscriptions subscribed and deref'd (thus, being their current values)."
   [data-source query-map]
-  (assert (fulcro.app/fulcro-app? data-source))
-  (assert (map? query-map))
+  (when goog/DEBUG (assert (fulcro.app/fulcro-app? data-source)))
+  (when goog/DEBUG (assert (map? query-map)))
   (let [[render-count set-render-count!] (react/useState 0)
         [subscription-value set-subscription-value!] (react/useState nil)
         reaction-key  "reaction"

@@ -180,6 +180,6 @@
    values change."
   [this client-render]
   (when (nil? (get-component-reaction this))
-    (log/debug "RUNNING IN REACTION")
+    ;(log/debug "RUNNING IN REACTION")
     (ratom/run-in-reaction
       (fn [] (client-render this)) this reaction-key reaction-callback {:no-cache true})))

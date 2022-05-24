@@ -7,10 +7,8 @@
     [com.fulcrologic.fulcro.components :as c]
     [com.fulcrologic.fulcro.rendering.ident-optimized-render :as ident-optimized-render]
     [space.matterandvoid.subscriptions.impl.fulcro :as impl]
-    [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
-    [goog.object :as g]
-    [taoensso.timbre :as log]))
+    [goog.object :as g]))
 
 (defn set-memoize-fn! [f] (impl/set-memoize-fn! f))
 (defn set-args-merge-fn! [f] (impl/set-args-merge-fn! f))
@@ -130,10 +128,6 @@
       assoc
       ::fulcro.algo/optimized-render! ident-optimized-render/render!
 
-      ::fulcro.algo/before-render (fn [app root-class]
-                                    (log/info "in before-render")
-                                    )
-
       ::fulcro.algo/render-middleware
       (fn [this render-fn]
         (let [final-render-fn
@@ -151,11 +145,11 @@
       ::fulcro.algo/drop-component!
       (fn drop-component-middleware
         ([this]
-         (log/info "Drop component!" (c/component-name this))
+         ;(log/info "Drop component!" (c/component-name this))
          (cleanup! this)
          (fulcro.index/drop-component! this))
         ([this ident]
-         (log/info "Drop component!" (c/component-name this))
+         ;(log/info "Drop component!" (c/component-name this))
          (cleanup! this)
          (fulcro.index/drop-component! this ident))))))
 
@@ -178,17 +172,17 @@
       ::fulcro.algo/optimized-render! ident-optimized-render/render!
 
       ::fulcro.algo/before-render (fn [app root-class]
-                                    (log/info "in before-render")
+                                    ;(log/info "in before-render")
                                     (impl/subs-cache->fulcro-app-state app))
 
       ::fulcro.algo/render-middleware
       (fn [this render-fn]
-        (log/info "in render middleware")
+        ;(log/info "in render middleware")
         (let [final-render-fn
               (if-let [middleware (::fulcro.algo/render-middleware app)]
                 (fn [] (middleware this render-fn))
                 render-fn)]
-          (log/info "in render middleware")
+          ;(log/info "in render middleware")
           (if-let [^clj reaction (impl/get-component-reaction this)]
             (do
               (when goog/DEBUG
@@ -200,10 +194,10 @@
       ::fulcro.algo/drop-component!
       (fn drop-component-middleware
         ([this]
-         (log/info "Drop component!" (c/component-name this))
+         ;(log/info "Drop component!" (c/component-name this))
          (cleanup! this)
          (fulcro.index/drop-component! this))
         ([this ident]
-         (log/info "Drop component!" (c/component-name this))
+         ;(log/info "Drop component!" (c/component-name this))
          (cleanup! this)
          (fulcro.index/drop-component! this ident))))))

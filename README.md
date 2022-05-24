@@ -186,7 +186,7 @@ take into account all parameter passing styles is a pain and can lead to subtle 
 and doing so dynamically.
 
 Taking a tip from many successful clojure projects which are able to be extended and grown and integrated over time
-(e.g. fulco, pathom, pedestal, malli), this library forces all subscriptions to take at most one argument which must be a hashmap.
+(e.g. fulcro, pathom, pedestal, malli), this library forces all subscriptions to take at most one argument which must be a hashmap.
 
 Some of the benefits are:
 
@@ -286,7 +286,7 @@ Here's an example where we query for a list of todos, where the data is normaliz
   (fn [db {:todo/keys [id]}]  ;; <-- just passed the args map
     (get-in db [:todo/id id :todo/text])))
 
-(subs/<sub db_ [::todo-text {:todo-id #uuid"f4aa3501-0922-47a5-8579-70a4f3b1398b"}])
+(subs/<sub db_ [::todo-text {:todo/id #uuid"f4aa3501-0922-47a5-8579-70a4f3b1398b"}])
 ```
 
 If you _really_ need the query id you can just assoc it onto the args map. One less thing to worry about.

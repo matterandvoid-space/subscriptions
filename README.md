@@ -134,8 +134,8 @@ subscription vector and `use-sub-map` which takes a hashmap of keywords to subsc
 
 The same hooks for fulcro use are in `space.matterandvoid.subscriptions.react-hook-fulcro`
 
-With this implementation components will re-render whenever subscribed data updates, you will probably want to sync to 
-requestAnimationFrame - I will likely add this in the future (see reagent sources for inspiration).
+With this implementation components will re-render once per animation frame (via requestAnimationFrame) even if the reactive
+callback fires multiple times in one frame.
 
 See the examples directory in the source for working code.
 

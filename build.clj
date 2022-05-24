@@ -8,11 +8,16 @@
 (def lib 'space.matterandvoid/subscriptions)
 (def version (str/replace (str (LocalDate/now)) "-" "."))
 
-(defn jar-it [opts]
+(defn jar [opts]
   (-> opts
     (bb/clean)
     (assoc :lib lib :version version :src-dirs ["src/main"] :src-pom "template/pom.xml")
     (bb/jar)))
+
+(defn install [opts]
+  (-> opts
+    (assoc :lib lib :version version :src-dirs ["src/main"] :src-pom "template/pom.xml")
+    (bb/install)))
 
 (defn deploy "Deploy the JAR to Clojars." [opts]
   (-> opts

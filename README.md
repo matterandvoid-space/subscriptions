@@ -65,6 +65,8 @@ You can clone the repo and run them locally.
 ## Use with a hashmap
 
 ```clojure 
+(require [space.matterandvoid.subscriptions.core :refer [defsub reg-sub <sub subscribe]])
+    
 (defonce db_ (ratom/atom {}))
 
 (defn make-todo [id text] {:todo/id id :todo/text text})
@@ -88,6 +90,7 @@ You can clone the repo and run them locally.
 ## Use with Datascript
 
 ```clojure 
+(require [space.matterandvoid.subscriptions.core :refer [defsub reg-sub <sub subscribe]])
 (def schema {:todo/id {:db/unique :db.unique/identity}})
 (defonce conn (d/create-conn schema))
 (defonce dscript-db_ (ratom/atom (d/db conn)))
@@ -137,6 +140,7 @@ requestAnimationFrame - I will likely add this in the future (see reagent source
 See the examples directory in the source for working code.
 
 ```clojure 
+(require [space.matterandvoid.subscriptions.react-hook :refer [use-sub use-sub-map]])
 (defonce db_ (ratom/atom {}))
 
 (defn make-todo [id text] {:todo/id id :todo/text text})

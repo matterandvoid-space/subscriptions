@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <name>subscriptions</name>
+  <description>Subscriptions extracted from re-frame as a standalone library.</description>
+  <url>https://github.com/matterandvoid-space/subscriptions</url>
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <name>Daniel Vingo</name>
+    </developer>
+  </developers>
+  <scm>
+    <connection>scm:git:git@github.com:matterandvoid-space/subscriptions.git</connection>
+    <developerConnection>scm:git:git@github.com:matterandvoid-space/subscriptions.git</developerConnection>
+    <url>https://github.com/matterandvoid-space/subscriptions</url>
+  </scm>
+</project>

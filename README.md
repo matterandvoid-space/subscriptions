@@ -151,14 +151,21 @@ See the examples directory in the source for working code.
 (defsub all-todos :-> :todos)
 (defsub sorted-todos :<- [::all-todos] :-> (partial sort-by :todo/text))
 
+;; lifted from helix.core
+(defn $ [type & args]
+  (let [?p (first args), ?c (rest args), type' (cond-> type (keyword? type) name)]
+    (if (map? ?p)
+      (apply react/createElement type' (clj->js ?p) ?c)
+      (apply react/createElement type' nil args))))
+
 (defn a-react-hook-component []
   (let [{:keys [my-todos] :as the-subs} (use-sub-map db_ {:my-todos [::all-todos]
                                                           :sorted-todo-list [::sorted-todos]})]
-    (react/createElement "div" nil
-      (react/createElement "button" #js{:onClick #(swap! db_ update :todos conj (make-todo (random-uuid) "another todo"))}
+    ($ :div
+      ($ :button #js{:onClick #(swap! db_ update :todos conj (make-todo (random-uuid) "another todo"))}
        "Add a todo")
-      (react/createElement "h4" nil "todos: " (pr-str my-todos))
-      (react/createElement "h4" nil "sorted todos: " (pr-str (:sorted-todo-list the-subs))))))
+      ($ :h4 "todos: " (pr-str my-todos))
+      ($ :h4 "sorted todos: " (pr-str (:sorted-todo-list the-subs))))))
 ```
 
 # Differences/modifications from upstream re-frame

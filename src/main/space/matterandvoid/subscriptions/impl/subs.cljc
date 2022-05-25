@@ -74,7 +74,6 @@
     (trace/with-trace {:operation (first query)
                        :op-type   :sub/create
                        :tags      {:query-v query}}
-      ;(log/info "STEP 2")
       ;(console :info (str "subs. cache-lookup: " query))
       (let [cached (cache-lookup app query)]
         ;; this should be fine because the cached reaction will have the most up to date value
@@ -241,9 +240,6 @@
                                     (when-not (and (every? #{:<-} markers) (every? vector? vecs))
                                       (console :error err-header "expected pairs of :<- and vectors, got:" pairs))
 
-                                    ;; note the use of mapv here, it allows reactions to be created outside a reactive context
-                                    ;; like for example when rendering in a fulcro app to draw the first frame.
-                                    ;; if you return a seq in that situation an infinite loop occurs.
                                     (fn inp-fn
                                       ([app] (map #(subscribe get-handler cache-lookup get-subscription-cache app %) vecs))
                                       ([app args*]

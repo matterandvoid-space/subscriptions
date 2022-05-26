@@ -133,7 +133,7 @@ There are three react hooks in the `space.matterandvoid.subscriptions.react-hook
 - `use-sub`, which takes one subscription vector 
 - `use-sub-map` which takes a hashmap of keywords to subscription vectors intended to be destructured.
 - `use-in-reaction` which takes a function of no arguments (a thunk) and runs it inside reagent.ratom/run-in-reaction.
-  (this is more low level of the three hooks, in case you want to do more custom things)
+  (this is the more low level of the three hooks, in case you want to do more custom things)
 
 The same hooks for fulcro use are in `space.matterandvoid.subscriptions.react-hook-fulcro`
 
@@ -169,7 +169,7 @@ See the examples directory in the source for working code.
          ;; this is contrived, but you could imagine passing in subs as a prop
          ;; or other dynamic possibilities
          some-subs [[::sorted-todos] [:all-todos]]
-         list-of-lists (use-in-reaction (fn[] (mapv <sub some-subs)]
+         list-of-lists (use-in-reaction (fn[] (mapv <sub some-subs)))]
     ($ :div
       ($ :button #js{:onClick #(swap! db_ update :todos conj (make-todo (random-uuid) "another todo"))}
        "Add a todo")

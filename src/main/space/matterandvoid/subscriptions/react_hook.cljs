@@ -1,6 +1,6 @@
 (ns space.matterandvoid.subscriptions.react-hook
   (:require
-    [space.matterandvoid.subscriptions.impl.hooks-common :refer [use-sub-common]]
+    [space.matterandvoid.subscriptions.impl.hooks-common :as common]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [space.matterandvoid.subscriptions.core :as subs]))
 
@@ -14,7 +14,7 @@
   arguments)."
   [data-source query]
   (when goog/DEBUG (assert (ratom/ratom? data-source)))
-  (use-sub-common (fn [] (subs/<sub data-source query))))
+  (common/use-in-reaction (fn [] (subs/<sub data-source query))))
 
 (defn use-sub-map
   "A react hook that subscribes to multiple subscriptions, the return value of the hook is the return value of the
@@ -29,8 +29,16 @@
   [data-source query-map]
   (when goog/DEBUG (assert (ratom/ratom? data-source)))
   (when goog/DEBUG (assert (map? query-map)))
-  (use-sub-common
+  (common/use-in-reaction
     (fn [] (->> query-map
              (reduce-kv
                (fn [acc k query-vec] (assoc acc k (subs/<sub data-source query-vec)))
                {})))))
+
+(defn use-in-reaction
+  "A react hook that takes a function with no arguments (a thunk) and runs the provided function inside a reagent `run-in-reaction`,
+   returning the passed in function's value to the calling component. re-runs passed in function when any reagent reactive updates fire.
+
+  The hook causes the consuming component to re-render at most once per frame even if the reactive callback fires more than
+  once per frame."
+  [f] (common/use-in-reaction f))

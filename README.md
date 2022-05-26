@@ -5,8 +5,7 @@ it also makes a few adjustments, the key one being that the data source is an ex
 
 This unlocks the utility of subscriptions for some creative integrations allowing both ends of the subscriptions chain to be free variables.
 
-
-- you can use any backing source of data - like datascript or a javascript object (maybe from a third party integration), it's up to you!
+- you can use any backing source of data - like a datascript db
 - the UI layer - there is one simple integration point for rendering with any react cljs rendering library.
 
 - clojure support - there is no reactivity but the computation chain works.
@@ -66,7 +65,7 @@ You can clone the repo and run them locally.
 
 ```clojure 
 (require [space.matterandvoid.subscriptions.core :refer [defsub reg-sub <sub subscribe]])
-    
+
 (defonce db_ (ratom/atom {}))
 
 (defn make-todo [id text] {:todo/id id :todo/text text})
@@ -129,8 +128,12 @@ I haven't used datascript much so there may be better/more efficient integration
 
 ## Use with React hooks
 
-There are two react hooks in the `space.matterandvoid.subscriptions.react-hook` namespace `use-sub`, which takes one 
-subscription vector and `use-sub-map` which takes a hashmap of keywords to subscription vectors intended to be destructured.
+There are three react hooks in the `space.matterandvoid.subscriptions.react-hook` namespace 
+
+- `use-sub`, which takes one subscription vector 
+- `use-sub-map` which takes a hashmap of keywords to subscription vectors intended to be destructured.
+- `use-in-reaction` which takes a function of no arguments (a thunk) and runs it inside reagent.ratom/run-in-reaction.
+  (this is more low level of the three hooks, in case you want to do more custom things)
 
 The same hooks for fulcro use are in `space.matterandvoid.subscriptions.react-hook-fulcro`
 
@@ -140,7 +143,7 @@ callback fires multiple times in one frame.
 See the examples directory in the source for working code.
 
 ```clojure 
-(require [space.matterandvoid.subscriptions.react-hook :refer [use-sub use-sub-map]])
+(require [space.matterandvoid.subscriptions.react-hook :refer [use-sub use-sub-map use-in-reaction]])
 (defonce db_ (ratom/atom {}))
 
 (defn make-todo [id text] {:todo/id id :todo/text text})
@@ -159,8 +162,14 @@ See the examples directory in the source for working code.
       (apply react/createElement type' nil args))))
 
 (defn a-react-hook-component []
-  (let [{:keys [my-todos] :as the-subs} (use-sub-map db_ {:my-todos [::all-todos]
-                                                          :sorted-todo-list [::sorted-todos]})]
+  (let [{:keys [my-todos] :as the-subs} 
+           (use-sub-map db_ {:my-todos [::all-todos] 
+                             :sorted-todo-list [::sorted-todos]})
+          
+         ;; this is contrived, but you could imagine passing in subs as a prop
+         ;; or other dynamic possibilities
+         some-subs [[::sorted-todos] [:all-todos]]
+         list-of-lists (use-in-reaction (fn[] (mapv <sub some-subs)]
     ($ :div
       ($ :button #js{:onClick #(swap! db_ update :todos conj (make-todo (random-uuid) "another todo"))}
        "Add a todo")

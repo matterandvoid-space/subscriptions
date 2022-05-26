@@ -3,8 +3,8 @@
     ["react-dom" :as react-dom]
     ["react" :as react]
     [reagent.ratom :as ratom]
-    [space.matterandvoid.subscriptions.core :as subs :refer [defsub reg-sub]]
-    [space.matterandvoid.subscriptions.react-hook :refer [use-sub use-sub-map]]))
+    [space.matterandvoid.subscriptions.core :as subs :refer [defsub reg-sub <sub]]
+    [space.matterandvoid.subscriptions.react-hook :refer [use-sub use-sub-map use-in-reaction]]))
 
 (defn $
   "Create a new React element from a valid React type.
@@ -46,6 +46,10 @@
           (js/setTimeout cb 0)))
       0)))
 
+(defn third-hook []
+  (let [output (use-in-reaction (fn [] (+ 100 (<sub db_ [:a-number]))))]
+    ($ :h1 "use-in-reaction hook: " output)))
+
 (defn second-hook []
   (let [{:keys [my-number my-str] :as args} (use-sub-map db_ {:my-number  [:a-number]
                                                               :number2    [:another-num]
@@ -66,6 +70,7 @@
     (println "DRAW FIRST HOOK")
     ($ :div {:style {:padding 10 :border "1px dashed"}}
       ($ :h3 (str "The number is : " sub-val))
+      ($ third-hook)
       ($ second-hook)
       ($ :button {:onClick #(inc! db_)} "INC!")
       ($ :button {:onClick #(inc-alot! db_)} "INC a lot!")

@@ -432,6 +432,20 @@ and one to run reactively. For UIs the reactive callback is where we redraw a co
 I would not have been able to figure this out if the reagent component namespace didn't already exist demonstrating how 
 to make this work in practice - definitely refer to the source and play around at a repl to explore this.
 
+## Getting at the subscription cache
+
+If you want to write instrumentation code or just see some of the internals you can look at the subscription cache 
+which is located in the var pointed to by the symbol:
+
+```clojure
+space.matterandvoid.subscriptions.impl.core/subs-cache
+```
+
+This is an atom containing a hashmap of vectors (as passed to subscribe) and values being reactions - if you deref the 
+reactions you will get their current value.
+
+You can then `<tap` the values or put them in a UI for dev-time debugging tools.
+
 # Integrating this library with other view layers
 
 In short use `reagent.ratom/run-in-reaction`, see the reagent source for inspiration:

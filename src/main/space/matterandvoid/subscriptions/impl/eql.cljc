@@ -221,19 +221,17 @@
   [id-attr prop]
   (reg-sub prop
     (fn [db args]
+      (println "in plain prop: " prop)
       (if-let [entity-id (get args id-attr)]
         (let [entity (get-in db [id-attr entity-id])]
           (get entity prop))
-        (throw (error "Missing id attr: " id-attr " in args map passed to subscription: " prop))))))
+        (throw (error "Missing id attr: " id-attr " in args map passed to subscription: " prop "\nArgs: " args))))))
 
-
-(defn reg-sub-entity
-  [id-kw entity-kw props]
-  (reg-sub entity-kw
-    (fn [db_ args]
-      (reduce (fn [acc prop] (assoc acc prop (subscribe db_ [prop args])))
-        {} props))
-    identity))
+(def db_ (r/atom {:comment/id {1 {:comment/id           1 :comment/text "FIRST COMMENT"
+                                  :comment/sub-comments [[:comment/id 2]]}
+                               2 {:comment/id 2 :comment/text "SECOND COMMENT"}}
+                  :todo/id    {1 {:todo/id      1 :todo/text "hi"
+                                  :todo/comment [:comment/id 1]}}}))
 
 (defn reg-sub-entity
   "Registers a subscription that returns a domain entity as a hashmap.
@@ -241,31 +239,93 @@
   [id-kw entity-kw props]
   (reg-sub-raw entity-kw
     (fn [db_ args]
+      (println "IN enttity " args)
       (when-not (get args id-kw) (throw (error "subscription " (pr-str entity-kw) " missing id argument: " args)))
-      (reduce (fn [acc prop] (assoc acc prop (subscribe db_ [prop args]))) {} props))))
+      (make-reaction
+        (fn [] (reduce (fn [acc prop] (assoc acc prop (<sub db_ [prop args]))) {} props))))))
+
+;; todo need to handle to-one and to-many
+
 
 (defn reg-sub-plain-join
   "Takes two keywords: id attribute and property attribute, registers a layer 2 subscription using the id to lookup the
   entity and extract the property."
-  [id-attr join-prop join-component]
-
-  ;; get the joined entity - it will be a ref
-  ;; reg-sub-raw
-  ;; lookup the entity
-
-
+  [id-attr join-prop join-component-sub]
   (reg-sub-raw join-prop
     (fn [db_ args]
       (make-reaction
         (fn []
+          (println " in plain join")
           (if-let [entity-id (get args id-attr)]
-            (let [entity (get-in db_ [id-attr entity-id])
-                  [join-kw join-id] (get entity join-prop)]
-              ;; now we need a convention for :comment/id -> subscription for that comment
-              ;; it is the component name!
-              ;;
-              (subscribe [join-kw] (get entity join-prop)))
+            (let [entity (get-in @db_ [id-attr entity-id])
+                  rels   (not-empty (get entity join-prop))]
+              (cond
+                (eql/ident? rels)
+                (let [join-ref (apply hash-map rels)]
+                  (<sub db_ [join-component-sub join-ref]))
+                rels
+                (mapv #(<sub db_ [join-component-sub %]) rels)
+
+                :else (throw (error "Invalid join: for join prop " join-prop, " value: " rels))))
             (throw (error "Missing id attr: " id-attr " in args map passed to subscription: " join-prop))))))))
+
+;(reg-sub-raw :block/children
+;  (fn [db_ [_ {:recur/keys [depth max-depth] :as args}]]
+;    (make-reaction
+;      (fn []
+;        (println "sub-raw children: " args)
+;        (let [refs (filter some? (get-in @db_ [:block/id (:block/id args) :block/children]))]
+;          (println "---------------Refs: " refs)
+;          (cond
+;            (and refs (> max-depth depth))
+;            (map (fn [[_ id]] @(subscribe [::block {:recur/depth (inc depth) :recur/max-depth max-depth :block/id id}]))
+;              refs)
+;            ;; do not recur
+;            refs refs
+;            :else nil))))))
+
+;; todo to-one recur and to-many
+
+(defn reg-sub-recur-join
+  [id-attr recur-prop entity-sub]
+  (reg-sub-raw recur-prop
+    (fn [db_ {::subs/keys [recur-depth max-recur-depth]
+              :or         {recur-depth 0}
+              :as         args}]
+      (make-reaction
+        (fn []
+          (println "sub-raw children: " recur-prop ", " args)
+
+          (if-let [entity-id (get args id-attr)]
+            (let [refs (seq (filter some? (get-in @db_ [id-attr entity-id recur-prop])))]
+              (println "---------------Refs: " refs)
+              (cond
+                (and refs max-recur-depth recur-depth (> max-recur-depth recur-depth))
+                (do
+                  (println "RECUR")
+                  (map (fn [[_ id]] (<sub db_ [entity-sub (assoc args
+                                                            :recur/depth (inc recur-depth) :recur/max-depth max-recur-depth
+                                                            id-attr id)]))
+                    refs))
+                ;; do not recur
+                refs (do (println "NOT RECUR") refs)
+                :else nil))
+            (throw (error "Missing id attr: " id-attr " in args map passed to subscription: " recur-prop))))))))
+
+(defn component-id-prop [c] (first (rc/get-ident c {})))
+
+(defn component->reg-subs [c]
+  (when-not (rc/class->registry-key c)
+    (throw (error "Component name missing on component: " c)))
+  (let [query      (rc/get-query c)
+        entity-sub (rc/class->registry-key c)
+        id-attr    (component-id-prop c)
+        {:keys [props plain-joins recur-joins all-children]} (eql-query-keys-by-type query)]
+    (run! (fn [p] (reg-sub-prop id-attr p)) props)
+    (run! (fn [[p c]] (reg-sub-plain-join id-attr p c)) plain-joins)
+    (run! (fn [[p]] (reg-sub-recur-join id-attr p entity-sub)) recur-joins)
+    (reg-sub-entity id-attr entity-sub all-children)
+    nil))
 
 ;; components like this are the input (created by a dev etc):
 ;; these are your domain entities
@@ -291,11 +351,42 @@
 (eql-query-keys-by-type todo-q)
 
 ;; now we can register the handlers
-(map (fn [p] (reg-sub-prop :todo/id p)) (:props (eql-query-keys-by-type todo-q)))
-(reg-sub-entity :todo/id ::todo (:all-children (eql-query-keys-by-type todo-q)))
+;(map (fn [p] (reg-sub-prop :todo/id p)) (:props (eql-query-keys-by-type todo-q)))
+;(map (fn [[p c]] (reg-sub-plain-join :todo/id p c)) (:plain-joins (eql-query-keys-by-type todo-q)))
+;(map (fn [[p c]] (reg-sub-recur-join :todo/id p c)) (:recur-joins (eql-query-keys-by-type todo-q)))
+;(reg-sub-entity :todo/id ::todo (:all-children (eql-query-keys-by-type todo-q)))
+(component->reg-subs comment-recur-comp)
+(component->reg-subs todo-comp)
+
 ;; and then reg-sub for the component itself ::todo - that one is layer 3
-(<sub db_ [:todo/text {:todo/id 1}])
-(<sub db_ [::todo {:todo/id 1}])
+(comment
+  (<sub db_ [:comment/id {:comment/id 1}])
+  (<sub db_ [:comment/text {:comment/id 1}])
+  (<sub db_ [:comment/sub-comments {:comment/id 1 ::subs/max-recur-depth 1}])
+
+  (<sub db_ [:todo/text {:todo/id 1}])
+  (<sub db_ [:todo/comment {:todo/id 1}])
+  (<sub db_ [::todo {:todo/id 1}])
+  (<sub db_ [:comment/id {:comment/id 1}])
+  ;; now i'm seeing it - this is how you can get the control of what to lookup as the tree of subs is realized:
+  (<sub db_ [::todo {:todo/id     1
+                     ::subs/query [:todo/id
+                                   {:todo/comment [:comment/id :comment/text
+                                                   {:comment/subs 2}]}]}])
+
+  ;;; but you could just do:
+
+  (let [args {:todo/id 1}]
+    {:todo/id   (<sub db_ [:todo/id args])
+     :todo/text (<sub db_ [:todo/text args])})
+
+  ;; you pass an eql query as the ::subs/query key and the implementation of the fns does select-keys type of thing
+  ;; pulling out the nested params as you traverse
+  ;; the cool thing is that you can support both - the first version are the implementation primitives of the second version
+
+  )
+;(<sub db_ [::comment {:comment/id 1}])
+
 
 (map (fn [[prop component-sub]] (reg-sub-plain-join :todo/id prop component-sub)) (:plain-joins (eql-query-keys-by-type todo-q)))
 ;(<sub db_ [:todo/comment {:todo/id 1}])

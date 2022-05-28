@@ -6,6 +6,16 @@
     [edn-query-language.core :as eql]))
 
 
+;(defn map-vals [f m]
+;  (into {} (map (juxt key (comp f val))) m))
+;
+;(defn group-by-flat
+;  "Same as clojure.core/group-by but the value is a map instead of a vector - useful when there is a unique value per group."
+;  [group-fn coll]
+;  (map-vals first (group-by group-fn coll)))
+
+(defn group-by-flat [f coll] (persistent! (reduce #(assoc! %1 (f %2) %2) (transient {}) coll)))
+
 ;; here is the db as it would be in fulcro:
 (def my-db2
   {:block/id {
@@ -128,16 +138,37 @@
                   :todo/id    {1 {:todo/id      1 :todo/text "hi"
                                   :todo/comment [:comment/id 1]}}}))
 
+(defn eql-by-key [query]
+  (group-by-flat :dispatch-key (:children (eql/query->ast query))))
+
+(:query (:todo/comment (eql-by-key
+                         [{:todo/comment [:comment/id :comment/text {:comment/sub-comments 2}]}])))
+
 (defn reg-sub-entity
   "Registers a subscription that returns a domain entity as a hashmap.
   id-attr for the entity, the entity subscription name (fq kw) a seq of dependent subscription props"
   [id-kw entity-kw props]
   (reg-sub-raw entity-kw
     (fn [db_ args]
+      (println "\n\nreg-sub-entity: " entity-kw)
       (println "IN enttity " args)
       (when-not (get args id-kw) (throw (error "subscription " (pr-str entity-kw) " missing id argument: " args)))
-      (make-reaction
-        (fn [] (reduce (fn [acc prop] (assoc acc prop (<sub db_ [prop args]))) {} props))))))
+      (if (::subs/query args)
+        (let [props->ast (eql-by-key (::subs/query args))
+              props'     (keys props->ast)]
+          (println "HAVE QUERY: " props')
+          (make-reaction
+            (fn [] (reduce (fn [acc prop]
+                             (assoc acc prop (<sub db_ [prop (assoc args
+                                                               ;; todo I think at this point you have to handle the recursion.
+                                                               ;;
+                                                               ;; todo at this point you
+                                                               ::subs/parent-query (::subs/query args)
+                                                               ::subs/query (:query (props->ast prop)))])))
+                     {} props'))))
+        (make-reaction
+          (fn [] (reduce (fn [acc prop] (assoc acc prop (<sub db_ [prop args]))) {} props)))
+        ))))
 
 ;; todo need to test to-one and to-many joins
 
@@ -149,16 +180,21 @@
     (fn [db_ args]
       (make-reaction
         (fn []
-          (println " in plain join")
+          (println " in plain join prop: " join-prop)
+          (println " in plain join args: " args)
           (if-let [entity-id (get args id-attr)]
             (let [entity (get-in @db_ [id-attr entity-id])
                   rels   (not-empty (get entity join-prop))]
               (cond
                 (eql/ident? rels)
-                (let [join-ref (apply hash-map rels)]
-                  (<sub db_ [join-component-sub join-ref]))
+                (do
+                  (println "HAVE single ident: " rels)
+                  (println "sub: " [join-component-sub (apply assoc args rels)])
+                  (<sub db_ [join-component-sub (apply assoc args rels)]))
                 rels
-                (mapv #(<sub db_ [join-component-sub %]) rels)
+                (do
+                  (println "HAVE many idents: " rels)
+                  (mapv (fn [[id v]] (<sub db_ [join-component-sub (assoc args id v)])) rels))
 
                 :else (throw (error "Invalid join: for join prop " join-prop, " value: " rels))))
             (throw (error "Missing id attr: " id-attr " in args map passed to subscription: " join-prop))))))))
@@ -166,18 +202,40 @@
 ;; todo to-one recur and to-many
 ;; todo need to test to-one and to-many recur joins
 
+(:comment/sub-comments (eql-by-key [:comment/id :comment/text {:comment/sub-comments 2}]))
+
 (defn reg-sub-recur-join
   [id-attr recur-prop entity-sub]
   (reg-sub-raw recur-prop
-    (fn [db_ {::subs/keys [recur-depth max-recur-depth]
+    (fn [db_ {::subs/keys [recur-depth max-recur-depth parent-query]
               :or         {recur-depth 0}
               :as         args}]
       (make-reaction
         (fn []
           (println "sub-raw children: " recur-prop ", " args)
 
+         ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+          ;   You left off here - implementing recursion via eql query in addition to params
+          ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+          ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+          ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
           (if-let [entity-id (get args id-attr)]
-            (let [refs (seq (filter some? (get-in @db_ [id-attr entity-id recur-prop])))]
+            (let [refs (seq (filter some? (get-in @db_ [id-attr entity-id recur-prop])))
+                  sub-q (::subs/query args)
+                  recur-depth (or recur-depth (and sub-q (recur? sub-q) sub-q))
+                  recur-query (when (and sub-q parent-query)
+                                (let [by-key (eql-by-key parent-query)
+                                      ;; this is either an int or '...
+                                      recur-depth' (:query (get by-key recur-prop))])
+                                ;todo ok now you have the info you need to then reconstruct the query - either decrement
+                                ; the recur count or leave it if it's '...
+
+                                ; at this point you take the parent query and if the recur point is number then decrement it
+                                ;; else leave it as is and continue
+                                ;[:comment/id :comment/text {:comment/sub-comments 2}]
+                                )
+                  ]
               (println "---------------Refs: " refs)
               (cond
                 (and refs max-recur-depth recur-depth (> max-recur-depth recur-depth))
@@ -251,14 +309,28 @@
   ;; now i'm seeing it - this is how you can get the control of what to lookup as the tree of subs is realized:
   (<sub db_ [::todo {:todo/id     1
                      ::subs/query [:todo/id
-                                   {:todo/comment [:comment/id :comment/text
-                                                   {:comment/subs 2}]}]}])
-
+                                   {:todo/comment [:comment/id
+                                                   :comment/text
+                                                   {:comment/sub-comments 2}]}]}])
   ;;; but you could just do:
-
   (let [args {:todo/id 1}]
     {:todo/id   (<sub db_ [:todo/id args])
      :todo/text (<sub db_ [:todo/text args])})
+
+
+
+  (eql/ast->query
+    (second (:children
+              (eql/query->ast [:todo/id
+                               {:todo/comment [:comment/id :comment/text
+                                               {:comment/subs 2}]}])))
+    )
+  (group-by-flat
+    :dispatch-key
+    (:children
+      (eql/query->ast [:todo/id
+                       {:todo/comment [:comment/id :comment/text
+                                       {:comment/subs 2}]}])))
 
   ;; you pass an eql query as the ::subs/query key and the implementation of the fns does select-keys type of thing
   ;; pulling out the nested params as you traverse
@@ -271,8 +343,6 @@
   )
 ;(<sub db_ [::comment {:comment/id 1}])
 
-
-(map (fn [[prop component-sub]] (reg-sub-plain-join :todo/id prop component-sub)) (:plain-joins (eql-query-keys-by-type todo-q)))
 ;(<sub db_ [:todo/comment {:todo/id 1}])
 
 (def union-q

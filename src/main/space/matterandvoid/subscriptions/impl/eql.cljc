@@ -68,6 +68,8 @@
 ;; Problem statement:
 ;; I have a fulcro query and am using subscriptions, I want to invoke (subscribe) with the keys of that query without
 ;; having to write reg-subs manually.
+;; This would a way to implement the equivalent of db->tree but with subscriptions only and a normalized db.
+;; My intuition is that it will be more performant with subscriptions but first I have to implement it, then we can compare.
 
 ;; essentially I want the normalized layers of the fulcro db to have subscriptions created automatically, because there
 ;; should be a one-to-one mapping for the implementation of them.
@@ -87,10 +89,9 @@
 ;Example:
 
 (defn recur? [q] (or (= '... q) (pos-int? q)))
-(defn error [& args]
-  (Exception. ^String (apply str args)))
+(defn error [& args] #?(:clj  (Exception. ^String (apply str args))
+                        :cljs (js/Error. (apply str args))))
 
-;; todo I think I need to add a little query logic for splitting the joins into recursive and non-recursive
 (defn eql-query-keys-by-type
   [query]
   (let [query-nodes       (-> query (eql/query->ast) :children)
@@ -138,8 +139,7 @@
       (make-reaction
         (fn [] (reduce (fn [acc prop] (assoc acc prop (<sub db_ [prop args]))) {} props))))))
 
-;; todo need to handle to-one and to-many
-
+;; todo need to test to-one and to-many joins
 
 (defn reg-sub-plain-join
   "Takes two keywords: id attribute and property attribute, registers a layer 2 subscription using the id to lookup the
@@ -163,22 +163,8 @@
                 :else (throw (error "Invalid join: for join prop " join-prop, " value: " rels))))
             (throw (error "Missing id attr: " id-attr " in args map passed to subscription: " join-prop))))))))
 
-;(reg-sub-raw :block/children
-;  (fn [db_ [_ {:recur/keys [depth max-depth] :as args}]]
-;    (make-reaction
-;      (fn []
-;        (println "sub-raw children: " args)
-;        (let [refs (filter some? (get-in @db_ [:block/id (:block/id args) :block/children]))]
-;          (println "---------------Refs: " refs)
-;          (cond
-;            (and refs (> max-depth depth))
-;            (map (fn [[_ id]] @(subscribe [::block {:recur/depth (inc depth) :recur/max-depth max-depth :block/id id}]))
-;              refs)
-;            ;; do not recur
-;            refs refs
-;            :else nil))))))
-
 ;; todo to-one recur and to-many
+;; todo need to test to-one and to-many recur joins
 
 (defn reg-sub-recur-join
   [id-attr recur-prop entity-sub]
@@ -278,6 +264,10 @@
   ;; pulling out the nested params as you traverse
   ;; the cool thing is that you can support both - the first version are the implementation primitives of the second version
 
+  ;; todo:
+  ;; to-one and to-many joins for plain and recur
+  ;; union query support
+  ;; sub-select the part of the query by passing them as args
   )
 ;(<sub db_ [::comment {:comment/id 1}])
 
@@ -317,7 +307,4 @@
   {:message/id [:message/id :message/text :chat.entry/timestamp]
    :audio/id   [:audio/id :audio/url :audio/duration :chat.entry/timestamp]
    :photo/id   [:photo/id :photo/url :photo/width :photo/height :chat.entry/timestamp]}}]
-
-
-
 ;the assumption is that message, audio, photo have been registered already themselves

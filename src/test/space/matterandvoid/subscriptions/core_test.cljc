@@ -261,6 +261,14 @@
 (comment (deref db-r_)
   (sut/<sub db-r_ [::todos-list {:list-id :root/todos}])
   )
+
+(sut/reg-sub-raw ::lookup
+  (fn [db_ args]
+    (ratom/make-reaction
+      (fn []
+        (println 'args args)
+        (get @db_ (:kw args))))))
+
 (deftest args-to-inputs-fn-test
   (let [out (sut/<sub db-r_ [::todos-list {:list-id :root/todos}])]
     (is (=
@@ -280,8 +288,8 @@
       (is (=
             (list #:todo{:text "helo138", :id #uuid"7dea2e3a-9b3d-4d35-a120-d65db43868cb"}
               #:todo{:text "helo139", :id #uuid"31a54f54-a701-4e92-af91-78447f5294e6"}
-              #:todo{:text "new one", :id id}) out2)))))
-
+              #:todo{:text "new one", :id id}) out2))
+      (is (= :root/todos (sut/<sub db-r_ [::lookup {:kw :root/list-id}]))))))
 
 (defonce base-db (ratom/atom {:num-one 500 :num-two 5 :num-three 99}))
 

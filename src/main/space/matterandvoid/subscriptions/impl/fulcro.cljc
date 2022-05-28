@@ -113,7 +113,7 @@
   ([registry query-id]
    (clear-handlers registry query-id)))
 
-(defn reg-sub-raw [query-id handler-fn] (register-handler! query-id handler-fn))
+(defn reg-sub-raw [query-id handler-fn] (subs/reg-sub-raw register-handler! query-id handler-fn))
 
 (defn clear-subscription-cache! [registry] (subs/clear-subscription-cache! get-subscription-cache registry))
 

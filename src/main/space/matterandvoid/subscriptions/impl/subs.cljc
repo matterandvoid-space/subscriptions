@@ -141,28 +141,28 @@
   (fn subs-handler-fn
     [app query-vec]
     (assert (vector? query-vec))
-    (let [args          (second query-vec)
+    (let [args                  (second query-vec)
           subscriptions #?(:cljs (inputs-fn app args)
                            :clj (try (inputs-fn app args) (catch clojure.lang.ArityException _ (inputs-fn app))))
-          reaction-id   (atom nil)
-          reaction      (ratom/make-reaction
-                          (fn []
-                            (trace/with-trace {:operation query-id
-                                               :op-type   :sub/run
-                                               :tags      {:query-v  [query-id args]
-                                                           :reaction @reaction-id}}
+          reaction-id           (atom nil)
+          reaction              (ratom/make-reaction
+                                  (fn []
+                                    (trace/with-trace {:operation query-id
+                                                       :op-type   :sub/run
+                                                       :tags      {:query-v  [query-id args]
+                                                                   :reaction @reaction-id}}
 
-                              #?(:cljs
-                                 (let [subscription-output (computation-fn (deref-input-signals subscriptions query-id) args)]
-                                   (trace/merge-trace! {:tags {:value subscription-output}})
-                                   subscription-output)
-                                 ;; Deal with less leniency on jvm for calling single-arity functions with 2 args
-                                 :clj (try
-                                        (let [subscription-output (computation-fn (deref-input-signals subscriptions query-id) args)]
-                                          (trace/merge-trace! {:tags {:value subscription-output}})
-                                          subscription-output)
-                                        (catch clojure.lang.ArityException _
-                                          (computation-fn (deref-input-signals subscriptions query-id))))))))]
+                                      #?(:cljs
+                                         (let [subscription-output (computation-fn (deref-input-signals subscriptions query-id) args)]
+                                           (trace/merge-trace! {:tags {:value subscription-output}})
+                                           subscription-output)
+                                         ;; Deal with less leniency on jvm for calling single-arity functions with 2 args
+                                         :clj (try
+                                                (let [subscription-output (computation-fn (deref-input-signals subscriptions query-id) args)]
+                                                  (trace/merge-trace! {:tags {:value subscription-output}})
+                                                  subscription-output)
+                                                (catch clojure.lang.ArityException _
+                                                  (computation-fn (deref-input-signals subscriptions query-id))))))))]
       (reset! reaction-id (ratom/reagent-id reaction))
       reaction)))
 
@@ -248,3 +248,9 @@
     ;(js/console.log "registering subscription: " query-id)
     ;(js/console.log "input args: " input-args)
     (register-handler! query-id (make-subs-handler-fn inputs-fn memoized-computation-fn query-id))))
+
+(defn reg-sub-raw [register-handler! query-id handler-fn]
+  (register-handler! query-id
+    (fn
+      ([db_] (handler-fn db_))
+      ([db_ args] (handler-fn db_ (second args))))))

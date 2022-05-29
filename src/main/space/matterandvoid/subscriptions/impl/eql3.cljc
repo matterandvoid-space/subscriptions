@@ -140,17 +140,29 @@
                                             _                 (println "union-key->entity " union-key->entity)
                                             union-key->component
                                                               [dispatch-key
-                                                               (fn [args-map]
-                                                                 (let [the-sub
-                                                                       (reduce-kv
-                                                                         (fn [acc k entity-sub]
-                                                                           (if (contains? args-map k)
-                                                                             (reduced entity-sub) acc))
-                                                                         nil
-                                                                         union-key->entity)]
-                                                                   (println "UNION entity sub: " the-sub)
-                                                                   the-sub)
-                                                                 )]]
+                                                               (fn [kw]
+                                                                 (println "union-key to comp args: " kw)
+                                                                 (sc.api/spy
+                                                                   (let [the-sub (kw union-key->entity)]
+                                                                     (println "UNION entity subscription: " the-sub)
+                                                                     the-sub)))
+
+                                                               ;(fn [args-map]
+                                                               ;  (println "union-key to comp args: " args-map)
+                                                               ;  (sc.api/spy
+                                                               ;    (let [the-sub
+                                                               ;          (some union-key->entity (keys args-map))
+                                                               ;          ;(reduce-kv
+                                                               ;          ;  (fn [acc k entity-sub]
+                                                               ;          ;    (if (contains? args-map k)
+                                                               ;          ;      (reduced entity-sub) acc))
+                                                               ;          ;  nil
+                                                               ;          ;  union-key->entity)
+                                                               ;          ]
+                                                               ;      (println "UNION entity subscription: " the-sub)
+                                                               ;      the-sub))
+                                                               ;  )
+                                                               ]]
                                         (println "union-key->component " union-key->component)
                                         union-key->component
                                         ))
@@ -159,18 +171,17 @@
         missing-join-keys (filter (comp nil? second) plain-joins)]
     (when (seq missing-join-keys)
       (throw (error "All join properties must have a component name. Props missing names: " (mapv first missing-join-keys))))
-    (sc.api/spy
-      {:all-children      (reduce into [] [(set-keys joins) (set-keys props)])
-       :unions            union-keys
-       :joins             (set-keys joins)
-       :props             (set-keys props)
-       :recur-joins       (set (map (juxt :dispatch-key :query) recur-joins))
-       :missing-join-keys missing-join-keys
-       :union-joins       union-joins
-       :plain-joins       plain-joins})))
+    {:all-children      (reduce into [] [(set-keys joins) (set-keys props)])
+     :unions            union-keys
+     :joins             (set-keys joins)
+     :props             (set-keys props)
+     :recur-joins       (set (map (juxt :dispatch-key :query) recur-joins))
+     :missing-join-keys missing-join-keys
+     :union-joins       union-joins
+     :plain-joins       plain-joins}))
 (comment
 
-  (sc.api/defsc 54)
+  (sc.api/defsc)
   (eql-query-keys-by-type list-q)
   (meta (:comment/id (:list/members (last list-q))))
   )
@@ -298,6 +309,24 @@
                 :else (throw (error "Invalid join: for join prop " join-prop, " value: " rels))))
             (throw (error "Missing id attr: " id-attr " in args map passed to subscription: " join-prop))))))))
 
+
+(defn union-query->branch-map
+  "Takes a union join query and returns a map of keyword of the branches of the join to the query for that branch."
+  [union-join-q]
+  (let [union-nodes (-> (eql/query->ast union-join-q)
+                      :children first :children first :children)]
+    (reduce (fn [acc {:keys [union-key query]}] (assoc acc union-key query)) {} union-nodes)))
+
+(comment
+  (union-query->branch-map
+    [#:list{:members {:comment/id [:comment/id :comment/text],
+                      :todo/id    [:todo/id :todo/text]}}]
+    )
+
+  (eql/query->ast [#:list{:members {:comment/id [:comment/id :comment/text],
+                                    :todo/id    [:todo/id :todo/text]}}])
+  )
+
 (defn reg-sub-union-join
   "Takes two keywords: id attribute and property attribute, registers a layer 2 subscription using the id to lookup the
   entity and extract the property."
@@ -312,20 +341,24 @@
           (if-let [entity-id (get args id-attr)]
             (do
               (println "UNION have entity id: " entity-id)
-              (let [entity    (get-in @db_ [id-attr entity-id])
-                    rels      (not-empty (get entity join-prop))
-                    query     (::subs/query args)
-                    query-ast (eql/query->ast query)]
-                (def query' query-ast)
+              (let [entity           (get-in @db_ [id-attr entity-id])
+                    rels             (not-empty (get entity join-prop))
+                    query            (::subs/query args)
+                    query-ast        (eql/query->ast query)
+                    union-branch-map (union-query->branch-map (::subs/parent-query args))]
+                (def args' args)
+                (def b' union-branch-map)
+                (def query-ast' query-ast)
+                (def query' query)
                 (cond
                   (eql/ident? rels)
                   (do
                     (println "HAVE single ident: " rels)
                     (println "sub: " [join-component-sub (apply assoc args rels)])
-                    (if (and (map? query) (fn? join-component-sub))
-                      ;;union
-                      (<sub db_ [(join-component-sub args) (apply assoc args rels)])
-                      (<sub db_ [join-component-sub (apply assoc args rels)])))
+                    (<sub db_ [(join-component-sub args)
+                               (assoc args
+                                 (first rels) (second rels)
+                                 ::subs/query (union-branch-map (first rels)))]))
                   rels
                   (do
                     (println "HAVE many idents: " rels)
@@ -334,15 +367,24 @@
                         (println "handling idents")
                         (mapv (fn [[id v]]
                                 (println "getting sub: " id ", v: " v)
-                                (<sub db_ [(join-component-sub id) (assoc args id v)])) rels))
+                                (println "join: " (join-component-sub id))
+                                (let [args'
+                                      (assoc args id v
+                                                  ::subs/query (union-branch-map id))
+                                      ]
+                                  (println "new args: " args')
+                                  ;[(join-component-sub id) args']
+                                  (<sub db_ [(join-component-sub id) args'])
+                                  )
+                                ) rels))
                       rels))
 
                   :else (throw (error "Invalid join: for join prop " join-prop, " value: " rels)))))
             (throw (error "Missing id attr: " id-attr " in args map passed to subscription: " join-prop))))))))
 (comment
   (<sub db_ [::list {:list/id 1 ::subs/query [:list/name :list/members]}])
-  (<sub db_ [::list {:list/id 1 ::subs/query [:list/name {:list/members {:comment/id [:comment/id :comment/text]
-                                                                         :todo/id    [:todo/id :todo/text]}}]}])
+  (<sub db_ [::list {:list/id 1 ::subs/query [#_:list/name {:list/members {:comment/id [:comment/id :comment/text]
+                                                                           :todo/id    [:todo/id :todo/text]}}]}])
   )
 
 (defn reg-sub-recur-join
@@ -383,7 +425,7 @@
                         ;; do not recur
                         refs (do (println "NOT RECUR") (vec refs))
                         :else missing-val)]
-                (sc.api/spy r)))
+                r))
             (throw (error "Missing id attr: " id-attr " in args map passed to subscription: " recur-prop))))))))
 
 (comment (sc.api/defsc 25))
@@ -429,8 +471,8 @@
     nil))
 
 (comment
-  (<sub db_ [::list {:list/id 1 ::subs/query [:list/name {:list/members {:comment/id [:comment/id :comment/text]
-                                                                         :todo/id    [:todo/id :todo/text]}}]}]))
+  (<sub db_ [::list {:list/id 1 ::subs/query [#_:list/name {:list/members {:comment/id [:comment/id :comment/text]
+                                                                           :todo/id    [:todo/id :todo/text]}}]}]))
 ; components
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -448,15 +490,29 @@
 (def todo-comp (nc {:query [:todo/id :todo/text {:todo/comment (rc/get-query comment-comp)}] :name ::todo :ident :todo/id}))
 (def todo-q (rc/get-query todo-comp))
 (def list-member-comp (nc {#_#_:ident (fn [_ props]
-                                    (let [ks (set (keys props))] (cond
-                                                                   (contains? ks :comment/id) :comment/id
-                                                                   (contains? ks :todo/id) :todo/id)))
+                                        (let [ks (set (keys props))] (cond
+                                                                       (contains? ks :comment/id) :comment/id
+                                                                       (contains? ks :todo/id) :todo/id)))
                            :query {:comment/id (rc/get-query comment-recur-comp) :todo/id todo-q}
                            :name  ::list-member}))
-(meta (:comment/id (rc/get-query (nc {:name ::helo :query {:comment/id (rc/get-query comment-recur-comp) :todo/id todo-q}}))))
-(meta (:comment/id (rc/get-query list-member-comp)))
+
+
+(def list-member-q (rc/get-query list-member-comp))
+(def list-comp (nc {:ident :list/id
+                    :name  ::list
+                    :query [:list/id :list/name
+                            {:list/members (rc/get-query list-member-comp)}]}))
+(def list-q (rc/get-query list-comp))
+(comment
+  (<sub db_ [::list {:list/id 1 ::subs/query [#_:list/name {:list/members {:comment/id [:comment/id :comment/text]
+                                                                           :todo/id    [:todo/id :todo/text]}}]}])
+  )
 
 (comment
+  (meta (:comment/id (rc/get-query (nc {:name ::helo :query {:comment/id (rc/get-query comment-recur-comp) :todo/id todo-q}}))))
+  (meta (:comment/id (rc/get-query list-member-comp)))
+  (meta (:todo/id (rc/get-query list-member-comp)))
+  (rc/get-query list-member-comp)
 
   (let [ast (-> (eql/query->ast [{:placeholder {:comment/id (rc/get-query comment-recur-comp) :todo/id todo-q}}])
               :children first :children first)]
@@ -466,22 +522,6 @@
         (:children ast)))
     )
 
-  )
-(comment
-  (rc/get-query list-member-comp)
-  (meta (rc/get-query list-member-comp))
-  (meta (:comment/id (rc/get-query list-member-comp)))
-  )
-
-(def list-member-q (rc/get-query list-member-comp))
-(def list-comp (nc {:ident :list/id
-                    :query [:list/id :list/name
-                            {:list/members (rc/get-query list-member-comp)}] :name ::list}))
-(def list-q (rc/get-query list-comp))
-
-(comment
-  (<sub db_ [::list {:list/id 1 ::subs/query [#_:list/name {:list/members {:comment/id [:comment/id :comment/text]
-                                                                           :todo/id    [:todo/id :todo/text]}}]}])
 
   (eql-query-keys-by-type list-q)
 

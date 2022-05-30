@@ -169,7 +169,7 @@ See the examples directory in the source for working code.
          ;; this is contrived, but you could imagine passing in subs as a prop
          ;; or other dynamic possibilities
          some-subs [[::sorted-todos] [:all-todos]]
-         list-of-lists (use-in-reaction (fn[] (mapv <sub some-subs)))]
+         list-of-lists (use-in-reaction (fn [] (mapv <sub some-subs)))]
     ($ :div
       ($ :button #js{:onClick #(swap! db_ update :todos conj (make-todo (random-uuid) "another todo"))}
        "Add a todo")

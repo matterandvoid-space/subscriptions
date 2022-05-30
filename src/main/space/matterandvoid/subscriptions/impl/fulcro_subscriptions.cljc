@@ -6,36 +6,7 @@
     [space.matterandvoid.subscriptions.fulcro :as subs :refer [reg-sub reg-sub-raw subscribe <sub]]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r :refer [make-reaction]]
     [sc.api]
-    [taoensso.encore :as enc]
     [edn-query-language.core :as eql]))
-
-;(subs/set-memoize-fn! identity)
-
-;; needed until upstream PR is merged in fulcro
-(defn nc-union
-  [{:keys [children] :as ast-node} {:keys [componentName ident] :as top-component-options}]
-  (println "normalize uni")
-  (let [component     (fn [& _args])
-        component-map (into {}
-                        (map (fn [{:keys [union-key component] :as c}]
-                               [union-key component]) children))
-        union-keys    (into #{} (map :union-key) children)
-        component     (rc/configure-anonymous-component! component
-                        (cond-> (with-meta
-                                  (merge
-                                    {:initial-state    (fn [& args] {})
-                                     :fulcro/warnings? false}
-                                    top-component-options
-                                    {:query  (fn [& args]
-                                               (enc/map-vals rc/get-query component-map))
-                                     "props" {"fulcro$queryid" :anonymous}})
-                                  {:query-id :anonymous})
-                          (not ident) (assoc :ident
-                                             (fn [this props]
-                                               (when-let [k (union-keys props)]
-                                                 [k (get props k)])))
-                          componentName (assoc :componentName componentName)))]
-    (assoc ast-node :component component)))
 
 (defn nc
   "Wrap fulcro.raw.components/nc to be more uniform and require explicit options instead of implicit for normalizing
@@ -43,21 +14,14 @@
   [args]
   (assert (and (:name args) (keyword? (:name args))))
   (assert (and (:query args) (or (vector? (:query args)) (map? (:query args)))))
-  (if (map? (:query args))
-    (let [ast (-> (eql/query->ast [{:placeholder (:query args)}])
-                :children first :children first)]
-      (:component
-        (nc-union ast
-          (-> args
-            (assoc :componentName (:name args)) (dissoc :query :name)))))
-
-    (let [{:keys [ident]} args]
-      (assert (and (:ident args) (or (keyword? (:ident args)) (fn? (:ident args)))))
-      (rc/nc (:query args)
-        (-> args
-          (assoc :ident (if (keyword? ident) (fn [_ props] [ident (ident props)]) ident))
-          (assoc :componentName (:name args))
-          (dissoc :query :name))))))
+  (let [vec-query? (vector? (:query args))
+        ident      (:ident args)]
+    (when vec-query? (assert (and (:ident args) (or (keyword? (:ident args)) (fn? (:ident args))))))
+    (rc/nc (:query args)
+      (-> args
+        (cond-> ident (assoc :ident (if (keyword? ident) (fn [_ props] [ident (ident props)]) ident)))
+        (assoc :componentName (:name args))
+        (dissoc :query :name)))))
 
 (defn app->db [fulcro-app] (fulcro.app/current-state fulcro-app))
 
@@ -68,7 +32,7 @@
 (defn eql-by-key [query] (group-by-flat :dispatch-key (:children (eql/query->ast query))))
 (defn ast-by-key->query [k->ast] (vec (mapcat eql/ast->query (vals k->ast))))
 
-(defn recur? [q] (or (= '... q) (pos-int? q)))
+(defn recur? [q] (or (= '... q) (= 0 q) (pos-int? q)))
 (defn error [& args] #?(:clj (Exception. ^String (apply str args)) :cljs (js/Error. (apply str args))))
 
 (defn union-key->entity-sub [union-ast]
@@ -132,7 +96,6 @@
   (reg-sub-raw entity-kw
     (fn [app args]
       (println "REG sub entityt: " args)
-      (def app' app)
       (if (::subs/query args)
         (let [props->ast (eql-by-key (::subs/query args))
               props'     (keys props->ast)]
@@ -178,36 +141,34 @@
                   query     (::subs/query args)
                   query-ast (eql/query->ast query)]
               (def query' query-ast)
-              (cond
-                (eql/ident? rels)
-                (do
-                  (println "HAVE single ident: " rels)
-                  (println "sub: " [join-component-sub (apply assoc args rels)])
-                  (if (and (map? query) (fn? join-component-sub))
-                    ;;union
-                    (<sub app [(join-component-sub args) (apply assoc args rels)])
-                    (<sub app [join-component-sub (apply assoc args rels)])))
-                rels
-                (do
-                  (println "HAVE many idents: " rels)
-                  (if (::subs/query args)
-                    (mapv (fn [[id v]]
-                            ;; handle union
-                            (<sub app [join-component-sub (assoc args id v)])) rels)
-                    rels))
+              (comment (sc.api/defsc 1))
+              (sc.api/spy
+                (cond
+                  (eql/ident? rels)
+                  (do
+                    (println "HAVE single ident: " rels)
+                    (println "sub: " [join-component-sub (apply assoc args rels)])
+                    (<sub app [join-component-sub (apply assoc args rels)]))
+                  rels
+                  (do
+                    (println "HAVE many idents: " rels)
+                    (if (::subs/query args)
+                      (mapv (fn [[id v]]
+                              ;; handle union
+                              (<sub app [join-component-sub (assoc args id v)])) rels)
+                      rels))
 
-                :else (throw (error "Plain join Invalid join: for join prop " join-prop, " value: " rels))))
+                  :else (throw (error "Plain join Invalid join: for join prop " join-prop, " value: " rels)))))
             (throw (error "Missing id attr: " id-attr " in args map passed to subscription: " join-prop))))))))
 
 (defn union-query->branch-map
   "Takes a union join query and returns a map of keyword of the branches of the join to the query for that branch."
   [join-prop union-join-q]
   (let [ast          (:children (eql/query->ast union-join-q))
-        union-parent (first (filter (fn [{:keys [dispatch-key]}] (= dispatch-key :list/members)) ast))
+        union-parent (first (filter (fn [{:keys [dispatch-key]}] (= dispatch-key join-prop)) ast))
         union-nodes  (-> union-parent :children first :children)]
 
     (reduce (fn [acc {:keys [union-key query]}] (assoc acc union-key query)) {} union-nodes)))
-
 
 (defn reg-sub-union-join
   "Takes two keywords: id attribute and property attribute, registers a layer 2 subscription using the id to lookup the
@@ -235,8 +196,8 @@
                 (cond
                   (eql/ident? rels)
                   (do
-                    (println "HAVE single ident: " rels)
-                    (println "sub: " [join-component-sub (apply assoc args rels)])
+                    (println "union HAVE single ident: " rels)
+                    (println "union sub: " [(join-component-sub (first rels)) (apply assoc args rels)])
                     (let [[kw id] rels]
                       (<sub app [(join-component-sub kw) (assoc args kw id ::subs/query (union-branch-map kw))])))
 

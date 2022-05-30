@@ -141,24 +141,23 @@
                   query     (::subs/query args)
                   query-ast (eql/query->ast query)]
               (def query' query-ast)
-              (comment (sc.api/defsc 1))
-              (sc.api/spy
-                (cond
-                  (eql/ident? rels)
-                  (do
-                    (println "HAVE single ident: " rels)
-                    (println "sub: " [join-component-sub (apply assoc args rels)])
-                    (<sub app [join-component-sub (apply assoc args rels)]))
-                  rels
-                  (do
-                    (println "HAVE many idents: " rels)
-                    (if (::subs/query args)
-                      (mapv (fn [[id v]]
-                              ;; handle union
-                              (<sub app [join-component-sub (assoc args id v)])) rels)
-                      rels))
+              (comment (sc.api/defsc 5))
+              (cond
+                (eql/ident? rels)
+                (do
+                  (println "HAVE single ident: " rels)
+                  (println "sub: " [join-component-sub (apply assoc args rels)])
+                  (<sub app [join-component-sub (apply assoc args rels)]))
+                rels
+                (do
+                  (println "HAVE many idents: " rels)
+                  (if (::subs/query args)
+                    (mapv (fn [[id v]]
+                            ;; handle union
+                            (<sub app [join-component-sub (assoc args id v)])) rels)
+                    rels))
 
-                  :else (throw (error "Plain join Invalid join: for join prop " join-prop, " value: " rels)))))
+                :else missing-val))
             (throw (error "Missing id attr: " id-attr " in args map passed to subscription: " join-prop))))))))
 
 (defn union-query->branch-map
@@ -183,35 +182,37 @@
           (if-let [entity-id (get args id-attr)]
             (do
               (println "UNION have entity id: " entity-id)
-              (let [entity           (get-in (app->db app) [id-attr entity-id])
-                    rels             (not-empty (get entity join-prop))
-                    query            (::subs/query args)
-                    query-ast        (eql/query->ast query)
-                    union-branch-map (union-query->branch-map join-prop (::subs/parent-query args))]
+              (let [entity               (get-in (app->db app) [id-attr entity-id])
+                    rels                 (not-empty (get entity join-prop))
+                    query                (::subs/query args)
+                    query-ast            (eql/query->ast query)
+                    union-branch-map     (union-query->branch-map join-prop (::subs/parent-query args))
+                    branch-keys-in-query (set (keys union-branch-map))]
                 (def args' args)
                 (comment (union-query->branch-map join-prop (::subs/parent-query args')))
                 (def b' union-branch-map)
-                (def query-ast' query-ast)
-                (def query' query)
-                (cond
-                  (eql/ident? rels)
-                  (do
-                    (println "union HAVE single ident: " rels)
-                    (println "union sub: " [(join-component-sub (first rels)) (apply assoc args rels)])
-                    (let [[kw id] rels]
-                      (<sub app [(join-component-sub kw) (assoc args kw id ::subs/query (union-branch-map kw))])))
+                (comment (sc.api/defsc 9))
+                (sc.api/spy
+                  (cond
+                    (eql/ident? rels)
+                    (do
+                      (println "union HAVE single ident: " rels)
+                      (println "union sub: " [(join-component-sub (first rels)) (apply assoc args rels)])
+                      (let [[kw id] rels]
+                        (<sub app [(join-component-sub kw) (assoc args kw id ::subs/query (union-branch-map kw))])))
 
-                  rels
-                  (do
-                    (println "HAVE many idents: " rels)
-                    (if (::subs/query args)
-                      (mapv (fn [[id v]]
-                              (let [args' (assoc args id v ::subs/query (union-branch-map id))]
-                                (<sub app [(join-component-sub id) args']))
-                              ) rels)
-                      rels))
+                    rels
+                    (do
+                      (println "union HAVE many idents: " rels)
+                      (if query
+                        (->> rels
+                          (filter (fn [[id]] (contains? branch-keys-in-query id)))
+                          (mapv (fn [[id v]]
+                                  (let [args' (assoc args id v ::subs/query (union-branch-map id))]
+                                    (<sub app [(join-component-sub id) args'])))))
+                        rels))
 
-                  :else (throw (error "Union Invalid join: for join prop " join-prop, " value: " rels)))))
+                    :else (throw (error "Union Invalid join: for join prop " join-prop, " value: " rels))))))
             (throw (error "Missing id attr: " id-attr " in args map passed to subscription: " join-prop))))))))
 
 (defn reg-sub-recur-join
@@ -255,8 +256,9 @@
 
 (defn component-id-prop [c] (first (rc/get-ident c {})))
 
-(defn component-reg-subs!
-  "Registers subscriptions that will fulfill the given fulcro component's query."
+(defn reg-component-subs!
+  "Registers subscriptions that will fulfill the given fulcro component's query.
+  The component must have a name and so must any components in its query."
   [c]
   (when-not (rc/class->registry-key c)
     (throw (error "Component name missing on component: " c)))

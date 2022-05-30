@@ -62,10 +62,13 @@
   [get-handler cache-lookup get-subscription-cache
    app query]
   ;(log/info "\n\n--------------------------------------------")
-  ;(log/info "subscribe q: " query)
+  (log/info "subscribe q id : " (first query))
+  (log/info "subscribe q: " query)
+
   (assert (vector? query))
   (let [cnt      (count query),
         query-id (first query)]
+    (def q' query)
     (assert (or (= 1 cnt) (= 2 cnt)) (str "Query must contain only one map for subscription " query-id))
     ;(log/info "STEP 1")
     (when (and (= 2 cnt) (not (map? (get query 1))))

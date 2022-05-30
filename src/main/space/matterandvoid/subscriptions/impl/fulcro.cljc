@@ -75,10 +75,10 @@
 
 (defn clear-handlers
   ;; clear all handlers
-  ([db] (assoc db subs-key {}))
-  ([db id]
+  ([_app] (reset! handler-registry_ {}))
+  ([_app id]
    (if (get-handler id)
-     (dissoc-in db (subs-state-path subs-key id))
+     (swap! handler-registry_ dissoc-in (subs-state-path subs-key id))
      (console :warn "Subscriptions: can't clear handler for" (str id ". Handler not found.")))))
 
 ;; -------------------

@@ -520,7 +520,11 @@
 (comment
   (meta (:comment/id (rc/get-query (nc {:name ::helo :query {:comment/id (rc/get-query comment-recur-comp) :todo/id todo-q}}))))
   (meta (:comment/id (rc/get-query list-member-comp)))
-  (meta (:todo/id (rc/get-query list-member-comp)))
+  (rc/class->registry-key (:component (meta (:todo/id (rc/get-query list-member-comp)))))
+
+
+  (-> (rc/get-query list-comp) :list/members)
+
   (rc/get-query list-member-comp)
 
   (let [ast (-> (eql/query->ast [{:placeholder {:comment/id (rc/get-query comment-recur-comp) :todo/id todo-q}}])

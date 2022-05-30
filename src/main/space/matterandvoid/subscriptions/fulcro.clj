@@ -102,7 +102,7 @@
   Some explanation is available in the docs at
   <a href=\"http://day8.github.io/re-frame/flow-mechanics/\" target=\"_blank\">http://day8.github.io/re-frame/flow-mechanics/</a>"
   {:api-docs/heading "Subscriptions"}
-  [query-id handler-fn] (impl/register-handler! query-id handler-fn))
+  [query-id handler-fn] (impl/reg-sub-raw query-id handler-fn))
 
 (defn clear-subscription-cache!
   "Removes all subscriptions from the cache.
@@ -113,6 +113,10 @@
   the subscriptions within those components won't have been cleaned up correctly. So this
   forces the issue."
   [registry] (impl/clear-subscription-cache! registry))
+
+(defn clear-handlers
+  ([app] (impl/clear-handlers app))
+  ([app id] (impl/clear-handlers app id)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; reactive refresh of components

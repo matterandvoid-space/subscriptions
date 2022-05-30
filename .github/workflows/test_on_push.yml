@@ -53,5 +53,7 @@ jobs:
           node-version: 16
       - name: Install dependencies
         run: yarn install
+      - name: Compile tests
+        run: yarn shadow-cljs compile ci-tests
       - name: Run tests
         run: ./node_modules/.bin/karma start --single-run

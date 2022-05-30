@@ -21,19 +21,20 @@
    :ns-regexp        "-test$"}
 
 
-  :hooks-example {:target  :browser :output-dir "public/hooks-example/js" :asset-path "/js"
-                  ;:dev     {:compiler-options {:output-feature-set :es6}}
-                  :modules {:hooks-example {:entries [hooks-example] :init-fn hooks-example/init}}}
+  :hooks-example
+  {:target  :browser :output-dir "public/hooks-example/js" :asset-path "/js"
+   ;:dev     {:compiler-options {:output-feature-set :es6}}
+   :modules {:hooks-example {:entries [hooks-example] :init-fn hooks-example/init}}}
 
   :fulcro-example
   {:target   :browser :output-dir "public/fulcro-example/js" :asset-path "/js"
-   :devtools {:preloads   [;; if using the chrome extension:
-                           com.fulcrologic.fulcro.inspect.preload
+   :devtools {:preloads [;; if using the chrome extension:
+                         com.fulcrologic.fulcro.inspect.preload
 
-                           ;; if using the electron app:
-                           ;com.fulcrologic.fulcro.inspect.websocket-preload
+                         ;; if using the electron app:
+                         ;com.fulcrologic.fulcro.inspect.websocket-preload
 
-                           com.fulcrologic.fulcro.inspect.dom-picker-preload]}
+                         com.fulcrologic.fulcro.inspect.dom-picker-preload]}
    :modules  {:fulcro-example {:entries [fulcro-example]
                                :init-fn fulcro-example/init}}}
 

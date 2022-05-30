@@ -1,15 +1,12 @@
 {
   "name": "matterandandvoid-subscriptions",
   "devDependencies": {
-    "karma": "6.3.7",
-    "karma-chrome-launcher": "3.1.0",
-    "karma-cljs-test": "0.1.0",
-    "karma-junit-reporter": "2.0.1",
-    "karma-phantomjs-launcher": "1.0.4",
-    "shadow-cljs": "2.19.0"
-  },
-  "dependencies": {
-    "react": "17.0.2",
-    "react-dom": "17.0.2"
+    "karma": "^6.3.20",
+    "karma-chrome-launcher": "^3.1.1",
+    "karma-cljs-test": "^0.1.0",
+    "karma-junit-reporter": "^2.0.1",
+    "react": "^18.1.0",
+    "react-dom": "^18.1.0",
+    "shadow-cljs": "^2.19.0"
   }
 }

@@ -66,6 +66,7 @@
 ;;   - to-many
 
 ;; handle cycles https://book.fulcrologic.com/#_circular_recursion
+;; see ns com.fulcrologic.fulcro.algorithms.denormalize
 
 ;; union join
 ;;   - to-one

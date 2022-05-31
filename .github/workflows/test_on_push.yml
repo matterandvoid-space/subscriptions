@@ -3,33 +3,35 @@ name: Run tests
 
 on:
   push:
-    branches: [eql]
+    branches: [mainline eql]
+  pull_request:
+    branches: [mainline]
 
 jobs:
-#  build-clj:
-#    strategy:
-#      matrix:
-#        jdk: [17]
-#        clojure: [11]
-#
-#    name: Clojure ${{ matrix.clojure }} (Java ${{ matrix.jdk }})
-#
-#    runs-on: ubuntu-latest
-#
-#    steps:
-#      - uses: actions/checkout@v2
-#      - name: Setup Java ${{ matrix.jdk }}
-#        uses: actions/setup-java@v2.5.0
-#        with:
-#          distribution: zulu
-#          java-version: ${{ matrix.jdk }}
-#          cache: maven
-#      - name: Setup Clojure
-#        uses: DeLaGuardo/setup-clojure@master
-#        with:
-#          cli: latest
-#      - name: Run tests
-#        run: CLOJURE_ALIAS=clojure-${{ matrix.clojure }} bin/kaocha
+  build-clj:
+    strategy:
+      matrix:
+        jdk: [17]
+        clojure: [11]
+
+    name: Clojure ${{ matrix.clojure }} (Java ${{ matrix.jdk }})
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup Java ${{ matrix.jdk }}
+        uses: actions/setup-java@v2.5.0
+        with:
+          distribution: zulu
+          java-version: ${{ matrix.jdk }}
+          cache: maven
+      - name: Setup Clojure
+        uses: DeLaGuardo/setup-clojure@master
+        with:
+          cli: latest
+      - name: Run tests
+        run: clojure -X:dev:test
 
   build-cljs:
     name: ClojureScript

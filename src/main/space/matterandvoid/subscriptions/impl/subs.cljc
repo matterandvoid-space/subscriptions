@@ -62,8 +62,8 @@
   [get-handler cache-lookup get-subscription-cache
    app query]
   ;(log/info "\n\n--------------------------------------------")
-  (log/info "subscribe q id : " (first query))
-  (log/info "subscribe q: " query)
+  ;(log/info "subscribe q id : " (first query))
+  ;(log/info "subscribe q: " query)
 
   (assert (vector? query))
   (let [cnt      (count query),

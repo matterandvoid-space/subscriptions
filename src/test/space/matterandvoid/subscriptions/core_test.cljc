@@ -12,9 +12,8 @@
 (sut/defsub sub2 :-> :sub2)
 
 (def schema {:todo/id {:db/unique :db.unique/identity}})
-(defonce conn (d/create-conn schema))
-(defonce dscript-db_ (ratom/atom (d/db conn)))
-(comment @dscript-db_)
+(defonce conn_ (atom (d/create-conn schema)))
+(defonce dscript-db_ (ratom/atom (d/db @conn_)))
 
 (defn make-todo [id text] {:todo/id id :todo/text text})
 
@@ -29,10 +28,11 @@
 
 (use-fixtures :each
   #?(:clj  (fn [f]
-             (reset! dscript-db_ (d/empty-db schema))
-             (transact! conn [todo1 todo2 todo3 todo4])
+             (reset! conn_ (d/create-conn schema))
+             (reset! dscript-db_ (ratom/atom (d/db @conn_)))
+             (transact! @conn_ [todo1 todo2 todo3 todo4])
              (f))
-     :cljs {:before (fn [] (transact! conn [todo1 todo2 todo3 todo4]))}))
+     :cljs {:before (fn [] (transact! @conn_ [todo1 todo2 todo3 todo4]))}))
 
 (defonce db (ratom/atom {:sub2 500 :hello "hello"}))
 
@@ -59,9 +59,9 @@
 (sut/defsub sum-lists :<- [::all-todos] :<- [::rev-sorted-todos] :-> (partial mapv count))
 
 (comment
-  (d/q '[:find [(pull ?e [*]) ...] :where [?e :todo/id]] (d/db conn))
+  (d/q '[:find [(pull ?e [*]) ...] :where [?e :todo/id]] (d/db @conn_))
   ;(d/transact! @dscript-db_ [todo1 todo2 todo3 todo4])
-  (transact! conn [(make-todo (random-uuid) "hello4-5")])
+  (transact! @conn_ [(make-todo (random-uuid) "hello4-5")])
 
   (all-todos dscript-db_)
   (sorted-todos dscript-db_)
@@ -78,11 +78,11 @@
 ;; copy the reverse example from the clojure docs for example
 
 (deftest datascript-test
-  (is (= (all-todos dscript-db_)
-        [{:db/id 1, :todo/id #uuid"6848eac7-245c-4c5c-b932-8525279d4f0a", :todo/text "hello1"}
-         {:db/id 2, :todo/id #uuid"b13319dd-3200-40ec-b8ba-559e404f9aa5", :todo/text "hello2"}
-         {:db/id 3, :todo/id #uuid"0ecf7b8a-c3ab-42f7-a1e3-118fcbcee30c", :todo/text "hello3"}
-         {:db/id 4, :todo/id #uuid"5860a879-a5e6-4a5f-844b-c8ecc6443f2e", :todo/text "hello4"}]))
+  (is (= (set (all-todos dscript-db_))
+        (set [{:db/id 1, :todo/id #uuid"6848eac7-245c-4c5c-b932-8525279d4f0a", :todo/text "hello1"}
+              {:db/id 2, :todo/id #uuid"b13319dd-3200-40ec-b8ba-559e404f9aa5", :todo/text "hello2"}
+              {:db/id 3, :todo/id #uuid"0ecf7b8a-c3ab-42f7-a1e3-118fcbcee30c", :todo/text "hello3"}
+              {:db/id 4, :todo/id #uuid"5860a879-a5e6-4a5f-844b-c8ecc6443f2e", :todo/text "hello4"}])))
   (is (= (sorted-todos dscript-db_)
         [{:db/id 1, :todo/id #uuid"6848eac7-245c-4c5c-b932-8525279d4f0a", :todo/text "hello1"}
          {:db/id 2, :todo/id #uuid"b13319dd-3200-40ec-b8ba-559e404f9aa5", :todo/text "hello2"}
@@ -95,14 +95,14 @@
          {:db/id 1, :todo/id #uuid"6848eac7-245c-4c5c-b932-8525279d4f0a", :todo/text "hello1"}]))
   (is (= (sum-lists dscript-db_) [4 4]))
 
-  (transact! conn [(make-todo #uuid"4d245cb4-a6a4-4c28-b605-5b6d451ee35f" "hello5")])
+  (transact! @conn_ [(make-todo #uuid"4d245cb4-a6a4-4c28-b605-5b6d451ee35f" "hello5")])
 
-  (is (= (all-todos dscript-db_)
-        [{:db/id 1, :todo/id #uuid"6848eac7-245c-4c5c-b932-8525279d4f0a", :todo/text "hello1"}
-         {:db/id 2, :todo/id #uuid"b13319dd-3200-40ec-b8ba-559e404f9aa5", :todo/text "hello2"}
-         {:db/id 3, :todo/id #uuid"0ecf7b8a-c3ab-42f7-a1e3-118fcbcee30c", :todo/text "hello3"}
-         {:db/id 4, :todo/id #uuid"5860a879-a5e6-4a5f-844b-c8ecc6443f2e", :todo/text "hello4"}
-         {:db/id 5, :todo/id #uuid"4d245cb4-a6a4-4c28-b605-5b6d451ee35f", :todo/text "hello5"}]))
+  (is (= (set (all-todos dscript-db_))
+        (set [{:db/id 1, :todo/id #uuid"6848eac7-245c-4c5c-b932-8525279d4f0a", :todo/text "hello1"}
+              {:db/id 2, :todo/id #uuid"b13319dd-3200-40ec-b8ba-559e404f9aa5", :todo/text "hello2"}
+              {:db/id 3, :todo/id #uuid"0ecf7b8a-c3ab-42f7-a1e3-118fcbcee30c", :todo/text "hello3"}
+              {:db/id 4, :todo/id #uuid"5860a879-a5e6-4a5f-844b-c8ecc6443f2e", :todo/text "hello4"}
+              {:db/id 5, :todo/id #uuid"4d245cb4-a6a4-4c28-b605-5b6d451ee35f", :todo/text "hello5"}])))
   (is (= (sorted-todos dscript-db_)
         [{:db/id 1, :todo/id #uuid"6848eac7-245c-4c5c-b932-8525279d4f0a", :todo/text "hello1"}
          {:db/id 2, :todo/id #uuid"b13319dd-3200-40ec-b8ba-559e404f9aa5", :todo/text "hello2"}
@@ -131,7 +131,7 @@
   (d/q '[:find (pull ?e [*]) :where [?e :todo/id ?id]] (d/db @dscript-db))
   (d/q '{:find  [?id]
          :where [[?e :todo/id ?id]]}
-    (d/db conn))
+    (d/db @conn_))
   )
 
 #?(:cljs

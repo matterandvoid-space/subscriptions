@@ -49,9 +49,7 @@
                                   :todo/author  [:bot/id 1]
                                   :todo/comment [:comment/id 1]}
                                2 {:todo/id 2 :todo/text "todo 2" :todo/author [:user/id 2]}
-                               3 {:todo/id 3 :todo/text "todo 3" :todo/comments [[:comment/id 1] [:comment/id 3]]}
-
-                               }}))
+                               3 {:todo/id 3 :todo/text "todo 3" :todo/comments [[:comment/id 1] [:comment/id 3]]}}}))
 
 (sut/reg-component-subs! user-comp)
 (sut/reg-component-subs! bot-comp)
@@ -157,8 +155,7 @@
                                                            #:user{:name    "user 4", :id 4,
                                                                   :friends [#:user{:name "user 3", :id 3, :friends ::subs/cycle}
                                                                             #:user{:name "user 4", :id 4, :friends ::subs/cycle}]}]}]}]}
-        (<sub app [::user {:user/id 1 subs/query-key [:user/name :user/id {:user/friends '...}]}])))
-  )
+        (<sub app [::user {:user/id 1 subs/query-key [:user/name :user/id {:user/friends '...}]}]))))
 
 (deftest queries-test
   (testing "entity subscription with no query returns all attributes"
@@ -192,5 +189,3 @@
                                               ]}])
 
   )
-
-

@@ -10,7 +10,13 @@
  ["src/main" "src/clj-kondo"]
 
  :aliases {:test
-           {:extra-paths ["src/test"]}
+           {:extra-paths ["src/test"]
+            :extra-deps  {io.github.cognitect-labs/test-runner {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
+            :main-opts   ["-m" "cognitect.test-runner"]
+            :exec-fn     cognitect.test-runner.api/test
+            :exec-args   {:dirs ["src/test"]}}
+
+
            :build {:deps       {io.github.seancorfield/build-clj {:git/tag "v0.8.0" :git/sha "9bd8b8a"}}
                    :ns-default build}
 

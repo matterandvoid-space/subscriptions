@@ -96,31 +96,37 @@
 (defn reg-sub-entity
   "Registers a subscription that returns a domain entity as a hashmap.
   id-attr for the entity, the entity subscription name (fq kw) a seq of dependent subscription props"
-  [id-kw entity-kw props]
+  [id-attr entity-kw props]
   (reg-sub-raw entity-kw
     (fn [app args]
       (println "REG sub entity: " args)
       (if (contains? args query-key)
         (let [props->ast (eql-by-key (get args query-key args))
+              entity-id  (get args id-attr)
               props'     (keys props->ast)
               query      (get args query-key)]
           (println "have query in args")
           (make-reaction
             (fn []
               (let [output
-                    (reduce (fn [acc prop]
-                              (let [output
-                                    (do
-                                      (log/info "entity sub, sub-query for: " prop)
-                                      (<sub app [prop (assoc args
-                                                        ;; to implement recursive queries
-                                                        ::parent-query query
-                                                        query-key (:query (props->ast prop)))]))]
-                                (cond-> acc
-                                  (not= missing-val output)
-                                  (assoc prop output))))
-                      {} props')]
-                (log/info "output: " output)
+                    (if (or (nil? query) (= query '[*]))
+                      (do
+                        (println " query: " query)
+                        (get-in (app->db app) [id-attr (get args id-attr)]))
+                      (reduce (fn [acc prop]
+                                (let [output
+                                      (do
+                                        (println "entity sub, sub-query for: " prop)
+                                        (<sub app [prop (assoc args
+                                                          ;; to implement recursive queries
+                                                          ::parent-query query
+                                                          query-key (:query (props->ast prop)))]))]
+                                  (println "sub result : " prop " -> " output)
+                                  (cond-> acc
+                                    (not= missing-val output)
+                                    (assoc prop output))))
+                        {} props'))]
+                (println "output: " output)
                 output))))
         (make-reaction
           (fn [] (reduce (fn [acc prop] (assoc acc prop (<sub app [prop args]))) {} props)))
@@ -174,6 +180,25 @@
         union-nodes  (-> union-parent :children first :children)]
 
     (reduce (fn [acc {:keys [union-key query]}] (assoc acc union-key query)) {} union-nodes)))
+(comment
+
+  (union-query->branch-map :todo/author
+    [:todo/id #:todo{:author ['*]}]
+    )
+
+
+
+  (let [ast-nodes
+                     (:children (eql/query->ast
+                                  [:todo/id #:todo{:author ['*]}]
+                                  ))
+        union-parent (first (filter (fn [{:keys [dispatch-key]}] (= dispatch-key :todo/author)) ast-nodes))
+        ]
+    (-> union-parent :children)
+
+    )
+
+  )
 
 (defn reg-sub-union-join
   "Takes two keywords: id attribute and property attribute, registers a layer 2 subscription using the id to lookup the
@@ -203,7 +228,8 @@
                     (println "union HAVE single ident: " rels)
                     (println "union sub: " [(join-component-sub (first rels)) (apply assoc args rels)])
                     (let [[kw id] rels]
-                      (<sub app [(join-component-sub kw) (assoc args kw id query-key (union-branch-map kw))])))
+                      (println "branch map: " union-branch-map)
+                      (<sub app [(join-component-sub kw) (assoc args kw id, query-key (union-branch-map kw))])))
 
                   rels
                   (do

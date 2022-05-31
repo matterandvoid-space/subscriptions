@@ -62,7 +62,8 @@
   (<sub app [::user {:user/id 1 subs/query-key [:user/name :user/id {:user/friends 1}]}])
   (<sub app [::user {:user/id 1 subs/query-key [:user/name :user/id {:user/friends 0}]}])
   (<sub app [::user {:user/id 1 subs/query-key [:user/name :user/id {:user/friends '...}]}])
-)
+  (<sub app [::todo {:todo/id 1 ::subs/query [:todo/id {:todo/author ['*]}]}])
+  )
 
 ;(<sub app [::user {:user/id 1 ::subs/query [:user/id {:user/friends `keep-walking?}]}])
 
@@ -87,19 +88,25 @@
   (testing "to-one union queries"
     (is (= {:todo/id 1, :todo/author {:bot/name "bot 1", :bot/id 1}}
           (<sub app [::todo {:todo/id 1 ::subs/query [:todo/id :todo/author]}])))
-    (is (= {:todo/id 2, :todo/author {:user/name "user 2", :user/id 2}}
+    (is (=
+          {:todo/id 2, :todo/author #:user{:id 2, :name "user 2", :friends [[:user/id 2] [:user/id 1] [:user/id 3]]}}
           (<sub app [::todo {:todo/id 2 ::subs/query [:todo/id :todo/author]}])))
     (is (= {:todo/id 2, :todo/author {:user/name "user 2"}}
           (<sub app [::todo {:todo/id 2 ::subs/query [:todo/id {:todo/author {:user/id        [:user/name]
                                                                               :does-not/exist [:a :b :c]}}]}]))))
-
   (testing "to-many union queries"
     (is (=
-          {:list/items   [{:todo/id 2, :todo/text "todo 2", :todo/author {:user/id 2, :user/name "user 2"}}
-                          {:comment/id           1,
-                           :comment/text         "FIRST COMMENT",
-                           :comment/sub-comments [{:comment/id 2, :comment/text "SECOND COMMENT"}]}],
-           :list/members [{:comment/id 1, :comment/text "FIRST COMMENT"} {:todo/id 2, :todo/text "todo 2"}]}
+          #:list{:items   [#:todo{:id     2, :text "todo 2",
+                                  :author #:user{:id 2, :name "user 2", :friends [#:user{:id 2, :name "user 2", :friends ::subs/cycle}
+                                                                                  #:user{:id 1, :name "user 1", :friends [#:user{:id 2, :name "user 2", :friends ::subs/cycle}]}
+                                                                                  #:user{:id      3, :name "user 3",
+                                                                                         :friends [#:user{:id 2, :name "user 2", :friends ::subs/cycle}
+                                                                                                   #:user{:id      4, :name "user 4",
+                                                                                                          :friends [#:user{:id 3, :name "user 3", :friends ::subs/cycle}
+                                                                                                                    #:user{:id 4, :name "user 4", :friends ::subs/cycle}]}]}]}}
+                           #:comment{:id 1, :text "FIRST COMMENT", :sub-comments [#:comment{:id 2, :text "SECOND COMMENT"}]}],
+                 :members [#:comment{:id 1, :text "FIRST COMMENT"} #:todo{:id 2, :text "todo 2"}]}
+
           (<sub app [::list {:list/id 1 ::subs/query [{:list/items list-member-q}
                                                       {:list/members {:comment/id [:comment/id :comment/text] :todo/id [:todo/id :todo/text]}}]}])))
 
@@ -107,6 +114,27 @@
       (is (= {:list/items []} (<sub app [::list {:list/id 1 ::subs/query [{:list/items {:todo2/id [:todo/id :todo/text]}}]}])))
       (is (= {:list/items [{:todo/id 2, :todo/text "todo 2"}]}
             (<sub app [::list {:list/id 1 ::subs/query [{:list/items {:todo/id [:todo/id :todo/text]}}]}]))))))
+
+(deftest recursive-join-queries
+  (is (= #:user{:name "user 1", :id 1, :friends [[:user/id 2]]}
+        (<sub app [::user {:user/id 1 subs/query-key [:user/name :user/id {:user/friends 0}]}])))
+
+  (is (= #:user{:name    "user 1", :id 1,
+                :friends [#:user{:name "user 2", :id 2, :friends [[:user/id 2] [:user/id 1] [:user/id 3]]}]}
+        (<sub app [::user {:user/id 1 subs/query-key [:user/name :user/id {:user/friends 1}]}])
+        ))
+  (is (=
+        #:user{:name    "user 1", :id 1,
+               :friends [#:user{:name    "user 2", :id 2,
+                                :friends [#:user{:name "user 2", :id 2, :friends ::subs/cycle}
+                                          #:user{:name "user 1", :id 1, :friends ::subs/cycle}
+                                          #:user{:name    "user 3", :id 3,
+                                                 :friends [#:user{:name "user 2", :id 2, :friends ::subs/cycle}
+                                                           #:user{:name    "user 4", :id 4,
+                                                                  :friends [#:user{:name "user 3", :id 3, :friends ::subs/cycle}
+                                                                            #:user{:name "user 4", :id 4, :friends ::subs/cycle}]}]}]}]}
+        (<sub app [::user {:user/id 1 subs/query-key [:user/name :user/id {:user/friends '...}]}])))
+  )
 
 (deftest queries-test
   (testing "entity subscription with no query returns all attributes"

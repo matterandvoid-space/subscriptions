@@ -5,7 +5,7 @@
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [space.matterandvoid.subscriptions.fulcro :as subs :refer [reg-sub reg-sub-raw subscribe <sub]]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r :refer [make-reaction]]
-    [sc.api]
+    ;[sc.api]
     [edn-query-language.core :as eql]
     [taoensso.timbre :as log]
     ))
@@ -153,7 +153,6 @@
                   query     (get args query-key)
                   query-ast (eql/query->ast query)]
               (def query' query-ast)
-              (comment (sc.api/defsc 5))
               (cond
                 (eql/ident? rels)
                 (do

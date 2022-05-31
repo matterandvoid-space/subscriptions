@@ -162,10 +162,8 @@
                 rels
                 (do
                   (println "HAVE many idents: " rels)
-                  (if (::query args)
-                    (mapv (fn [[id v]]
-                            ;; handle union
-                            (<sub app [join-component-sub (assoc args id v)])) rels)
+                  (if query
+                    (mapv (fn [[id v]] (<sub app [join-component-sub (assoc args id v)])) rels)
                     rels))
 
                 :else missing-val))
@@ -177,27 +175,7 @@
   (let [ast          (:children (eql/query->ast union-join-q))
         union-parent (first (filter (fn [{:keys [dispatch-key]}] (= dispatch-key join-prop)) ast))
         union-nodes  (-> union-parent :children first :children)]
-
     (reduce (fn [acc {:keys [union-key query]}] (assoc acc union-key query)) {} union-nodes)))
-(comment
-
-  (union-query->branch-map :todo/author
-    [:todo/id #:todo{:author ['*]}]
-    )
-
-
-
-  (let [ast-nodes
-                     (:children (eql/query->ast
-                                  [:todo/id #:todo{:author ['*]}]
-                                  ))
-        union-parent (first (filter (fn [{:keys [dispatch-key]}] (= dispatch-key :todo/author)) ast-nodes))
-        ]
-    (-> union-parent :children)
-
-    )
-
-  )
 
 (defn reg-sub-union-join
   "Takes two keywords: id attribute and property attribute, registers a layer 2 subscription using the id to lookup the

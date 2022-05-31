@@ -23,6 +23,7 @@
                           :name  ::author}))
 (def comment-comp (sut/nc {:query [:comment/id :comment/text {:comment/sub-comments '...}] :name ::comment :ident :comment/id}))
 (def todo-comp (sut/nc {:query [:todo/id :todo/text {:todo/comment (rc/get-query comment-comp)}
+                                {:todo/comments (rc/get-query comment-comp)}
                                 {:todo/author (rc/get-query author-comp)}] :name ::todo :ident :todo/id}))
 (def todo-q (rc/get-query todo-comp))
 (def list-member-comp (sut/nc {:query {:comment/id (rc/get-query comment-comp) :todo/id todo-q} :name ::list-member}))
@@ -47,8 +48,10 @@
                   :todo/id    {1 {:todo/id      1 :todo/text "todo 1"
                                   :todo/author  [:bot/id 1]
                                   :todo/comment [:comment/id 1]}
-                               2 {:todo/id     2 :todo/text "todo 2"
-                                  :todo/author [:user/id 2]}}}))
+                               2 {:todo/id 2 :todo/text "todo 2" :todo/author [:user/id 2]}
+                               3 {:todo/id 3 :todo/text "todo 3" :todo/comments [[:comment/id 1] [:comment/id 3]]}
+
+                               }}))
 
 (sut/reg-component-subs! user-comp)
 (sut/reg-component-subs! bot-comp)
@@ -62,7 +65,6 @@
   (<sub app [::user {:user/id 1 subs/query-key [:user/name :user/id {:user/friends 1}]}])
   (<sub app [::user {:user/id 1 subs/query-key [:user/name :user/id {:user/friends 0}]}])
   (<sub app [::user {:user/id 1 subs/query-key [:user/name :user/id {:user/friends '...}]}])
-  (<sub app [::todo {:todo/id 1 ::subs/query [:todo/id {:todo/author ['*]}]}])
   )
 
 ;(<sub app [::user {:user/id 1 ::subs/query [:user/id {:user/friends `keep-walking?}]}])
@@ -83,7 +85,6 @@
 ;;   - to-one
 ;;   - to-many
 
-
 (deftest union-queries-test
   (testing "to-one union queries"
     (is (= {:todo/id 1, :todo/author {:bot/name "bot 1", :bot/id 1}}
@@ -93,7 +94,12 @@
           (<sub app [::todo {:todo/id 2 ::subs/query [:todo/id :todo/author]}])))
     (is (= {:todo/id 2, :todo/author {:user/name "user 2"}}
           (<sub app [::todo {:todo/id 2 ::subs/query [:todo/id {:todo/author {:user/id        [:user/name]
-                                                                              :does-not/exist [:a :b :c]}}]}]))))
+                                                                              :does-not/exist [:a :b :c]}}]}])))
+    (testing "support for * query"
+      (is (= #:todo{:id 1, :author #:bot{:id 1, :name "bot 1"}} (<sub app [::todo {:todo/id 1 ::subs/query [:todo/id {:todo/author ['*]}]}])))
+      (is (= #:todo{:id 2, :author #:user{:id 2, :name "user 2", :friends [[:user/id 2] [:user/id 1] [:user/id 3]]}}
+            (<sub app [::todo {:todo/id 2 ::subs/query [:todo/id {:todo/author '[*]}]}])))))
+
   (testing "to-many union queries"
     (is (=
           #:list{:items   [#:todo{:id     2, :text "todo 2",
@@ -114,6 +120,24 @@
       (is (= {:list/items []} (<sub app [::list {:list/id 1 ::subs/query [{:list/items {:todo2/id [:todo/id :todo/text]}}]}])))
       (is (= {:list/items [{:todo/id 2, :todo/text "todo 2"}]}
             (<sub app [::list {:list/id 1 ::subs/query [{:list/items {:todo/id [:todo/id :todo/text]}}]}]))))))
+
+(deftest plain-join-queries
+
+  (testing "to-one joins"
+    (is (= #:todo{:id 1, :author #:bot{:id 1, :name "bot 1"}, :comment #:comment{:id 1, :text "FIRST COMMENT", :sub-comments [[:comment/id 2]]}}
+          (<sub app [::todo {:todo/id 1 ::subs/query [:todo/id :todo/author :todo/comment]}])))
+    (is (= #:todo{:id 1,, :comment #:comment{:id 1, :text "FIRST COMMENT"}}
+          (<sub app [::todo {:todo/id 1 ::subs/query [:todo/id {:todo/comment [:comment/id :comment/text]}]}]))))
+
+  (testing "to-many joins"
+    (is (= {:todo/id 2} (<sub app [::todo {:todo/id 2 ::subs/query [:todo/id {:todo/comments [:comment/id :comment/text]}]}])))
+    (is (= #:todo{:id 3, :comments [#:comment{:id 1, :text "FIRST COMMENT"} #:comment{:id 3, :text "THIRD COMMENT"}]}
+          (<sub app [::todo {:todo/id 3 ::subs/query [:todo/id {:todo/comments [:comment/id :comment/text]}]}])))
+    (testing "support for '[*]"
+      (is (= #:todo{:id       3,
+                    :comments [#:comment{:id 1, :text "FIRST COMMENT", :sub-comments [[:comment/id 2]]}
+                               #:comment{:id 3, :text "THIRD COMMENT"}]}
+            (<sub app [::todo {:todo/id 3 ::subs/query [:todo/id {:todo/comments ['*]}]}]))))))
 
 (deftest recursive-join-queries
   (is (= #:user{:name "user 1", :id 1, :friends [[:user/id 2]]}

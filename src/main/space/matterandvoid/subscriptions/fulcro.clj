@@ -27,6 +27,7 @@
 ;   This can be a normal function because reg-sub operates at runtime"
 ;  [com])
 
+(def query-key ::query)
 (defn set-memoize-fn! [f] (impl/set-memoize-fn! f))
 (defn set-args-merge-fn! [f] (impl/set-args-merge-fn! f))
 
@@ -222,3 +223,5 @@
        (defn ~sub-name
          ([app#] (deref (subscribe app# [~sub-kw])))
          ([app# args#] (deref (subscribe app# [~sub-kw args#])))))))
+
+

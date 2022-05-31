@@ -7,14 +7,16 @@
     [edn-query-language.core :as eql]
     [com.fulcrologic.fulcro.algorithms.merge :as merge]
     [com.fulcrologic.fulcro.raw.components :as rc]
+    [taoensso.timbre :as log]
     [clojure.test :refer [deftest is testing]]))
 
 ;; idea to use a predicate to determine recursion - this is not part of eql
 ;(eql/query->ast [:comment/id :comment/text {:comment/sub-comments 'traverse?}])
 
+(log/set-level! :debug)
 (set! *print-namespace-maps* false)
 
-(def user-comp (sut/nc {:query [:user/id :user/name] :name ::user :ident :user/id}))
+(def user-comp (sut/nc {:query [:user/id :user/name {:user/friends '...}] :name ::user :ident :user/id}))
 (def bot-comp (sut/nc {:query [:bot/id :bot/name] :name ::bot :ident :bot/id}))
 (def author-comp (sut/nc {:query {:bot/id  (rc/get-query bot-comp)
                                   :user/id (rc/get-query user-comp)}
@@ -37,8 +39,8 @@
                   :list/id    {1 {:list/id      1 :list/name "first list"
                                   :list/members [[:comment/id 1] [:todo/id 2]]
                                   :list/items   [[:todo/id 2] [:comment/id 1]]}}
-                  :user/id    {1 {:user/id 1 :user/name "user 1"}
-                               2 {:user/id 2 :user/name "user 2"}
+                  :user/id    {1 {:user/id 1 :user/name "user 1" :user/friends [[:user/id 2]]}
+                               2 {:user/id 2 :user/name "user 2" :user/friends [[:user/id 2] [:user/id 1]]}
                                3 {:user/id 3 :user/name "user 3"}}
                   :bot/id     {1 {:bot/id 1 :bot/name "bot 1"}}
                   :todo/id    {1 {:todo/id      1 :todo/text "todo 1"
@@ -47,7 +49,6 @@
                                2 {:todo/id     2 :todo/text "todo 2"
                                   :todo/author [:user/id 2]}}}))
 
-
 (sut/reg-component-subs! user-comp)
 (sut/reg-component-subs! bot-comp)
 (sut/reg-component-subs! comment-comp)
@@ -55,6 +56,12 @@
 (sut/reg-component-subs! list-comp)
 
 (def app (assoc (fulcro.app/fulcro-app {}) ::fulcro.app/state-atom db_))
+
+(comment
+  (<sub app [::user {:user/id 1 subs/query-key [:user/name :user/id {:user/friends '...}]}])
+)
+
+;(<sub app [::user {:user/id 1 ::subs/query [:user/id {:user/friends `keep-walking?}]}])
 
 ;; prop queries
 ;; plain join

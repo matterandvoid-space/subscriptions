@@ -10,6 +10,7 @@
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [goog.object :as g]))
 
+(def query-key ::query)
 (defn set-memoize-fn! [f] (impl/set-memoize-fn! f))
 (defn set-args-merge-fn! [f] (impl/set-args-merge-fn! f))
 
@@ -205,3 +206,4 @@
          ;(log/info "Drop component!" (c/component-name this))
          (cleanup! this)
          (fulcro.index/drop-component! this ident))))))
+

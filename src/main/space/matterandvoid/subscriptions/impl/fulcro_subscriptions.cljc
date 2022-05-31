@@ -6,7 +6,9 @@
     [space.matterandvoid.subscriptions.fulcro :as subs :refer [reg-sub reg-sub-raw subscribe <sub]]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r :refer [make-reaction]]
     [sc.api]
-    [edn-query-language.core :as eql]))
+    [edn-query-language.core :as eql]
+    [taoensso.timbre :as log]
+    ))
 
 (defn nc
   "Wrap fulcro.raw.components/nc to be more uniform and require explicit options instead of implicit for normalizing
@@ -27,7 +29,9 @@
 
 (defn group-by-flat [f coll] (persistent! (reduce #(assoc! %1 (f %2) %2) (transient {}) coll)))
 
+(def cycle-marker ::subs/cycle)
 (def missing-val ::missing)
+(def query-key ::subs/query)
 
 (defn eql-by-key [query] (group-by-flat :dispatch-key (:children (eql/query->ast query))))
 (defn ast-by-key->query [k->ast] (vec (mapcat eql/ast->query (vals k->ast))))
@@ -57,12 +61,12 @@
         plain-joins       (set (map (juxt :dispatch-key (comp rc/class->registry-key :component)) plain-joins))
         union-joins       (set (map (fn [{:keys [dispatch-key children] :as ast}]
                                       (let [union-key->entity    (union-key->entity-sub (first children))
-                                            _                    (println "union-key->entity " union-key->entity)
+                                            _                    (log/info "union-key->entity " union-key->entity)
                                             union-key->component [dispatch-key (fn [kw]
-                                                                                 (println "union-key to comp args: " kw)
+                                                                                 (log/info "union-key to comp args: " kw)
                                                                                  (assert (keyword? kw))
                                                                                  (kw union-key->entity))]]
-                                        (println "union-key->component " union-key->component)
+                                        (log/info "union-key->component " union-key->component)
                                         union-key->component))
                                  unions))
         missing-join-keys (filter (comp nil? second) plain-joins)]
@@ -83,7 +87,7 @@
   [id-attr prop]
   (reg-sub prop
     (fn [db args]
-      (println "in plain prop: " prop)
+      (log/info "in plain prop: " prop)
       (if-let [entity-id (get args id-attr)]
         (let [entity (get-in db [id-attr entity-id])]
           (get entity prop))
@@ -95,26 +99,28 @@
   [id-kw entity-kw props]
   (reg-sub-raw entity-kw
     (fn [app args]
-      (println "REG sub entityt: " args)
-      (if (::subs/query args)
-        (let [props->ast (eql-by-key (::subs/query args))
-              props'     (keys props->ast)]
+      (println "REG sub entity: " args)
+      (if (contains? args query-key)
+        (let [props->ast (eql-by-key (get args query-key args))
+              props'     (keys props->ast)
+              query      (get args query-key)]
+          (println "have query in args")
           (make-reaction
             (fn []
               (let [output
                     (reduce (fn [acc prop]
                               (let [output
                                     (do
-                                      (println "entity sub, sub-query for: " prop)
+                                      (log/info "entity sub, sub-query for: " prop)
                                       (<sub app [prop (assoc args
                                                         ;; to implement recursive queries
-                                                        ::subs/parent-query (::subs/query args)
-                                                        ::subs/query (:query (props->ast prop)))]))]
+                                                        ::parent-query query
+                                                        query-key (:query (props->ast prop)))]))]
                                 (cond-> acc
                                   (not= missing-val output)
                                   (assoc prop output))))
                       {} props')]
-                (println "output: " output)
+                (log/info "output: " output)
                 output))))
         (make-reaction
           (fn [] (reduce (fn [acc prop] (assoc acc prop (<sub app [prop args]))) {} props)))
@@ -138,7 +144,7 @@
           (if-let [entity-id (get args id-attr)]
             (let [entity    (get-in (app->db app) [id-attr entity-id])
                   rels      (not-empty (get entity join-prop))
-                  query     (::subs/query args)
+                  query     (get args query-key)
                   query-ast (eql/query->ast query)]
               (def query' query-ast)
               (comment (sc.api/defsc 5))
@@ -151,7 +157,7 @@
                 rels
                 (do
                   (println "HAVE many idents: " rels)
-                  (if (::subs/query args)
+                  (if (::query args)
                     (mapv (fn [[id v]]
                             ;; handle union
                             (<sub app [join-component-sub (assoc args id v)])) rels)
@@ -184,70 +190,108 @@
               (println "UNION have entity id: " entity-id)
               (let [entity               (get-in (app->db app) [id-attr entity-id])
                     rels                 (not-empty (get entity join-prop))
-                    query                (::subs/query args)
+                    query                (get args query-key)
                     query-ast            (eql/query->ast query)
-                    union-branch-map     (union-query->branch-map join-prop (::subs/parent-query args))
+                    union-branch-map     (union-query->branch-map join-prop (::parent-query args))
                     branch-keys-in-query (set (keys union-branch-map))]
                 (def args' args)
-                (comment (union-query->branch-map join-prop (::subs/parent-query args')))
+                (comment (union-query->branch-map join-prop (::parent-query args')))
                 (def b' union-branch-map)
-                (comment (sc.api/defsc 9))
-                (sc.api/spy
-                  (cond
-                    (eql/ident? rels)
-                    (do
-                      (println "union HAVE single ident: " rels)
-                      (println "union sub: " [(join-component-sub (first rels)) (apply assoc args rels)])
-                      (let [[kw id] rels]
-                        (<sub app [(join-component-sub kw) (assoc args kw id ::subs/query (union-branch-map kw))])))
+                (cond
+                  (eql/ident? rels)
+                  (do
+                    (println "union HAVE single ident: " rels)
+                    (println "union sub: " [(join-component-sub (first rels)) (apply assoc args rels)])
+                    (let [[kw id] rels]
+                      (<sub app [(join-component-sub kw) (assoc args kw id query-key (union-branch-map kw))])))
 
-                    rels
-                    (do
-                      (println "union HAVE many idents: " rels)
-                      (if query
-                        (->> rels
-                          (filter (fn [[id]] (contains? branch-keys-in-query id)))
-                          (mapv (fn [[id v]]
-                                  (let [args' (assoc args id v ::subs/query (union-branch-map id))]
-                                    (<sub app [(join-component-sub id) args'])))))
-                        rels))
+                  rels
+                  (do
+                    (println "union HAVE many idents: " rels)
+                    (if query
+                      (->> rels
+                        (filter (fn [[id]] (contains? branch-keys-in-query id)))
+                        (mapv (fn [[id v]]
+                                (let [args' (assoc args id v query-key (union-branch-map id))]
+                                  (<sub app [(join-component-sub id) args'])))))
+                      rels))
 
-                    :else (throw (error "Union Invalid join: for join prop " join-prop, " value: " rels))))))
+                  :else (throw (error "Union Invalid join: for join prop " join-prop, " value: " rels)))))
             (throw (error "Missing id attr: " id-attr " in args map passed to subscription: " join-prop))))))))
 
 (defn reg-sub-recur-join
   [id-attr recur-prop entity-sub]
   (reg-sub-raw recur-prop
-    (fn [app {::subs/keys [parent-query] :as args}]
+    (fn [app {::keys [entity-history parent-query] :as args}]
       (make-reaction
         (fn []
           (println "sub recur-join children: " recur-prop ", " args)
           (if-let [entity-id (get args id-attr)]
-            (let [refs        (seq (filter some? (get-in (app->db app) [id-attr entity-id recur-prop])))
-                  sub-q       (::subs/query args)
-                  recur-query (when (and sub-q parent-query)
-                                (println "IN both")
-                                (let [by-key      (eql-by-key parent-query)
-                                      ;; this is either an int or '...
-                                      recur-value (:query (get by-key recur-prop))]
-                                  (cond
-                                    (= recur-value '...) parent-query
-                                    (and (pos-int? recur-value) (> recur-value 0))
-                                    (ast-by-key->query (update-in by-key [recur-prop :query] dec)))))]
+            ;; todo I don't think this handles to-one recursive joins
+            ;; need eql/ident? case
+            (let [recur-idents    (get-in (app->db app) [id-attr entity-id recur-prop])
+                  ident?          (eql/ident? recur-idents)
+                  refs            (or (and ident? recur-idents) (seq (filter some? recur-idents)))
+                  sub-q           (get args query-key)
+                  seen-entity-id? (contains? entity-history entity-id)
+                  recur-query     (when (and sub-q parent-query)
+                                    (println "IN both")
+                                    (let [by-key      (eql-by-key parent-query)
+                                          ;; this is either an int or '...
+                                          recur-value (:query (get by-key recur-prop))]
+                                      (def bk' by-key)
+                                      (def pq' parent-query)
+                                      (comment (vec (mapcat eql/ast->query (:children (eql/query->ast pq'))))
+                                        (let [recur-prop :user/friends]
+                                          (vec (mapcat eql/ast->query (vals (dissoc bk' recur-prop)))))
+
+                                        )
+                                      (cond
+                                        (= recur-value '...) (if seen-entity-id?
+                                                               (vec (mapcat eql/ast->query (vals (dissoc by-key recur-prop))))
+                                                               parent-query)
+                                        (and (pos-int? recur-value) (> recur-value 0))
+                                        (ast-by-key->query (update-in by-key [recur-prop :query] dec)))))]
               (println "---------------Refs: " refs)
               (println "---------------recur query: " recur-query)
               (let [r (cond
+                        ;; pointer was nil
                         (and recur-query (not refs)) missing-val
+
+                        ;; to-one join
+                        (and recur-query ident?)
+                        (if seen-entity-id?
+                          ;; it would be dope to remove the recur-prop from the query and put the cycle-marker
+                          ;; in the recur-prop's value instead of the entire entity
+                          ;cycle-marker
+                          (let [out
+                                (<sub app [entity-sub
+                                           (-> args
+                                             (update ::depth inc)
+                                             (update ::entity-history (fnil conj #{}) entity-id)
+                                             (assoc query-key recur-query, id-attr (second refs)))])]
+                            (assoc out recur-prop cycle-marker))
+
+
+                          (<sub app [entity-sub
+                                     (-> args
+                                       (update ::depth inc)
+                                       (update ::entity-history (fnil conj #{}) entity-id)
+                                       (assoc query-key recur-query, id-attr (second refs)))]))
+
+                        ;; to-many join
                         (and recur-query refs)
                         ;(and refs max-recur-depth recur-depth (> max-recur-depth recur-depth))
                         (do
                           (println "RECUR")
                           (println " args" args)
-                          (mapv (fn [[_ id]] (<sub app [entity-sub (assoc args
-                                                                     ;:recur/depth (inc recur-depth) :recur/max-depth max-recur-depth
-                                                                     ::subs/query recur-query
-                                                                     id-attr id)]))
-                                refs))
+                          (if seen-entity-id?
+                            cycle-marker
+                            (mapv (fn [[_ id]] (<sub app [entity-sub
+                                                          (-> args
+                                                            (update ::entity-history (fnil conj #{}) entity-id)
+                                                            (assoc query-key recur-query id-attr id))]))
+                                  refs)))
                         ;; do not recur
                         refs (do (println "NOT RECUR") (vec refs))
                         :else missing-val)]

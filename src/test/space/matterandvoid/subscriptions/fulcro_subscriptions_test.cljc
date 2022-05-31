@@ -40,8 +40,9 @@
                                   :list/members [[:comment/id 1] [:todo/id 2]]
                                   :list/items   [[:todo/id 2] [:comment/id 1]]}}
                   :user/id    {1 {:user/id 1 :user/name "user 1" :user/friends [[:user/id 2]]}
-                               2 {:user/id 2 :user/name "user 2" :user/friends [[:user/id 2] [:user/id 1]]}
-                               3 {:user/id 3 :user/name "user 3"}}
+                               2 {:user/id 2 :user/name "user 2" :user/friends [[:user/id 2] [:user/id 1] [:user/id 3]]}
+                               3 {:user/id 3 :user/name "user 3" :user/friends [[:user/id 2] [:user/id 4]]}
+                               4 {:user/id 4 :user/name "user 4" :user/friends [[:user/id 3] [:user/id 4]]}}
                   :bot/id     {1 {:bot/id 1 :bot/name "bot 1"}}
                   :todo/id    {1 {:todo/id      1 :todo/text "todo 1"
                                   :todo/author  [:bot/id 1]
@@ -58,6 +59,8 @@
 (def app (assoc (fulcro.app/fulcro-app {}) ::fulcro.app/state-atom db_))
 
 (comment
+  (<sub app [::user {:user/id 1 subs/query-key [:user/name :user/id {:user/friends 1}]}])
+  (<sub app [::user {:user/id 1 subs/query-key [:user/name :user/id {:user/friends 0}]}])
   (<sub app [::user {:user/id 1 subs/query-key [:user/name :user/id {:user/friends '...}]}])
 )
 

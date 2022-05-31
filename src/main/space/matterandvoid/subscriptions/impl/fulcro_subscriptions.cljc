@@ -264,14 +264,13 @@
                           ;; it would be dope to remove the recur-prop from the query and put the cycle-marker
                           ;; in the recur-prop's value instead of the entire entity
                           ;cycle-marker
-                          (let [out
-                                (<sub app [entity-sub
-                                           (-> args
-                                             (update ::depth inc)
-                                             (update ::entity-history (fnil conj #{}) entity-id)
-                                             (assoc query-key recur-query, id-attr (second refs)))])]
-                            (assoc out recur-prop cycle-marker))
-
+                          (assoc
+                            (<sub app [entity-sub
+                                       (-> args
+                                         (update ::depth inc)
+                                         (update ::entity-history (fnil conj #{}) entity-id)
+                                         (assoc query-key recur-query, id-attr (second refs)))])
+                            recur-prop cycle-marker)
 
                           (<sub app [entity-sub
                                      (-> args
@@ -283,10 +282,10 @@
                         (and recur-query refs)
                         ;(and refs max-recur-depth recur-depth (> max-recur-depth recur-depth))
                         (do
-                          (println "RECUR")
+                          (println "RECUR----------------------------------------")
                           (println " args" args)
                           (if seen-entity-id?
-                            cycle-marker
+                            (do (println "CYCLE:, eid refs" entity-id ", " refs) cycle-marker)
                             (mapv (fn [[_ id]] (<sub app [entity-sub
                                                           (-> args
                                                             (update ::entity-history (fnil conj #{}) entity-id)

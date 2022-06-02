@@ -1,6 +1,7 @@
 (ns space.matterandvoid.subscriptions.fulcro-subscriptions-test
   (:require
-    [space.matterandvoid.subscriptions.impl.fulcro-subscriptions :as sut]
+    ;[space.matterandvoid.subscriptions.impl.fulcro-queries-debug :as sut]
+    [space.matterandvoid.subscriptions.fulcro-queries :as sut]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
     [space.matterandvoid.subscriptions.fulcro :as subs :refer [reg-sub reg-sub-raw subscribe <sub]]
     [com.fulcrologic.fulcro.application :as fulcro.app]
@@ -9,15 +10,17 @@
     [com.fulcrologic.fulcro.raw.components :as rc]
     [taoensso.timbre :as log]
     [clojure.test :refer [deftest is testing]]))
+;(ns-unalias *ns* 'sut)
 
-;; idea to use a predicate to determine recursion - this is not part of eql
-;(eql/query->ast [:comment/id :comment/text {:comment/sub-comments 'traverse?}])
+;; idea to use a predicate to determine recursion - this is not part of eql currently
+;(eql/query->ast [:comment/id :comment/text {:comment/sub-comments `traverse?}])
 
 (log/set-level! :debug)
 (set! *print-namespace-maps* false)
 
 (def user-comp (sut/nc {:query [:user/id :user/name {:user/friends '...}] :name ::user :ident :user/id}))
 (def bot-comp (sut/nc {:query [:bot/id :bot/name] :name ::bot :ident :bot/id}))
+(def human-comp (sut/nc {:query [:human/id :human/name {:human/best-friend 1}] :name ::human :ident :human/id}))
 (def author-comp (sut/nc {:query {:bot/id  (rc/get-query bot-comp)
                                   :user/id (rc/get-query user-comp)}
                           :name  ::author}))
@@ -33,6 +36,8 @@
                                 {:list/items (rc/get-query list-member-comp)}
                                 {:list/members (rc/get-query list-member-comp)}]}))
 
+(run! sut/reg-component-subs! [user-comp bot-comp comment-comp todo-comp list-comp human-comp])
+
 (def db_ (r/atom {:comment/id {1 {:comment/id           1 :comment/text "FIRST COMMENT"
                                   :comment/sub-comments [[:comment/id 2]]}
                                2 {:comment/id 2 :comment/text "SECOND COMMENT"}
@@ -40,6 +45,10 @@
                   :list/id    {1 {:list/id      1 :list/name "first list"
                                   :list/members [[:comment/id 1] [:todo/id 2]]
                                   :list/items   [[:todo/id 2] [:comment/id 1]]}}
+                  ;; to-one cycle
+                  :human/id   {1 {:human/id 1 :human/name "pythagoras" :human/best-friend [:human/id 1]}}
+
+                  ;; to-many cycle
                   :user/id    {1 {:user/id 1 :user/name "user 1" :user/friends [[:user/id 2]]}
                                2 {:user/id 2 :user/name "user 2" :user/friends [[:user/id 2] [:user/id 1] [:user/id 3]]}
                                3 {:user/id 3 :user/name "user 3" :user/friends [[:user/id 2] [:user/id 4]]}
@@ -51,11 +60,6 @@
                                2 {:todo/id 2 :todo/text "todo 2" :todo/author [:user/id 2]}
                                3 {:todo/id 3 :todo/text "todo 3" :todo/comments [[:comment/id 1] [:comment/id 3]]}}}))
 
-(sut/reg-component-subs! user-comp)
-(sut/reg-component-subs! bot-comp)
-(sut/reg-component-subs! comment-comp)
-(sut/reg-component-subs! todo-comp)
-(sut/reg-component-subs! list-comp)
 
 (def app (assoc (fulcro.app/fulcro-app {}) ::fulcro.app/state-atom db_))
 
@@ -67,7 +71,11 @@
 
 ;(<sub app [::user {:user/id 1 ::subs/query [:user/id {:user/friends `keep-walking?}]}])
 
+
 ;; prop queries
+;; - individual kw
+;; - '* attribute
+
 ;; plain join
 ;;   - to-one
 ;;   - to-many
@@ -143,19 +151,36 @@
 
   (is (= #:user{:name    "user 1", :id 1,
                 :friends [#:user{:name "user 2", :id 2, :friends [[:user/id 2] [:user/id 1] [:user/id 3]]}]}
-        (<sub app [::user {:user/id 1 subs/query-key [:user/name :user/id {:user/friends 1}]}])
-        ))
-  (is (=
-        #:user{:name    "user 1", :id 1,
-               :friends [#:user{:name    "user 2", :id 2,
-                                :friends [#:user{:name "user 2", :id 2, :friends ::subs/cycle}
-                                          #:user{:name "user 1", :id 1, :friends ::subs/cycle}
-                                          #:user{:name    "user 3", :id 3,
-                                                 :friends [#:user{:name "user 2", :id 2, :friends ::subs/cycle}
-                                                           #:user{:name    "user 4", :id 4,
-                                                                  :friends [#:user{:name "user 3", :id 3, :friends ::subs/cycle}
-                                                                            #:user{:name "user 4", :id 4, :friends ::subs/cycle}]}]}]}]}
-        (<sub app [::user {:user/id 1 subs/query-key [:user/name :user/id {:user/friends '...}]}]))))
+        (<sub app [::user {:user/id 1 subs/query-key [:user/name :user/id {:user/friends 1}]}])))
+
+  (testing "handles self-cycle"
+    (is (=
+          {:human/id 1, :human/best-friend [:human/id 1], :human/name "pythagoras"}
+          (<sub app [::human {:human/id 1 subs/query-key [:human/id :human/best-friend :human/name]}])))
+
+    (is (= {:human/id 1, :human/best-friend ::subs/cycle, :human/name "pythagoras"}
+          (<sub app [::human {:human/id 1 subs/query-key [:human/id {:human/best-friend '...} :human/name]}])))
+
+    (testing "handles finite self-recursive (to-one) cycles"
+      (is (= {:human/id          1,
+              :human/best-friend {:human/id          1,
+                                  :human/best-friend {:human/id 1, :human/best-friend ::subs/cycle, :human/name "pythagoras"},
+                                  :human/name        "pythagoras"},
+              :human/name        "pythagoras"}
+            (<sub app [::human {:human/id 1 subs/query-key [:human/id {:human/best-friend 2} :human/name]}])))))
+
+  (testing "handles to-many recursive cycles"
+    (is (=
+          #:user{:name    "user 1", :id 1,
+                 :friends [#:user{:name    "user 2", :id 2,
+                                  :friends [#:user{:name "user 2", :id 2, :friends ::subs/cycle}
+                                            #:user{:name "user 1", :id 1, :friends ::subs/cycle}
+                                            #:user{:name    "user 3", :id 3,
+                                                   :friends [#:user{:name "user 2", :id 2, :friends ::subs/cycle}
+                                                             #:user{:name    "user 4", :id 4,
+                                                                    :friends [#:user{:name "user 3", :id 3, :friends ::subs/cycle}
+                                                                              #:user{:name "user 4", :id 4, :friends ::subs/cycle}]}]}]}]}
+          (<sub app [::user {:user/id 1 subs/query-key [:user/name :user/id {:user/friends '...}]}])))))
 
 (deftest queries-test
   (testing "entity subscription with no query returns all attributes"

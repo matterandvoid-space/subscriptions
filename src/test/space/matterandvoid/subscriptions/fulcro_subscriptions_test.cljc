@@ -45,8 +45,10 @@
                   :list/id    {1 {:list/id      1 :list/name "first list"
                                   :list/members [[:comment/id 1] [:todo/id 2]]
                                   :list/items   [[:todo/id 2] [:comment/id 1]]}}
-                  ;; to-one cycle
-                  :human/id   {1 {:human/id 1 :human/name "pythagoras" :human/best-friend [:human/id 1]}}
+                  ;; to-one cycles
+                  :human/id   {1 {:human/id 1 :human/name "human Y" :human/best-friend [:human/id 1]}
+                               2 {:human/id 2 :human/name "human X" :human/best-friend [:human/id 3]}
+                               3 {:human/id 3 :human/name "human Z" :human/best-friend [:human/id 1]}}
 
                   ;; to-many cycle
                   :user/id    {1 {:user/id 1 :user/name "user 1" :user/friends [[:user/id 2]]}
@@ -155,18 +157,29 @@
 
   (testing "handles self-cycle"
     (is (=
-          {:human/id 1, :human/best-friend [:human/id 1], :human/name "pythagoras"}
+          {:human/id 1, :human/best-friend [:human/id 1], :human/name "human Y"}
           (<sub app [::human {:human/id 1 subs/query-key [:human/id :human/best-friend :human/name]}])))
 
-    (is (= {:human/id 1, :human/best-friend ::subs/cycle, :human/name "pythagoras"}
+    (is (= {:human/id 1, :human/best-friend ::subs/cycle, :human/name "human Y"}
           (<sub app [::human {:human/id 1 subs/query-key [:human/id {:human/best-friend '...} :human/name]}])))
+
+    (testing "handles multi-level to-one cycle"
+      (is (=
+            {:human/id          2,
+             :human/best-friend {:human/id          3,
+                                 :human/best-friend {:human/id          1,
+                                                     :human/best-friend :space.matterandvoid.subscriptions.fulcro/cycle,
+                                                     :human/name        "human Y"},
+                                 :human/name        "human Z"},
+             :human/name        "human X"}))
+      (<sub app [::human {:human/id 2 subs/query-key [:human/id {:human/best-friend '...} :human/name]}]))
 
     (testing "handles finite self-recursive (to-one) cycles"
       (is (= {:human/id          1,
               :human/best-friend {:human/id          1,
-                                  :human/best-friend {:human/id 1, :human/best-friend ::subs/cycle, :human/name "pythagoras"},
-                                  :human/name        "pythagoras"},
-              :human/name        "pythagoras"}
+                                  :human/best-friend {:human/id 1, :human/best-friend ::subs/cycle, :human/name "human Y"},
+                                  :human/name        "human Y"},
+              :human/name        "human Y"}
             (<sub app [::human {:human/id 1 subs/query-key [:human/id {:human/best-friend 2} :human/name]}])))))
 
   (testing "handles to-many recursive cycles"

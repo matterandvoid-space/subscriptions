@@ -142,9 +142,12 @@
     (is (= #:todo{:id 3, :comments [#:comment{:id 1, :text "FIRST COMMENT"} #:comment{:id 3, :text "THIRD COMMENT"}]}
           (<sub app [::todo {:todo/id 3 ::subs/query [:todo/id {:todo/comments [:comment/id :comment/text]}]}])))
     (testing "support for '[*]"
-      (is (= #:todo{:id       3,
-                    :comments [#:comment{:id 1, :text "FIRST COMMENT", :sub-comments [[:comment/id 2]]}
-                               #:comment{:id 3, :text "THIRD COMMENT"}]}
+      (is (=
+            {:todo/id       3,
+             :todo/comments [{:comment/sub-comments [[:comment/id 2]], :comment/id 1, :comment/text "FIRST COMMENT"}
+                             {:comment/sub-comments :space.matterandvoid.subscriptions.impl.fulcro-queries-debug/missing,
+                              :comment/id           3,
+                              :comment/text         "THIRD COMMENT"}]}
             (<sub app [::todo {:todo/id 3 ::subs/query [:todo/id {:todo/comments ['*]}]}]))))))
 
 (deftest recursive-join-queries

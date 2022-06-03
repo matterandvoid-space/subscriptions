@@ -158,8 +158,7 @@
                                   (println " query: " query)
                                   (get-in (->db app) [id-attr (get args id-attr)]))
                                 (reduce (fn [acc prop]
-                                          (let [star-query? (= '* (:dispatch-key (get props->ast prop)))
-                                                output
+                                          (let [output
                                                             (do (println "entity sub, sub-query for: " prop)
                                                                 (<sub app [prop (assoc args
                                                                                   ;; to implement recursive queries
@@ -171,7 +170,7 @@
                                               (assoc prop output))))
                                   {} props'))
                     output    (merge all-props output)]
-                (println "output: " output)
+                (println "reg-sub-entity output: " output)
                 output))))
         (make-reaction
           (fn [] (reduce (fn [acc prop] (assoc acc prop (<sub app [prop args]))) {} props)))

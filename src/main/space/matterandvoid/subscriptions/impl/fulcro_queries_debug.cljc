@@ -25,7 +25,10 @@
         (assoc :componentName (:name args))
         (dissoc :query :name)))))
 
-(defn app->db [fulcro-app] (fulcro.app/current-state fulcro-app))
+(defn ->db [fulcro-app-or-db]
+  (cond-> fulcro-app-or-db
+    (fulcro.app/fulcro-app? fulcro-app-or-db)
+    (fulcro.app/current-state)))
 
 (defn group-by-flat [f coll] (persistent! (reduce #(assoc! %1 (f %2) %2) (transient {}) coll)))
 
@@ -35,6 +38,19 @@
 
 (defn eql-by-key [query] (group-by-flat :dispatch-key (:children (eql/query->ast query))))
 (defn ast-by-key->query [k->ast] (vec (mapcat eql/ast->query (vals k->ast))))
+
+(defn args->entity+id [id-attr app args]
+  (let [entity-id (get args id-attr)
+        entity    (get-in (->db app) [id-attr entity-id])]
+    [entity entity-id]))
+
+(defn args->entity [id-attr app args]
+  (let [entity-id (get args id-attr)]
+    (get-in (->db app) [id-attr entity-id])))
+
+(defn args->entity-prop [id-attr prop app args]
+  (let [entity-id (get args id-attr)]
+    (get-in (->db app) [id-attr entity-id prop])))
 
 (defn recur? [q] (or (= '... q) (= 0 q) (pos-int? q)))
 (defn error [& args] #?(:clj (Exception. ^String (apply str args)) :cljs (js/Error. (apply str args))))
@@ -93,6 +109,30 @@
           (get entity prop))
         (throw (error "Missing id attr: " id-attr " in args map passed to subscription: " prop "\nArgs: " args))))))
 
+(defn get-all-props-expanded
+  "Return hashmap of data attribute keywords -> subscription output implementation for '* queries"
+  [props app args]
+  (reduce (fn [acc prop]
+            (let [output
+                  (do (println "entity sub, sub-query for: " prop)
+                      (<sub app [prop (dissoc args subs/query-key)]))]
+              (println "sub result : " prop " -> " output)
+              (cond-> acc
+                (not= missing-val output)
+                (assoc prop output))))
+    {} props))
+
+(defn get-all-props-shallow
+  "Return hashmap of data attribute keywords -> subscription output implementation for '* queries"
+  [id-attr props app args]
+  (let [entity (args->entity id-attr app args)]
+    (reduce (fn [acc prop]
+              (println "entity sub, sub-query for: " prop)
+              (let [output (get entity prop missing-val)]
+                (println "sub result : " prop " -> " output)
+                (assoc acc prop output)))
+      {} props)))
+
 (defn reg-sub-entity
   "Registers a subscription that returns a domain entity as a hashmap.
   id-attr for the entity, the entity subscription name (fq kw) a seq of dependent subscription props"
@@ -101,31 +141,36 @@
     (fn [app args]
       (println "REG sub entity: " args)
       (if (contains? args query-key)
-        (let [props->ast (eql-by-key (get args query-key args))
-              entity-id  (get args id-attr)
-              props'     (keys props->ast)
-              query      (get args query-key)]
+        (let [props->ast  (eql-by-key (get args query-key args))
+              props'      (keys (dissoc props->ast '*))
+              query       (get args query-key)
+              star-query  (get props->ast '*)
+              star-query? (some? star-query)]
+          (def p' props')
+          (def pa' props->ast)
           (println "have query in args")
           (make-reaction
             (fn []
-              (let [output
-                    (if (or (nil? query) (= query '[*]))
-                      (do
-                        (println " query: " query)
-                        (get-in (app->db app) [id-attr (get args id-attr)]))
-                      (reduce (fn [acc prop]
-                                (let [output
-                                      (do
-                                        (println "entity sub, sub-query for: " prop)
-                                        (<sub app [prop (assoc args
-                                                          ;; to implement recursive queries
-                                                          ::parent-query query
-                                                          query-key (:query (props->ast prop)))]))]
-                                  (println "sub result : " prop " -> " output)
-                                  (cond-> acc
-                                    (not= missing-val output)
-                                    (assoc prop output))))
-                        {} props'))]
+              (let [all-props (if star-query? (get-all-props-shallow id-attr props app args) nil)
+                    output
+                              (if (or (nil? query) (= query '[*]))
+                                (do
+                                  (println " query: " query)
+                                  (get-in (->db app) [id-attr (get args id-attr)]))
+                                (reduce (fn [acc prop]
+                                          (let [star-query? (= '* (:dispatch-key (get props->ast prop)))
+                                                output
+                                                            (do (println "entity sub, sub-query for: " prop)
+                                                                (<sub app [prop (assoc args
+                                                                                  ;; to implement recursive queries
+                                                                                  ::parent-query query
+                                                                                  query-key (:query (props->ast prop)))]))]
+                                            (println "sub result : " prop " -> " output)
+                                            (cond-> acc
+                                              (not= missing-val output)
+                                              (assoc prop output))))
+                                  {} props'))
+                    output    (merge all-props output)]
                 (println "output: " output)
                 output))))
         (make-reaction
@@ -148,7 +193,7 @@
           (println " in plain join join-comp sub: " join-component-sub)
           (println " in plain join args: " args)
           (if-let [entity-id (get args id-attr)]
-            (let [entity    (get-in (app->db app) [id-attr entity-id])
+            (let [entity    (get-in (->db app) [id-attr entity-id])
                   rels      (not-empty (get entity join-prop))
                   query     (get args query-key)
                   query-ast (eql/query->ast query)]
@@ -190,7 +235,7 @@
           (if-let [entity-id (get args id-attr)]
             (do
               (println "UNION have entity id: " entity-id)
-              (let [entity               (get-in (app->db app) [id-attr entity-id])
+              (let [entity               (get-in (->db app) [id-attr entity-id])
                     rels                 (not-empty (get entity join-prop))
                     query                (get args query-key)
                     query-ast            (eql/query->ast query)
@@ -232,7 +277,7 @@
           (if-let [entity-id (get args id-attr)]
             ;; todo I don't think this handles to-one recursive joins
             ;; need eql/ident? case
-            (let [recur-idents        (get-in (app->db app) [id-attr entity-id recur-prop])
+            (let [recur-idents        (get-in (->db app) [id-attr entity-id recur-prop])
                   ident?              (eql/ident? recur-idents)
                   refs                (or (and ident? recur-idents) (seq (filter some? recur-idents)))
                   sub-q               (get args query-key)

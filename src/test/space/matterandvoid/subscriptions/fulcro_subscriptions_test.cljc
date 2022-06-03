@@ -1,7 +1,7 @@
 (ns space.matterandvoid.subscriptions.fulcro-subscriptions-test
   (:require
-    ;[space.matterandvoid.subscriptions.impl.fulcro-queries-debug :as sut]
-    [space.matterandvoid.subscriptions.fulcro-queries :as sut]
+    [space.matterandvoid.subscriptions.impl.fulcro-queries-debug :as sut]
+    ;[space.matterandvoid.subscriptions.fulcro-queries :as sut]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
     [space.matterandvoid.subscriptions.fulcro :as subs :refer [reg-sub reg-sub-raw subscribe <sub]]
     [com.fulcrologic.fulcro.application :as fulcro.app]
@@ -196,6 +196,10 @@
           (<sub app [::user {:user/id 1 subs/query-key [:user/name :user/id {:user/friends '...}]}])))))
 
 (deftest queries-test
+  (testing "props"
+    (<sub app [::todo {:todo/id 1 subs/query-key [:todo/id :todo/text]}])
+    (<sub app [::todo {:todo/id 1 subs/query-key ['* :todo/text]}])
+    )
   (testing "entity subscription with no query returns all attributes"
     (is (= {:list/members [[:comment/id 1] [:todo/id 2]]
             :list/items   [[:todo/id 2] [:comment/id 1]], :list/name "first list", :list/id 1}

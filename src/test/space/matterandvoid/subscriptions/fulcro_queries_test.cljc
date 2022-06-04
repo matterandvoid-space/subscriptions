@@ -1,7 +1,7 @@
-(ns space.matterandvoid.subscriptions.fulcro-subscriptions-test
+(ns space.matterandvoid.subscriptions.fulcro-queries-test
   (:require
-    [space.matterandvoid.subscriptions.impl.fulcro-queries-debug :as sut]
-    ;[space.matterandvoid.subscriptions.fulcro-queries :as sut]
+    ;[space.matterandvoid.subscriptions.impl.fulcro-queries-debug :as sut]
+    [space.matterandvoid.subscriptions.fulcro-queries :as sut]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
     [space.matterandvoid.subscriptions.fulcro :as subs :refer [reg-sub reg-sub-raw subscribe <sub]]
     [com.fulcrologic.fulcro.application :as fulcro.app]
@@ -145,7 +145,7 @@
       (is (=
             {:todo/id       3,
              :todo/comments [{:comment/sub-comments [[:comment/id 2]], :comment/id 1, :comment/text "FIRST COMMENT"}
-                             {:comment/sub-comments :space.matterandvoid.subscriptions.impl.fulcro-queries-debug/missing,
+                             {:comment/sub-comments ::subs/missing,
                               :comment/id           3,
                               :comment/text         "THIRD COMMENT"}]}
             (<sub app [::todo {:todo/id 3 ::subs/query [:todo/id {:todo/comments ['*]}]}]))))))

@@ -22,6 +22,10 @@
            :dev
            {:extra-paths ["examples" "public" "src/test"]
             :extra-deps  {org.slf4j/slf4j-nop       {:mvn/version "2.0.0-alpha7"}
+                          com.xtdb/xtdb-core        {:mvn/version "1.21.0"}
+                          com.xtdb/xtdb-lmdb        {:mvn/version "1.21.0"}
+                          integrant/integrant       {:mvn/version "0.8.0"}
+                          integrant/repl            {:mvn/version "0.3.2"}
                           org.clojure/clojure       {:mvn/version "1.11.1"}
                           org.clojure/clojurescript {:mvn/version "1.11.54"}
                           binaryage/devtools        {:mvn/version "1.0.6"}

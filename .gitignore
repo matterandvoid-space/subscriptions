@@ -6,6 +6,7 @@
 *.jar
 core/
 out/
+tmp/
 /target/
 compiled/
 node_modules/

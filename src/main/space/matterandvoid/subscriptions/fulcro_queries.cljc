@@ -2,6 +2,7 @@
   (:require
     [taoensso.timbre :as log]
     [com.fulcrologic.fulcro.application :as fulcro.app]
+    [space.matterandvoid.subscriptions.fulcro :refer [reg-sub-raw reg-sub <sub]]
     [space.matterandvoid.subscriptions.impl.fulcro-queries :as impl]))
 
 (defn ->db [fulcro-app-or-db]
@@ -30,5 +31,4 @@
 (defn reg-component-subs!
   "Registers subscriptions that will fulfill the given fulcro component's query.
   The component must have a name as well as any components in its query."
-  [c] (impl/reg-component-subs! fulcro-data-source c))
-
+  [c] (impl/reg-component-subs! reg-sub-raw reg-sub <sub fulcro-data-source c))

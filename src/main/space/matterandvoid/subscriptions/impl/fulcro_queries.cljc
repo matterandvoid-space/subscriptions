@@ -2,11 +2,15 @@
   "Automatically register subscriptions to fulfill EQL queries for fulcro components."
   (:require
     [com.fulcrologic.fulcro.raw.components :as rc]
-    [com.fulcrologic.fulcro.application :as fulcro.app]
-    [space.matterandvoid.subscriptions.fulcro :as subs :refer [reg-sub reg-sub-raw <sub]]
+    [space.matterandvoid.subscriptions :as-alias subs-keys]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :refer [make-reaction]]
     [edn-query-language.core :as eql]
+    [sc.api ]
     [taoensso.timbre :as log]))
+
+;; todo you could possibly remove the fulcro dependency and implement just these:
+;; api you're using: class->registry-key get-ident get-query
+;;
 
 (defn nc
   "Wraps fulcro.raw.components/nc to take one hashmap of fulcro component options, supports :ident being a keyword.
@@ -27,16 +31,11 @@
         (assoc :componentName (:name args))
         (dissoc :query :name)))))
 
-(defn ->db [fulcro-app-or-db]
-  (cond-> fulcro-app-or-db
-    (fulcro.app/fulcro-app? fulcro-app-or-db)
-    (fulcro.app/current-state)))
-
 (defn group-by-flat [f coll] (persistent! (reduce #(assoc! %1 (f %2) %2) (transient {}) coll)))
 
-(def cycle-marker ::subs/cycle)
-(def missing-val ::subs/missing)
-(def query-key ::subs/query)
+(def cycle-marker ::subs-keys/cycle)
+(def missing-val ::subs-keys/missing)
+(def query-key ::subs-keys/query)
 
 (defn eql-by-key [query] (group-by-flat :dispatch-key (:children (eql/query->ast query))))
 (defn eql-by-key-&-keys [query] (let [out (group-by-flat :dispatch-key (:children (eql/query->ast query)))]
@@ -45,6 +44,10 @@
 (defn ast-by-key->query [k->ast] (vec (mapcat eql/ast->query (vals k->ast))))
 
 ;; abstract over storage
+;; you will want to extend this abstract away eql/ident?
+;; for things like xtdb - what you really care about is given an attribute - get its value and does that value represent
+;; another entity? or many entities?
+
 (defprotocol IDataSource
   (-entity-id [this db id-attr args-query-map])
   (-entity [this db id-attr args-query-map])
@@ -99,9 +102,10 @@
 (defn reg-sub-prop
   "Takes two keywords: id attribute and property attribute, registers a layer 2 subscription using the id to lookup the
   entity and extract the property."
-  [datasource id-attr prop]
+  [reg-sub datasource id-attr prop]
   (reg-sub prop (fn [db args]
                   (missing-id-check! id-attr prop args)
+                  (log/info "reg-sub-prop : '" id-attr)
                   (-attr datasource db id-attr prop args))))
 
 (defn get-all-props-shallow
@@ -113,7 +117,7 @@
 (defn reg-sub-entity
   "Registers a subscription that returns a domain entity as a hashmap.
   id-attr for the entity, the entity subscription name (fq kw) a seq of dependent subscription props"
-  [datasource id-attr entity-kw props]
+  [reg-sub-raw <sub datasource id-attr entity-kw props]
   (reg-sub-raw entity-kw
     (fn [app args]
       (if (contains? args query-key)
@@ -147,12 +151,19 @@
                 ;(println "reg-sub-entity output: " output)
                 output))))
         (make-reaction
-          (fn [] (reduce (fn [acc prop] (assoc acc prop (<sub app [prop args]))) {} props)))))))
+          (fn []
+            (reduce
+              (fn [acc prop]
+                (log/info "reg-sub-entity recur: '" prop)
+                (def app app)
+                (def args args)
+                (assoc acc prop (<sub app [prop args])))
+              {} props)))))))
 
 (defn reg-sub-plain-join
   "Takes two keywords: id attribute and property attribute, registers a layer 2 subscription using the id to lookup the
   entity and extract the property."
-  [datasource id-attr join-prop join-component-sub]
+  [reg-sub-raw <sub datasource id-attr join-prop join-component-sub]
   (reg-sub-raw join-prop
     (fn [app args]
       (make-reaction
@@ -183,11 +194,12 @@
 (defn reg-sub-union-join
   "Takes two keywords: id attribute and property attribute, registers a layer 2 subscription using the id to lookup the
   entity and extract the property."
-  [datasource id-attr join-prop join-component-sub]
+  [reg-sub-raw <sub datasource id-attr join-prop join-component-sub]
   (reg-sub-raw join-prop
     (fn [app args]
       (make-reaction
         (fn []
+          (log/info "in union join: " join-prop)
           (missing-id-check! id-attr join-prop args)
 
           (let [refs                 (-attr datasource app id-attr join-prop args)
@@ -213,96 +225,101 @@
               :else (throw (error "Union Invalid join: for join prop " join-prop, " value: " refs)))))))))
 
 (defn reg-sub-recur-join
-  [datasource id-attr recur-prop entity-sub]
+  [reg-sub-raw <sub datasource id-attr recur-prop entity-sub]
   (reg-sub-raw recur-prop
     (fn [app {::keys [entity-history parent-query] :as args}]
       (make-reaction
         (fn []
           (missing-id-check! id-attr recur-prop args)
-          (let [entity-id           (get args id-attr)
-                recur-idents        (-attr datasource app id-attr recur-prop args)
-                ident?              (eql/ident? recur-idents)
-                refs                (or (and ident? recur-idents) (seq (filter some? recur-idents)))
-                sub-query           (get args query-key)
-                seen-entity-id?     (contains? entity-history entity-id)
-                [recur-query recur-value] (when (and sub-query parent-query)
-                                            (let [by-key      (eql-by-key parent-query)
-                                                  recur-value (:query (get by-key recur-prop))]
-                                              [(cond
-                                                 (= recur-value '...) (if seen-entity-id?
-                                                                        (vec (mapcat eql/ast->query (vals (dissoc by-key recur-prop))))
-                                                                        parent-query)
-                                                 (and (pos-int? recur-value) (> recur-value 0))
-                                                 (ast-by-key->query (update-in by-key [recur-prop :query] dec))
 
-                                                 (symbol? recur-value)
-                                                 (if-let [f (get args recur-value)]
-                                                   (do
-                                                     (when-not (ifn? f) (throw (error "Recursion callback is not a function for attr" id-attr
-                                                                                 " recur prop: " recur-prop
-                                                                                 " received: " f)))
-                                                     (f (-> args
-                                                          (assoc ::subs/current-id-attr id-attr
-                                                                 ::subs/current-entity-sub entity-sub))))
-                                                   (throw (error "Missing function implementation for symbol " recur-value
-                                                            " in recursive position for id attribute: " id-attr " recursion attribute: " recur-prop))))
-                                               recur-value]))
-                self-join?          (and ident? (= refs [id-attr entity-id]))
-                infinite-self-join? (and recur-query self-join? (= recur-value '...))]
+          (log/info "in recur join: " recur-prop)
+          (comment (sc.api/defsc 1))
+          (sc.api/spy
+            (let [entity-id           (get args id-attr)
+                  recur-idents        (-attr datasource app id-attr recur-prop args)
+                  ident?              (eql/ident? recur-idents)
+                  refs                (or (and ident? recur-idents) (seq (filter some? recur-idents)))
+                  sub-query           (get args query-key)
+                  seen-entity-id?     (contains? entity-history entity-id)
+                  [recur-query recur-value] (when (and sub-query parent-query)
+                                              (let [by-key      (eql-by-key parent-query)
+                                                    recur-value (:query (get by-key recur-prop))]
+                                                [(cond
+                                                   (= recur-value '...) (if seen-entity-id?
+                                                                          (vec (mapcat eql/ast->query (vals (dissoc by-key recur-prop))))
+                                                                          parent-query)
+                                                   (and (pos-int? recur-value) (> recur-value 0))
+                                                   (ast-by-key->query (update-in by-key [recur-prop :query] dec))
 
-            (cond
-              ;; pointer was nil
-              (and recur-query (not refs)) missing-val
+                                                   ;; todo implement generic recursion using symbols
+                                                   (symbol? recur-value)
+                                                   (if-let [f (get args recur-value)]
+                                                     (do
+                                                       (when-not (ifn? f) (throw (error "Recursion callback is not a function for attr" id-attr
+                                                                                   " recur prop: " recur-prop
+                                                                                   " received: " f)))
+                                                       (f (-> args
+                                                            (assoc ::current-id-attr id-attr
+                                                                   ::current-entity-sub entity-sub))))
+                                                     (throw (error "Missing function implementation for symbol " recur-value
+                                                              " in recursive position for id attribute: " id-attr " recursion attribute: " recur-prop))))
+                                                 recur-value]))
+                  self-join?          (and ident? (= refs [id-attr entity-id]))
+                  infinite-self-join? (and recur-query self-join? (= recur-value '...))]
 
-              ;; self cycle
-              infinite-self-join? cycle-marker
+              (cond
+                ;; pointer was nil
+                (and recur-query (not refs)) missing-val
 
-              ;; to-one join
-              (and recur-query ident?)
-              (if seen-entity-id?
-                ;; cycle
-                (-> (<sub app [entity-sub
-                               (-> args
-                                 (update ::depth (fnil inc 0))
-                                 (update ::entity-history (fnil conj #{}) entity-id)
-                                 (assoc query-key recur-query, id-attr (second refs)))])
-                  (assoc recur-prop cycle-marker))
+                ;; self cycle
+                infinite-self-join? cycle-marker
 
-                (<sub app [entity-sub
-                           (-> args
-                             (update ::depth (fnil inc 0))
-                             (update ::entity-history (fnil conj #{}) entity-id)
-                             (assoc query-key recur-query, id-attr (second refs)))]))
+                ;; to-one join
+                (and recur-query ident?)
+                (if seen-entity-id?
+                  ;; cycle
+                  (-> (<sub app [entity-sub
+                                 (-> args
+                                   (update ::depth (fnil inc 0))
+                                   (update ::entity-history (fnil conj #{}) entity-id)
+                                   (assoc query-key recur-query, id-attr (second refs)))])
+                    (assoc recur-prop cycle-marker))
 
-              ;; to-many join
-              (and recur-query refs)
-              (if seen-entity-id?
-                cycle-marker
-                (mapv (fn [[_ id]] (<sub app [entity-sub
-                                              (-> args
-                                                (update ::entity-history (fnil conj #{}) entity-id)
-                                                (assoc query-key recur-query id-attr id))]))
-                      refs))
+                  (<sub app [entity-sub
+                             (-> args
+                               (update ::depth (fnil inc 0))
+                               (update ::entity-history (fnil conj #{}) entity-id)
+                               (assoc query-key recur-query, id-attr (second refs)))]))
 
-              ;; do not recur
-              refs (vec refs)
-              :else missing-val)))))))
+                ;; to-many join
+                (and recur-query refs)
+                (if seen-entity-id?
+                  cycle-marker
+                  (mapv (fn [[_ id]] (<sub app [entity-sub
+                                                (-> args
+                                                  (update ::entity-history (fnil conj #{}) entity-id)
+                                                  (assoc query-key recur-query id-attr id))]))
+                        refs))
+
+                ;; do not recur
+                refs (vec refs)
+                :else missing-val))))))))
 
 (defn component-id-prop [c] (first (rc/get-ident c {})))
 
 (defn reg-component-subs!
   "Registers subscriptions that will fulfill the given fulcro component's query.
   The component must have a name and so must any components in its query."
-  [datasource c]
+  [reg-sub-raw reg-sub <sub datasource c]
   (when-not (rc/class->registry-key c) (throw (error "Component name missing on component: " c)))
   (let [query      (rc/get-query c)
         entity-sub (rc/class->registry-key c)
         id-attr    (component-id-prop c)
         {:keys [props plain-joins union-joins recur-joins all-children]} (eql-query-keys-by-type query)]
     (when-not id-attr (throw (error "Component missing ident: " c)))
-    (run! (fn [p] (reg-sub-prop datasource id-attr p)) props)
-    (run! (fn [[p component-sub]] (reg-sub-plain-join datasource id-attr p component-sub)) plain-joins)
-    (run! (fn [[p component-sub]] (reg-sub-union-join datasource id-attr p component-sub)) union-joins)
-    (run! (fn [[p]] (reg-sub-recur-join datasource id-attr p entity-sub)) recur-joins)
-    (reg-sub-entity datasource id-attr entity-sub all-children)
+    (run! (fn [p] (reg-sub-prop reg-sub datasource id-attr p)) props)
+    (run! (fn [[p component-sub]] (reg-sub-plain-join reg-sub-raw <sub datasource id-attr p component-sub)) plain-joins)
+    (run! (fn [[p component-sub]] (reg-sub-union-join reg-sub-raw <sub datasource id-attr p component-sub)) union-joins)
+    (run! (fn [[p]] (reg-sub-recur-join reg-sub-raw <sub datasource id-attr p entity-sub)) recur-joins)
+    (reg-sub-entity reg-sub-raw <sub datasource id-attr entity-sub all-children)
     nil))

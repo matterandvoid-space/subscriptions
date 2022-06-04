@@ -62,6 +62,8 @@
                                2 {:todo/id 2 :todo/text "todo 2" :todo/author [:user/id 2]}
                                3 {:todo/id 3 :todo/text "todo 3" :todo/comments [[:comment/id 1] [:comment/id 3]]}}}))
 
+()
+
 
 (def app (assoc (fulcro.app/fulcro-app {}) ::fulcro.app/state-atom db_))
 

@@ -1,37 +1,40 @@
-(ns space.matterandvoid.subscriptions.impl.xtdb-queries
+(ns space.matterandvoid.subscriptions.xtdb-queries
   (:require
     [clojure.java.io :as io]
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [integrant.core :as ig]
+    [space.matterandvoid.subscriptions.core :refer [reg-sub-raw reg-sub <sub]]
     [space.matterandvoid.subscriptions.impl.fulcro-queries :as impl]
     [taoensso.timbre :as log]
-    [xtdb.api :as xt])
-  (:import [xtdb.api DBProvider]
-           [xtdb.query QueryDatasource]))
+    [xtdb.api :as xt]
+    [space.matterandvoid.subscriptions.impl.reagent-ratom :as r])
+  (:import
+    [xtdb.query QueryDatasource]
+    [xtdb.api DBProvider]))
 
-(def lmdb-xt-config
-  {:xtdb/index-store    {:kv-store {:xtdb/module 'xtdb.lmdb/->kv-store :db-dir (io/file "tmp/lmdb-index-store")}}
-   :xtdb/document-store {:kv-store {:xtdb/module 'xtdb.lmdb/->kv-store :sync? true :db-dir (io/file "tmp/lmdb-doc-store")}}
-   :xtdb/tx-log         {:kv-store {:xtdb/module 'xtdb.lmdb/->kv-store :sync? true :db-dir (io/file "tmp/lmdb-tx-log-store")}}})
-
-(def config
-  {:xtdb/node lmdb-xt-config})
-
-(defmethod ig/init-key :xtdb/node
-  [_ opts]
-  (log/info "opts: " opts)
-  (xt/start-node opts))
-
-(defmethod ig/halt-key! :xtdb/node [_ node]
-  (log/info "Stopping xt node")
-  (.close node))
-
-(comment
-  (xt/submit-tx (:xtdb/node system) [[::xt/put {:xt/id :hi :dan 5}]])
-  (xt/entity (xt/db (:xtdb/node system)) :hi)
-  (def system (ig/init config))
-  (ig/halt! system)
-  )
+;(def lmdb-xt-config
+;  {:xtdb/index-store    {:kv-store {:xtdb/module 'xtdb.lmdb/->kv-store :db-dir (io/file "tmp/lmdb-index-store")}}
+;   :xtdb/document-store {:kv-store {:xtdb/module 'xtdb.lmdb/->kv-store :sync? true :db-dir (io/file "tmp/lmdb-doc-store")}}
+;   :xtdb/tx-log         {:kv-store {:xtdb/module 'xtdb.lmdb/->kv-store :sync? true :db-dir (io/file "tmp/lmdb-tx-log-store")}}})
+;
+;(def config
+;  {:xtdb/node lmdb-xt-config})
+;
+;(defmethod ig/init-key :xtdb/node
+;  [_ opts]
+;  (log/info "opts: " opts)
+;  (xt/start-node opts))
+;
+;(defmethod ig/halt-key! :xtdb/node [_ node]
+;  (log/info "Stopping xt node")
+;  (.close node))
+;
+;(comment
+;  (xt/submit-tx (:xtdb/node system) [[::xt/put {:xt/id :hi :dan 5}]])
+;  (xt/entity (xt/db (:xtdb/node system)) :hi)
+;  (def system (ig/init config))
+;  (ig/halt! system)
+;  )
 
 ;;
 ;; so the idea is ....
@@ -51,20 +54,25 @@
 
 (defn xt-node? [n] (instance? DBProvider n))
 (defn db? [x] (or (instance? QueryDatasource x) (.isInstance QueryDatasource x)))
+
 (defn ->db [node-or-db]
-  (cond
-    (xt-node? node-or-db) (xt/db node-or-db)
-    (db? node-or-db) node-or-db
-    :else (throw (Exception. (str "Unsopported value passed to ->db: " (pr-str node-or-db))))))
+  (let [v (if (r/ratom? node-or-db) @node-or-db node-or-db)]
+    (cond
+      (xt-node? v) (xt/db v)
+      (db? v) v
+      :else (throw (Exception. (str "Unsopported value passed to ->db: " (pr-str node-or-db)))))))
 
 (def xtdb-data-source
   (reify impl/IDataSource
     (-entity-id [_ _ id-attr args] (get args id-attr))
     (-entity [_ xt-node-or-db id-attr args]
+      (log/info "-entity: " id-attr)
       (xt/entity (->db xt-node-or-db) (get args id-attr)))
     (-attr [_ xt-node-or-db id-attr attr args]
+      (log/info "-attr: " id-attr " attr " attr)
       (get (xt/entity (->db xt-node-or-db) (get args id-attr)) attr))))
 
+;(impl/-attr xtdb-data-source (xt/start-node {}) :id :attr {} )
 (defn nc
   "Wraps fulcro.raw.components/nc to take one hashmap of fulcro component options, supports :ident being a keyword.
   Args:
@@ -77,5 +85,4 @@
 (defn reg-component-subs!
   "Registers subscriptions that will fulfill the given fulcro component's query.
   The component must have a name as well as any components in its query."
-  [c] (impl/reg-component-subs! xtdb-data-source c))
-
+  [c] (impl/reg-component-subs! reg-sub-raw reg-sub <sub xtdb-data-source c))

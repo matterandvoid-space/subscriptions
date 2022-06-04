@@ -1,7 +1,10 @@
 (ns space.matterandvoid.subscriptions.core
   #?(:cljs (:require-macros [space.matterandvoid.subscriptions.core]))
-  (:require [space.matterandvoid.subscriptions.impl.core :as impl]))
+  (:require
+    [space.matterandvoid.subscriptions :as-alias subs-keys]
+    [space.matterandvoid.subscriptions.impl.core :as impl]))
 
+(def query-key ::subs-keys/query)
 (defn set-memoize-fn! [f] (impl/set-memoize-fn! f))
 (defn set-args-merge-fn! [f] (impl/set-args-merge-fn! f))
 

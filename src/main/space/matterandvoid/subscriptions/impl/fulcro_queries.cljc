@@ -57,6 +57,10 @@
 ;; whatever way this is done, it will be dependent/custom to how the user stores their data.
 ;; things work for fulcro because all pointers are refs
 ;;
+;; one easy implementation is to optimize for the common case where you are not storing vectors as IDs in XT
+;; Thus: if the return value is a vector, treat it as a to-many join.
+;; to resolve the subscription to use, expand the entities (map xt/entity) and then filter  first where attribute
+;; keyword name = "id".
 
 (defprotocol IDataSource
   (-entity-id [this db id-attr args-query-map])
@@ -314,6 +318,7 @@
                                                 (assoc query-key recur-query id-attr id))]))
                       refs))
 
+              ;; todo to-one is not implemented yet, likely want to clean up the duplicated code too
               (and callback-fn callback-style)
               (do (println "HAVE CALLBACK")
                   (condp = callback-style
@@ -347,8 +352,8 @@
                                                                      (-> args
                                                                        (update ::entity-history (fnil conj #{}) entity-id)
                                                                        (assoc query-key parent-query id-attr id))]))
-                                             refs))))
-                                 )
+                                             refs)))))
+
                     :expand (let [recur-idents (callback-fn entity)
                                   {:keys [expand stop]} recur-idents]
                               (println "RETU: " (pr-str recur-idents))
@@ -385,10 +390,7 @@
                                               refs)
                                         (when stop (mapv (fn [[_ id]] (-entity datasource app id-attr
                                                                         (assoc args id-attr id))) stop))
-                                        )))))
-                              )
-
-                    ))
+                                        ))))))))
               ;; do not recur
               refs (vec refs)
               :else missing-val)))))))

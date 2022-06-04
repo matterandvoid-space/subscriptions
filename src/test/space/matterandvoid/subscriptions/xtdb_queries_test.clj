@@ -72,7 +72,6 @@
    [::xt/put {:xt/id :tood-2 :todo/id :todo-2 :todo/text "todo 2" :todo/author [:user/id :user-2]}]
    [::xt/put {:xt/id :tood-3 :todo/id :todo-3 :todo/text "todo 3" :todo/comments [[:comment/id :comment-1] [:comment/id :comment-3]]}]
 
-
    [::xt/put {:xt/id :user-9 :user/id :user-9 :user/name "user 9" :user/friends [:user-10]}]
    [::xt/put {:xt/id :user-10 :user/id :user-10 :user/name "user 10" :user/friends [:user-10 :user-9 :user-11]}]
    [::xt/put {:xt/id :user-11 :user/id :user-11 :user/name "user 11" :user/friends [:user-10 :user-12]}]
@@ -100,14 +99,32 @@
                                               (println "IN GET FRIENDS " e)
                                               (let [friends (map (fn [[_ f-id]] (xt/entity (xt/db xt-node) f-id)) (:user/friends e))]
                                                 (println "friends: " friends)
-                                                {:stop
-                                                 (mapv (fn [{:user/keys [id]}] [::user id])
-                                                   (filter (fn [{:user/keys [name]}] (= name "user 3")) friends))
+                                                ;; stop keeps the entity but does not recur on it, vs removing it completely from the
+                                                ;; result set.
+                                                {:stop   (mapv (fn [{:user/keys [id]}] [::user id])
+                                                           (filter (fn [{:user/keys [name]}] (= name "user 3")) friends))
                                                  :expand (mapv (fn [{:user/keys [id]}] [::user id])
                                                            (remove
                                                              (fn [{:user/keys [name]}] (= name "user 3")) friends))}))
                      ::subs-keys/walk-style :expand
                      :user/id               :user-1 subs/query-key [:user/name :user/id {:user/friends 'get-friends}]}])
+
+  ;This returns:
+
+  {:user/name "user 1",
+   :user/id :user-1,
+   :user/friends [{:user/name "user 2",
+                   :user/id :user-2,
+                   :user/friends [{:user/name "user 2",
+                                   :user/id :user-2,
+                                   :user/friends :space.matterandvoid.subscriptions/cycle}
+                                  {:user/name "user 1",
+                                   :user/id :user-1,
+                                   :user/friends :space.matterandvoid.subscriptions/cycle}
+                                  {:user/id :user-3,
+                                   :user/name "user 3",
+                                   :user/friends [[:user/id :user-2] [:user/id :user-4]],
+                                   :xt/id :user-3}]}]}
 
 
   (xt/pull (xt/db xt-node) [:user/name :user/id {:user/friends '...}] :user-9)

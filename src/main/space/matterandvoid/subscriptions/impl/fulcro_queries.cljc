@@ -348,7 +348,47 @@
                                                                        (update ::entity-history (fnil conj #{}) entity-id)
                                                                        (assoc query-key parent-query id-attr id))]))
                                              refs))))
-                                 )))
+                                 )
+                    :expand (let [recur-idents (callback-fn entity)
+                                  {:keys [expand stop]} recur-idents]
+                              (println "RETU: " (pr-str recur-idents))
+                              (when (or expand stop)
+                                (let [ident? (eql/ident? expand)
+                                      refs   (or (and ident? expand) (seq (filter some? expand)))]
+                                  ;; duplicate logic for now
+                                  (cond
+                                    ident?
+                                    (if seen-entity-id?
+                                      ;; cycle
+                                      (-> (<sub app [entity-sub
+                                                     (-> args
+                                                       (update ::depth (fnil inc 0))
+                                                       (update ::entity-history (fnil conj #{}) entity-id)
+                                                       (assoc query-key recur-query, id-attr (second refs)))])
+                                        (assoc recur-prop cycle-marker))
+
+                                      (<sub app [entity-sub
+                                                 (-> args
+                                                   (update ::depth (fnil inc 0))
+                                                   (update ::entity-history (fnil conj #{}) entity-id)
+                                                   (assoc query-key recur-query, id-attr (second refs)))]))
+
+                                    ;; to-many join
+                                    refs
+                                    (if seen-entity-id?
+                                      cycle-marker
+                                      (into
+                                        (mapv (fn [[_ id]] (<sub app [entity-sub
+                                                                      (-> args
+                                                                        (update ::entity-history (fnil conj #{}) entity-id)
+                                                                        (assoc query-key parent-query id-attr id))]))
+                                              refs)
+                                        (when stop (mapv (fn [[_ id]] (-entity datasource app id-attr
+                                                                        (assoc args id-attr id))) stop))
+                                        )))))
+                              )
+
+                    ))
               ;; do not recur
               refs (vec refs)
               :else missing-val)))))))

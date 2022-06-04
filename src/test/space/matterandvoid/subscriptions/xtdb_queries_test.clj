@@ -96,6 +96,20 @@
                      ::subs-keys/walk-style :predicate
                      :user/id               :user-1 subs/query-key [:user/name :user/id {:user/friends 'keep-walking?}]}])
 
+  (<sub db_ [::user {'get-friends           (fn [e]
+                                              (println "IN GET FRIENDS " e)
+                                              (let [friends (map (fn [[_ f-id]] (xt/entity (xt/db xt-node) f-id)) (:user/friends e))]
+                                                (println "friends: " friends)
+                                                {:stop
+                                                 (mapv (fn [{:user/keys [id]}] [::user id])
+                                                   (filter (fn [{:user/keys [name]}] (= name "user 3")) friends))
+                                                 :expand (mapv (fn [{:user/keys [id]}] [::user id])
+                                                           (remove
+                                                             (fn [{:user/keys [name]}] (= name "user 3")) friends))}))
+                     ::subs-keys/walk-style :expand
+                     :user/id               :user-1 subs/query-key [:user/name :user/id {:user/friends 'get-friends}]}])
+
+
   (xt/pull (xt/db xt-node) [:user/name :user/id {:user/friends '...}] :user-9)
   (xt/pull (xt/db xt-node) [:user/name :user/id {:user/friends ['*]}] :user-9)
   (xt/entity (xt/db xt-node) :user-1)

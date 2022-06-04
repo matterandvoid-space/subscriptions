@@ -128,22 +128,23 @@
                     output
                               (if (or (nil? query) (= query '[*]))
                                 (do
-                                  (println " query: " query)
+                                  ;(println " query: " query)
                                   (-entity datasource app id-attr args))
                                 (reduce (fn [acc prop]
                                           (let [output
-                                                (do (println "entity sub, sub-query for: " prop)
+                                                (do
+                                                  ;(println "entity sub, sub-query for: " prop)
                                                     (<sub app [prop (assoc args
                                                                       ;; to implement recursive queries
                                                                       ::parent-query query
                                                                       query-key (:query (props->ast prop)))]))]
-                                            (println "sub result : " prop " -> " output)
+                                            ;(println "sub result : " prop " -> " output)
                                             (cond-> acc
                                               (not= missing-val output)
                                               (assoc prop output))))
                                   {} props'))
                     output    (merge all-props output)]
-                (println "reg-sub-entity output: " output)
+                ;(println "reg-sub-entity output: " output)
                 output))))
         (make-reaction
           (fn [] (reduce (fn [acc prop] (assoc acc prop (<sub app [prop args]))) {} props)))))))

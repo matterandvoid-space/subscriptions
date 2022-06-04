@@ -62,7 +62,7 @@
       (db? v) v
       :else (throw (Exception. (str "Unsopported value passed to ->db: " (pr-str node-or-db)))))))
 
-(def xtdb-data-source
+(defn xtdb-data-source []
   (reify impl/IDataSource
     (-entity-id [_ _ id-attr args] (get args id-attr))
     (-entity [_ xt-node-or-db id-attr args]
@@ -85,4 +85,4 @@
 (defn reg-component-subs!
   "Registers subscriptions that will fulfill the given fulcro component's query.
   The component must have a name as well as any components in its query."
-  [c] (impl/reg-component-subs! reg-sub-raw reg-sub <sub xtdb-data-source c))
+  [c] (impl/reg-component-subs! reg-sub-raw reg-sub <sub (xtdb-data-source) c))

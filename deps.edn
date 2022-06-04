@@ -30,7 +30,8 @@
                           org.clojure/clojurescript {:mvn/version "1.11.54"}
                           binaryage/devtools        {:mvn/version "1.0.6"}
                           datascript/datascript     {:mvn/version "1.3.13"}
-                          edn-query-language/eql    {:mvn/version "2021.07.18"}
+                          ;edn-query-language/eql    {:mvn/version "2021.07.18"}
+                          edn-query-language/eql    {:git/url "git@github.com:matterandvoid-space/eql.git" :git/sha "a586804e6ffaa071341d183b7d95d050feff8f44"}
                           reagent/reagent           {:mvn/version "1.1.1"}
                           com.fulcrologic/fulcro    {:mvn/version "3.5.21"}
                           thheller/shadow-cljs      {:mvn/version "2.19.0"}}}}}

@@ -2,11 +2,14 @@
   (:require
     [space.matterandvoid.subscriptions.xtdb-queries :as sut]
     [space.matterandvoid.subscriptions.core :as subs :refer [<sub]]
+    [space.matterandvoid.subscriptions :as-alias subs-keys]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
     [com.fulcrologic.fulcro.raw.components :as rc]
     [taoensso.timbre :as log]
+    [edn-query-language.core :as eql]
     [xtdb.api :as xt]
     [clojure.test :refer [deftest is testing]]))
+
 
 ;; idea to use a predicate to determine recursion - this is not part of eql currently
 ;(eql/query->ast [:comment/id :comment/text {:comment/sub-comments `traverse?}])
@@ -67,7 +70,14 @@
    ;; union queries
    [::xt/put {:xt/id :tood-1 :todo/id :todo-1 :todo/text "todo 1" :todo/author [:bot/id :bot-1] :todo/comment [:comment/id :comment-1]}]
    [::xt/put {:xt/id :tood-2 :todo/id :todo-2 :todo/text "todo 2" :todo/author [:user/id :user-2]}]
-   [::xt/put {:xt/id :tood-3 :todo/id :todo-3 :todo/text "todo 3" :todo/comments [[:comment/id :comment-1] [:comment/id :comment-3]]}]])
+   [::xt/put {:xt/id :tood-3 :todo/id :todo-3 :todo/text "todo 3" :todo/comments [[:comment/id :comment-1] [:comment/id :comment-3]]}]
+
+
+   [::xt/put {:xt/id :user-9 :user/id :user-9 :user/name "user 9" :user/friends [:user-10]}]
+   [::xt/put {:xt/id :user-10 :user/id :user-10 :user/name "user 10" :user/friends [:user-10 :user-9 :user-11]}]
+   [::xt/put {:xt/id :user-11 :user/id :user-11 :user/name "user 11" :user/friends [:user-10 :user-12]}]
+   [::xt/put {:xt/id :user-12 :user/id :user-12 :user/name "user 12" :user/friends [:user-11 :user-12]}]]
+  )
 
 (xt/sync xt-node)
 
@@ -78,7 +88,18 @@
   (<sub db_ [::user {:user/id :user-1 subs/query-key [:user/name :user/id {:user/friends 0}]}])
   (<sub db_ [::user {:user/id :user-1 subs/query-key [:user/name :user/id {:user/friends '...}]}])
 
-  (<sub xt-node )
+  (<sub db_ [::user {'keep-walking?         (fn [e]
+                                              (println "IN KEEP walking? " e)
+                                              (#{"user 1" "user 2"} (:user/name e))
+                                              ;(= "user 1" (:user/name e))
+                                              )
+                     ::subs-keys/walk-style :predicate
+                     :user/id               :user-1 subs/query-key [:user/name :user/id {:user/friends 'keep-walking?}]}])
+
+  (xt/pull (xt/db xt-node) [:user/name :user/id {:user/friends '...}] :user-9)
+  (xt/pull (xt/db xt-node) [:user/name :user/id {:user/friends ['*]}] :user-9)
+  (xt/entity (xt/db xt-node) :user-1)
+  ;(<sub xt-node )
   )
 
 ;(<sub app [::user {:user/id 1 ::subs/query [:user/id {:user/friends `keep-walking?}]}])

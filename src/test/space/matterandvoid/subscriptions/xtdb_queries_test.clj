@@ -61,9 +61,12 @@
 
    ;; to-many cycle
    [::xt/put {:xt/id :user-1 :user/id :user-1 :user/name "user 1" :user/friends [[:user/id :user-2]]}]
-   [::xt/put {:xt/id :user-2 :user/id :user-2 :user/name "user 2" :user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3]]}]
+   [::xt/put {:xt/id :user-2 :user/id :user-2 :user/name "user 2" :user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3] [:user/id :user-5]]}]
    [::xt/put {:xt/id :user-3 :user/id :user-3 :user/name "user 3" :user/friends [[:user/id :user-2] [:user/id :user-4]]}]
    [::xt/put {:xt/id :user-4 :user/id :user-4 :user/name "user 4" :user/friends [[:user/id :user-3] [:user/id :user-4]]}]
+   [::xt/put {:xt/id :user-5 :user/id :user-5 :user/name "user 5" :user/friends [[:user/id :user-6] [:user/id :user-7]]}]
+   [::xt/put {:xt/id :user-6 :user/id :user-6 :user/name "user 6" :user/friends [[:user/id :user-7]]}]
+   [::xt/put {:xt/id :user-7 :user/id :user-7 :user/name "user 7"}]
 
    [::xt/put {:xt/id :bot-1 :bot/id :bot-1 :bot/name "bot 1"}]
 
@@ -81,6 +84,7 @@
 (xt/sync xt-node)
 
 (defonce db_ (r/atom (xt/db xt-node)))
+;(reset! db_ (xt/db xt-node))
 
 (comment
   (<sub db_ [::user {:user/id :user-1 subs/query-key [:user/name :user/id {:user/friends 1}]}])
@@ -111,20 +115,20 @@
 
   ;This returns:
 
-  {:user/name "user 1",
-   :user/id :user-1,
-   :user/friends [{:user/name "user 2",
-                   :user/id :user-2,
-                   :user/friends [{:user/name "user 2",
-                                   :user/id :user-2,
+  {:user/name    "user 1",
+   :user/id      :user-1,
+   :user/friends [{:user/name    "user 2",
+                   :user/id      :user-2,
+                   :user/friends [{:user/name    "user 2",
+                                   :user/id      :user-2,
                                    :user/friends :space.matterandvoid.subscriptions/cycle}
-                                  {:user/name "user 1",
-                                   :user/id :user-1,
+                                  {:user/name    "user 1",
+                                   :user/id      :user-1,
                                    :user/friends :space.matterandvoid.subscriptions/cycle}
-                                  {:user/id :user-3,
-                                   :user/name "user 3",
+                                  {:user/id      :user-3,
+                                   :user/name    "user 3",
                                    :user/friends [[:user/id :user-2] [:user/id :user-4]],
-                                   :xt/id :user-3}]}]}
+                                   :xt/id        :user-3}]}]}
 
 
   (xt/pull (xt/db xt-node) [:user/name :user/id {:user/friends '...}] :user-9)

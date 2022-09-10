@@ -5,9 +5,9 @@
     [integrant.core :as ig]
     [space.matterandvoid.subscriptions.core :refer [reg-sub-raw reg-sub <sub]]
     [space.matterandvoid.subscriptions.impl.fulcro-queries :as impl]
+    [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
     [taoensso.timbre :as log]
-    [xtdb.api :as xt]
-    [space.matterandvoid.subscriptions.impl.reagent-ratom :as r])
+    [xtdb.api :as xt])
   (:import
     [xtdb.query QueryDatasource]
     [xtdb.api DBProvider]))

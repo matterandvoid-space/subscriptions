@@ -1,9 +1,14 @@
 (ns space.matterandvoid.subscriptions.fulcro-queries
   (:require
-    [taoensso.timbre :as log]
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [space.matterandvoid.subscriptions.fulcro :refer [reg-sub-raw reg-sub <sub]]
-    [space.matterandvoid.subscriptions.impl.fulcro-queries :as impl]))
+    [space.matterandvoid.subscriptions.impl.fulcro-queries :as impl]
+    [taoensso.timbre :as log]))
+
+(def query-key impl/query-key)
+(def cycle-marker impl/cycle-marker)
+(def missing-val impl/missing-val)
+(def walk-style-key impl/walk-style-key)
 
 (defn ->db [fulcro-app-or-db]
   (cond-> fulcro-app-or-db
@@ -30,5 +35,5 @@
 
 (defn reg-component-subs!
   "Registers subscriptions that will fulfill the given fulcro component's query.
-  The component must have a name as well as any components in its query."
+  The component and any components in its query must have a name (cannot be anonymous)."
   [c] (impl/reg-component-subs! reg-sub-raw reg-sub <sub fulcro-data-source c))

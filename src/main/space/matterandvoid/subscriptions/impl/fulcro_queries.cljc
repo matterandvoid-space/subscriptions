@@ -2,11 +2,15 @@
   "Automatically register subscriptions to fulfill EQL queries for fulcro components."
   (:require
     [com.fulcrologic.fulcro.raw.components :as rc]
-    [space.matterandvoid.subscriptions :as-alias subs-keys]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :refer [make-reaction]]
     [edn-query-language.core :as eql]
     [sc.api]
     [taoensso.timbre :as log]))
+
+(def query-key ::query)
+(def cycle-marker ::cycle)
+(def missing-val ::missing)
+(def walk-style-key ::walk-style)
 
 ;; todo you could possibly remove the fulcro dependency and implement just these:
 ;; api you're using: class->registry-key get-ident get-query
@@ -33,10 +37,6 @@
 
 (defn group-by-flat [f coll] (persistent! (reduce #(assoc! %1 (f %2) %2) (transient {}) coll)))
 
-(def cycle-marker ::subs-keys/cycle)
-(def missing-val ::subs-keys/missing)
-(def query-key ::subs-keys/query)
-(def walk-style-key ::subs-keys/walk-style)
 
 (defn eql-by-key [query] (group-by-flat :dispatch-key (:children (eql/query->ast query))))
 (defn eql-by-key-&-keys [query] (let [out (group-by-flat :dispatch-key (:children (eql/query->ast query)))]
@@ -134,6 +134,7 @@
   [reg-sub-raw <sub datasource id-attr entity-kw props]
   (reg-sub-raw entity-kw
     (fn [app args]
+      (log/info "(contains? args query-key)" (pr-str (contains? args query-key)))
       (if (contains? args query-key)
         (let [props->ast  (eql-by-key (get args query-key args))
               props'      (keys (dissoc props->ast '*))
@@ -142,11 +143,12 @@
               star-query? (some? star-query)]
           (make-reaction
             (fn []
+              (println "in entity sub " entity-kw)
               (let [all-props (if star-query? (get-all-props-shallow datasource app id-attr props args) nil)
                     output
                               (if (or (nil? query) (= query '[*]))
                                 (do
-                                  ;(println " query: " query)
+                                  (println " query: " query)
                                   (-entity datasource app id-attr args))
                                 (reduce (fn [acc prop]
                                           (let [output
@@ -188,6 +190,7 @@
                         ;(args->entity-prop id-attr join-prop app args)
                         )
                 query (get args query-key)]
+            (log/info "plain join query: " query)
             (cond
               (eql/ident? refs)
               (<sub app [join-component-sub (apply assoc args refs)])
@@ -399,6 +402,7 @@
 
 (defn reg-component-subs!
   "Registers subscriptions that will fulfill the given fulcro component's query.
+  The subscription name will by the fully qualified keyword or symbol returned from rc/class->registry-key of the component.
   The component must have a name and so must any components in its query."
   [reg-sub-raw reg-sub <sub datasource c]
   (when-not (rc/class->registry-key c) (throw (error "Component name missing on component: " c)))

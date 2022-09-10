@@ -10,7 +10,6 @@
     [xtdb.api :as xt]
     [clojure.test :refer [deftest is testing]]))
 
-
 ;; idea to use a predicate to determine recursion - this is not part of eql currently
 ;(eql/query->ast [:comment/id :comment/text {:comment/sub-comments `traverse?}])
 

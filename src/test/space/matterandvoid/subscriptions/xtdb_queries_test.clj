@@ -209,8 +209,8 @@
           (<sub db_ [::todo {:todo/id :todo-2 sut/query-key [:todo/id {:todo/author {:user/id        [:user/name]
                                                                                      :does-not/exist [:a :b :c]}}]}])))
     (testing "support for * query"
-      (is (= #:todo{:id 1, :author #:bot{:id 1, :name "bot 1"}} (<sub db_ [::todo {:todo/id :todo-1 sut/query-key [:todo/id {:todo/author ['*]}]}])))
-      (is (= #:todo{:id 2, :author #:user{:id 2, :name "user 2", :friends [[:user/id 2] [:user/id 1] [:user/id 3]]}}
+      (is (= #:todo{:id :todo-1, :author {:bot/id :bot-1 :xt/id :bot-1 :bot/name "bot 1"}} (<sub db_ [::todo {:todo/id :todo-1 sut/query-key [:todo/id {:todo/author ['*]}]}])))
+      (is (= #:todo{:id :todo-2, :author {:xt/id :user-2 :user/id :user-2, :user/name "user 2", :user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3] [:user/id :user-5]]}}
             (<sub db_ [::todo {:todo/id :todo-2 sut/query-key [:todo/id {:todo/author '[*]}]}])))))
 
   #_(testing "to-many union queries"

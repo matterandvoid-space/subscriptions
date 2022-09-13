@@ -1,4 +1,5 @@
 (ns space.matterandvoid.subscriptions.impl.reagent-ratom
+  (:require-macros [space.matterandvoid.subscriptions.impl.reagent-ratom])
   (:refer-clojure :exclude [atom])
   (:require [reagent.ratom]))
 
@@ -37,5 +38,5 @@
            reagent.ratom/Reaction "rx"
            reagent.ratom/Track "tr"
            "other")
-         (hash reactive-val))))
+      (hash reactive-val))))
 

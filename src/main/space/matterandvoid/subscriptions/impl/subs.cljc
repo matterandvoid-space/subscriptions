@@ -169,7 +169,7 @@
       (reset! reaction-id (ratom/reagent-id reaction))
       reaction)))
 
-(def memoize-fn memoize/memoize-fn)
+(def memoize-fn identity)
 (def args-merge-fn merge)
 
 (defn set-memoize-fn! [f] #?(:cljs (set! memoize-fn f)

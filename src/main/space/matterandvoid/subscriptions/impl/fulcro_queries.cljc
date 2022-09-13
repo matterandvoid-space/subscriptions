@@ -10,7 +10,8 @@
 (def query-key ::query)
 (def cycle-marker ::cycle)
 (def missing-val ::missing)
-(def walk-style-key ::walk-style)
+(def walk-fn-key ::walk-fn)
+(def xform-fn-key ::xform-fn)
 
 ;; todo you could possibly remove the fulcro dependency and implement just these:
 ;; api you're using: class->registry-key get-ident get-query
@@ -59,15 +60,17 @@
 ;;
 ;; one easy implementation is to optimize for the common case where you are not storing vectors as IDs in XT
 ;; Thus: if the return value is a vector, treat it as a to-many join.
-;; to resolve the subscription to use, expand the entities (map xt/entity) and then filter  first where attribute
+;; to resolve the subscription to use, expand the entities (map xt/entity) and then filter first where attribute
 ;; keyword name = "id".
 
 (defprotocol IDataSource
+  (-ref-value? [this db value] "Given a value found in an attribute's value position determine if it is a pointer to
+    another entity")
   (-entity-id [this db id-attr args-query-map])
   (-entity [this db id-attr args-query-map])
   (-attr [this db id-attr attr args-query-map]))
 
-(defn recur? [q] (or (= '... q) (= 0 q) (pos-int? q)))
+(defn recur? [q] (or (= '... q) (nat-int? q)))
 (defn error [& args] #?(:clj (Exception. ^String (apply str args)) :cljs (js/Error. (apply str args))))
 
 (defn union-key->entity-sub [union-ast]
@@ -83,6 +86,7 @@
   (when-not (get args id-attr) (throw (error "Missing id attr: " id-attr " in args map passed to subscription: " sub-kw))))
 
 (defn eql-query-keys-by-type
+  "Takes an EQL query parses it and returns a map of the members of the query for easier downstream consumption."
   [query]
   (let [set-keys          #(->> % (map :dispatch-key) set)
         query-nodes       (-> query (eql/query->ast) :children)
@@ -119,7 +123,7 @@
   [reg-sub datasource id-attr prop]
   (reg-sub prop (fn [db args]
                   (missing-id-check! id-attr prop args)
-                  (log/info "reg-sub-prop : '" id-attr)
+                  ;(log/info "reg-sub-prop : '" id-attr)
                   (-attr datasource db id-attr prop args))))
 
 (defn get-all-props-shallow
@@ -249,43 +253,77 @@
         (fn []
           (missing-id-check! id-attr recur-prop args)
 
-          (log/info "in recur join: " recur-prop)
+          (log/info "in recur join for prop: " recur-prop)
           (let [entity-id           (get args id-attr)
+                _                   (println "entity id: " entity-id)
                 entity              (-entity datasource app id-attr args)
                 recur-idents        (-attr datasource app id-attr recur-prop args)
                 ident?              (eql/ident? recur-idents)
                 refs                (or (and ident? recur-idents) (seq (filter some? recur-idents)))
                 sub-query           (get args query-key)
                 seen-entity-id?     (contains? entity-history entity-id)
-                [recur-query recur-value callback-style callback-fn]
-                (when (and sub-query parent-query)
-                  (let [by-key      (eql-by-key parent-query)
-                        recur-value (:query (get by-key recur-prop))]
-                    (cond
-                      (= recur-value '...) (if seen-entity-id?
-                                             [(vec (mapcat eql/ast->query (vals (dissoc by-key recur-prop)))) recur-value]
-                                             [parent-query recur-value])
-                      (and (pos-int? recur-value) (> recur-value 0))
-                      [(ast-by-key->query (update-in by-key [recur-prop :query] dec)) recur-value]
 
-                      ;; todo implement generic recursion using symbols
-                      (symbol? recur-value)
-                      (do
-                        (println "HAVE symbol: " recur-value)
-                        (if-let [f (get args recur-value)]
-                          (do
-                            (when-not (ifn? f) (throw (error "Recursion callback is not a function for attr" id-attr
-                                                        " recur prop: " recur-prop
-                                                        " received: " f)))
-                            (let [callback-type (get args walk-style-key)]
-                              [nil nil callback-type f]
-                              ;(f (-> args (assoc ::current-id-attr id-attr ::current-entity-sub entity-sub)))
-                              ))
-                          (throw (error "Missing function implementation for symbol " recur-value
-                                   " in recursive position for id attribute: " id-attr " recursion attribute: " recur-prop)))))
-                    ))
+                ;; parse the recursive join arguments
+                [recur-query recur-value walk-fn xform-fn]
+                (when (and sub-query parent-query)
+                  (let [by-key       (eql-by-key parent-query)
+                        recur-map    (get by-key recur-prop)
+                        recur-value  (:query recur-map)
+                        walk-fn-sym  (get-in recur-map [:params walk-fn-key])
+                        xform-fn-sym (get-in recur-map [:params xform-fn-key])]
+
+                    (def rv' recur-map)
+                    ;; sample recursion point eql
+                    {:type         :join,
+                     :dispatch-key :user/friends,
+                     :key          :user/friends,
+                     :params       {:space.matterandvoid.subscriptions.impl.fulcro-queries/walk-fn 'keep-walking?},
+                     :query        '...}
+
+                    (cond
+                      ;; plain unbounded recursion no logic
+                      (and (nil? walk-fn-sym) (= recur-value '...))
+                      (let [xform-fn (get args xform-fn-sym)]
+
+                        (when (and xform-fn-sym (not (ifn? xform-fn)))
+                          (throw (error "Missing function implementation in args map for transformation function symbol " xform-fn-sym
+                                   " for id attribute: " id-attr " recursion attribute: " recur-prop)))
+
+                        (if seen-entity-id?
+                          [(vec (mapcat eql/ast->query (vals (dissoc by-key recur-prop)))) recur-value nil xform-fn]
+                          [parent-query recur-value nil xform-fn]))
+
+                      ;; Walking recursion
+                      (and walk-fn-sym (= recur-value '...))
+                      (let [walk-fn  (get args walk-fn-sym)
+                            xform-fn (get args xform-fn-sym)]
+
+                        (println "HAVE walk fn: " walk-fn-sym)
+
+                        (when (nil? walk-fn)
+                          (throw (error "Missing function implementation in args map for walk function symbol " walk-fn-sym
+                                   " for id attribute: " id-attr " recursion attribute: " recur-prop)))
+
+                        (when (and xform-fn-sym (not (ifn? xform-fn)))
+                          (throw (error "Missing function implementation in args map for transformation function symbol " xform-fn-sym
+                                   " for id attribute: " id-attr " recursion attribute: " recur-prop)))
+
+                        (when (and walk-fn (not (ifn? walk-fn)))
+                          (throw (error "Walk function callback is not a function for attr" id-attr " recur prop: " recur-prop " received: " walk-fn)))
+
+                        [parent-query recur-value walk-fn xform-fn]
+                        ;(f (-> args (assoc ::current-id-attr id-attr ::current-entity-sub entity-sub)))
+                        )
+
+                      ;; bounded recursion
+                      (pos-int? recur-value)
+                      [(ast-by-key->query (update-in by-key [recur-prop :query] dec)) recur-value nil xform-fn-sym])))
+
                 self-join?          (and ident? (= refs [id-attr entity-id]))
                 infinite-self-join? (and recur-query self-join? (= recur-value '...))]
+
+            ; Logic to implement recursion
+            ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
             (cond
               ;; pointer was nil
@@ -294,6 +332,130 @@
               ;; self cycle
               infinite-self-join? cycle-marker
 
+
+              ;; todo to-one is not implemented yet, likely want to clean up the duplicated code too
+              walk-fn
+              (do (println "HAVE Walk function")
+                  (let [recur-output (walk-fn entity)]
+                    (println "walk fn output: " (pr-str recur-output))
+
+                    (cond
+                      (map? recur-output)
+                      (let [{:keys [expand stop]} recur-output]
+                        (println "recur output IS MAP")
+                        (when-not (or
+                                    (contains? recur-output :expand)
+                                    (contains? recur-output :stop))
+                          (error "Your walk function returned a map, but did not provide :expand or :stop keys."))
+                        (let [ident? (eql/ident? expand)
+                              refs   (or (and ident? expand) (seq (filter some? expand)))]
+                          (cond
+                            ident?
+                            (if seen-entity-id?
+                              ;; cycle
+                              (-> (<sub app [entity-sub
+                                             (-> args
+                                               (update ::depth (fnil inc 0))
+                                               (update ::entity-history (fnil conj #{}) entity-id)
+                                               (assoc query-key recur-query, id-attr (second refs)))])
+                                (assoc recur-prop refs))
+
+                              (<sub app [entity-sub
+                                         (-> args
+                                           (update ::depth (fnil inc 0))
+                                           (update ::entity-history (fnil conj #{}) entity-id)
+                                           (assoc query-key recur-query, id-attr (second refs)))]))
+
+                            ;; to-many join
+                            refs
+                            (if seen-entity-id?
+                              (do
+                                (println "cycle: refs: " refs)
+                                refs)
+                              (into
+                                (mapv (fn [[_ id]] (<sub app [entity-sub
+                                                              (-> args
+                                                                (update ::entity-history (fnil conj #{}) entity-id)
+                                                                (assoc query-key parent-query id-attr id))]))
+                                      refs)
+                                (when stop (mapv (fn [[_ id]] (-entity datasource app id-attr
+                                                                (assoc args id-attr id))) stop))
+                                )))))
+
+
+                      ;; do not attempt to handle idents - because the id values can be many types depending on the
+                      ;; database being used, this is the user's responsibility to ensure the correct types are returned.
+                      (coll? recur-output)
+                      (do
+                        (println "recur output IS COLLECTION")
+                        (if seen-entity-id?
+                          cycle-marker
+                          (mapv (fn [[_ id]] (<sub app [entity-sub
+                                                        (-> args
+                                                          (update ::entity-history (fnil conj #{}) entity-id)
+                                                          (assoc query-key parent-query id-attr id))]))
+                                refs)))
+
+
+                      ;; truthy non-collection type, keep walking
+                      ;; todo need to handle to-one and to-many logic using (-ref-value? value) protocol
+
+                      ;
+                      ;
+                      ;; how this works - we have an entity map from the db
+                      ;; for the recursion point we lookup the value in the db which will be normalized
+                      ;; the task is to determine given that normalized value is it a single id or is it
+                      ;; a to-many id?
+
+                      ;; ideas
+                      ;; add a protocol method to have the user tell us give them a value and the return value
+                      ;; is yes or no
+                      ;;
+
+                      ;; well, we know for the to-many case that this would have to be a collection or a vector
+                      ;; but for the to-one usecase it could also be a vector or a map for example with xtdb
+
+                      ;---------------------------------------------------
+
+                      ;; so if you take the ref and call entity on it and get back a map
+                      ;; then you know it is to-one
+
+                      ;; if you don't get back anything or there is an error AND it is a collection/vector
+                      ;; then it is a to-many, and treat it as such
+
+                      (some? recur-output)
+                      (let [join-ref (-entity datasource app id-attr (assoc args id-attr refs))
+                            to-one?  (some? join-ref)]
+                        (println "recur output IS SOME")
+                        (println "join-ref: " join-ref)
+                        (println "entity history " entity-history)
+                        (if seen-entity-id?
+                          ;; cycle
+                          ;cycle-marker
+                          refs
+                          (do
+                            (println "call entity sub for recursion point refs: " refs)
+
+                            (if to-one?
+                              (<sub app [entity-sub
+                                         (-> args
+                                           (update ::depth (fnil inc 0))
+                                           (update ::entity-history (fnil conj #{}) refs)
+                                           (assoc query-key recur-query, id-attr refs))])
+                              ;; to-many
+                              (mapv (fn [[_ id]]
+                                      (println "calling sub for ref: " id)
+                                      (<sub app [entity-sub
+                                                 (-> args
+                                                   (update ::entity-history (fnil conj #{}) entity-id)
+                                                   (assoc query-key recur-query, id-attr id))]))
+                                    refs)
+                              ))))
+
+                      ;; stop walking
+                      :else nil)))
+
+              ;; todo fix logic to determin to-one and to-many using the (maybe-get-entity refs) logic
               ;; to-one join
               (and recur-query ident?)
               (if seen-entity-id?
@@ -321,79 +483,6 @@
                                                 (assoc query-key recur-query id-attr id))]))
                       refs))
 
-              ;; todo to-one is not implemented yet, likely want to clean up the duplicated code too
-              (and callback-fn callback-style)
-              (do (println "HAVE CALLBACK")
-                  (condp = callback-style
-                    :predicate (let [ret (callback-fn entity)]
-                                 (println "RETU: " (pr-str ret))
-
-                                 (when ret
-                                   ;; duplicate logic for now
-                                   (cond
-                                     ident?
-                                     (if seen-entity-id?
-                                       ;; cycle
-                                       (-> (<sub app [entity-sub
-                                                      (-> args
-                                                        (update ::depth (fnil inc 0))
-                                                        (update ::entity-history (fnil conj #{}) entity-id)
-                                                        (assoc query-key recur-query, id-attr (second refs)))])
-                                         (assoc recur-prop cycle-marker))
-
-                                       (<sub app [entity-sub
-                                                  (-> args
-                                                    (update ::depth (fnil inc 0))
-                                                    (update ::entity-history (fnil conj #{}) entity-id)
-                                                    (assoc query-key recur-query, id-attr (second refs)))]))
-
-                                     ;; to-many join
-                                     refs
-                                     (if seen-entity-id?
-                                       cycle-marker
-                                       (mapv (fn [[_ id]] (<sub app [entity-sub
-                                                                     (-> args
-                                                                       (update ::entity-history (fnil conj #{}) entity-id)
-                                                                       (assoc query-key parent-query id-attr id))]))
-                                             refs)))))
-
-                    :expand (let [recur-idents (callback-fn entity)
-                                  {:keys [expand stop]} recur-idents]
-                              (println "RETU: " (pr-str recur-idents))
-                              (when (or expand stop)
-                                (let [ident? (eql/ident? expand)
-                                      refs   (or (and ident? expand) (seq (filter some? expand)))]
-                                  ;; duplicate logic for now
-                                  (cond
-                                    ident?
-                                    (if seen-entity-id?
-                                      ;; cycle
-                                      (-> (<sub app [entity-sub
-                                                     (-> args
-                                                       (update ::depth (fnil inc 0))
-                                                       (update ::entity-history (fnil conj #{}) entity-id)
-                                                       (assoc query-key recur-query, id-attr (second refs)))])
-                                        (assoc recur-prop cycle-marker))
-
-                                      (<sub app [entity-sub
-                                                 (-> args
-                                                   (update ::depth (fnil inc 0))
-                                                   (update ::entity-history (fnil conj #{}) entity-id)
-                                                   (assoc query-key recur-query, id-attr (second refs)))]))
-
-                                    ;; to-many join
-                                    refs
-                                    (if seen-entity-id?
-                                      cycle-marker
-                                      (into
-                                        (mapv (fn [[_ id]] (<sub app [entity-sub
-                                                                      (-> args
-                                                                        (update ::entity-history (fnil conj #{}) entity-id)
-                                                                        (assoc query-key parent-query id-attr id))]))
-                                              refs)
-                                        (when stop (mapv (fn [[_ id]] (-entity datasource app id-attr
-                                                                        (assoc args id-attr id))) stop))
-                                        ))))))))
               ;; do not recur
               refs (vec refs)
               :else missing-val)))))))

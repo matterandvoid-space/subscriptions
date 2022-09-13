@@ -1,10 +1,10 @@
 (ns hooks-example
   (:require
-    ["react-dom" :as react-dom]
+    ["react-dom/client" :as react-dom]
     ["react" :as react]
     [reagent.ratom :as ratom]
     [space.matterandvoid.subscriptions.core :as subs :refer [defsub reg-sub <sub]]
-    [space.matterandvoid.subscriptions.react-hook :refer [use-sub use-sub-map use-in-reaction]]))
+    [space.matterandvoid.subscriptions.react-hook :refer [use-sub use-sub-map use-reaction]]))
 
 (defn $
   "Create a new React element from a valid React type.
@@ -47,7 +47,7 @@
       0)))
 
 (defn third-hook []
-  (let [output (use-in-reaction (fn [] (+ 100 (<sub db_ [:a-number]))))]
+  (let [output (use-reaction (ratom/make-reaction (fn [] (+ 100 (<sub db_ [:a-number])))))]
     ($ :h1 "use-in-reaction hook: " output)))
 
 (defn second-hook []
@@ -66,7 +66,7 @@
 (defn first-hook []
   (let [[the-count set-count] (react/useState 0)
         sub-val (use-sub db_ [:a-number])]
-    (react/useEffect (fn [] (println "IN EFFECT")) #js[the-count])
+    (react/useEffect (fn [] (println "IN EFFECT") js/undefined) #js[the-count])
     (println "DRAW FIRST HOOK")
     ($ :div {:style {:padding 10 :border "1px dashed"}}
       ($ :h3 (str "The number is : " sub-val))
@@ -83,8 +83,14 @@
   ;(dom/div nil (first-hook))
   #_(react/createElement "div" nil (first-hook)))
 
+(defonce root (react-dom/createRoot (js/document.getElementById "app")))
 (defn ^:export init []
-  (react-dom/render (my-react-comp nil) js/app))
+  (.render root (my-react-comp nil))
+
+  ;(react-dom/render (my-react-comp nil) js/app)
+  )
 
 (defn ^:dev/after-load refresh []
-  (react-dom/render (my-react-comp nil) js/app))
+  (.render root (my-react-comp nil))
+  ;(react-dom/render (my-react-comp nil) js/app)
+  )

@@ -37,6 +37,9 @@
 
 (defn run-in-reaction [f obj key run opts] (f))
 
+(defmacro in-reactive-context [args]
+  `(binding [reagent.ratom/*ratom-context* (cljs.core/js-obj)] ~args))
+
 (defn add-on-dispose!
   "On JVM Clojure, use an atom to register `f` to be invoked when `dispose!` is
   invoked with `a-ratom`."

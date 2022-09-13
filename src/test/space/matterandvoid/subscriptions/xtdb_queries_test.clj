@@ -85,18 +85,38 @@
 (defonce db_ (r/atom (xt/db xt-node)))
 ;(reset! db_ (xt/db xt-node))
 
-(comment
-  (<sub db_ [::user {:user/id :user-1 subs/query-key [:user/name :user/id {:user/friends 1}]}])
-  (<sub db_ [::user {:user/id :user-1 subs/query-key [:user/name :user/id {:user/friends 0}]}])
-  (<sub db_ [::user {:user/id :user-1 subs/query-key [:user/name :user/id {:user/friends '...}]}])
+;; todo document this
+;; in docs/eql.md
 
-  (<sub db_ [::user {'keep-walking?         (fn [e]
-                                              (println "IN KEEP walking? " e)
-                                              (#{"user 1" "user 2"} (:user/name e))
-                                              ;(= "user 1" (:user/name e))
-                                              )
-                     ::subs-keys/walk-style :predicate
-                     :user/id               :user-1 subs/query-key [:user/name :user/id {:user/friends 'keep-walking?}]}])
+;; okay so I'm thinking
+;; there will be one callback function
+; return values:
+; - false or nil -> stop walking
+; - true -> keep walking with all idents
+; - {:stop [] - keep these as refs/idents but do not continuing walking them
+;    :expand [] - keep walking these as nested hashmaps}
+; - [vec of idents] - keep walking all of these
+; Then from there you can also add support for middleware - after the entity is expanded
+; then invoke the middleware/transform function and replace the entity with whatever it returns
+; fn hashmap -> hashmap
+(comment
+  (<sub db_ [::user {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends 1}]}])
+  (<sub db_ [::user {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends 0}]}])
+  (<sub db_ [::user {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends '...}]}])
+
+  ;; todo repalce this with EQL parameters instead of custom EQL fork.
+  [:a '{(:recursive-join {:continue? some.ns/walk?}) ...}]
+
+  (eql/query->ast
+    [:a '{(:recursive-join {:continue? some.ns/walk?}) ...}])
+
+  (<sub db_ [::user {'keep-walking? (fn [e]
+                                      (println "IN KEEP walking?  " e)
+                                      (#{"user 1" "user 2"} (:user/name e))
+                                      ;(= "user 1" (:user/name e))
+                                      )
+                     :user/id       :user-1 sut/query-key
+                     [:user/name :user/id {(list :user/friends {sut/walk-fn-key 'keep-walking?}) '...}]}])
 
   (<sub db_ [::user {'get-friends           (fn [e]
                                               (println "IN GET FRIENDS " e)
@@ -104,13 +124,14 @@
                                                 (println "friends: " friends)
                                                 ;; stop keeps the entity but does not recur on it, vs removing it completely from the
                                                 ;; result set.
-                                                {:stop   (mapv (fn [{:user/keys [id]}] [::user id])
+                                                {:stop   (mapv (fn [{:user/keys [id]}] [:user/id id])
                                                            (filter (fn [{:user/keys [name]}] (= name "user 3")) friends))
-                                                 :expand (mapv (fn [{:user/keys [id]}] [::user id])
+                                                 :expand (mapv (fn [{:user/keys [id]}] [:user/id id])
                                                            (remove
                                                              (fn [{:user/keys [name]}] (= name "user 3")) friends))}))
                      ::subs-keys/walk-style :expand
-                     :user/id               :user-1 subs/query-key [:user/name :user/id {:user/friends 'get-friends}]}])
+                     :user/id               :user-1 sut/query-key [:user/name :user/id
+                                                                   {(list :user/friends {sut/walk-fn-key 'get-friends}) '...}]}])
 
   ;This returns:
 

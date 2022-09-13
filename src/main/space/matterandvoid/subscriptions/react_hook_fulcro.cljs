@@ -1,7 +1,8 @@
 (ns space.matterandvoid.subscriptions.react-hook-fulcro
   (:require
-    [space.matterandvoid.subscriptions.impl.hooks-common :as common]
     [com.fulcrologic.fulcro.application :as fulcro.app]
+    [space.matterandvoid.subscriptions.impl.hooks-common :as common]
+    [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [space.matterandvoid.subscriptions.fulcro :as subs]))
 
 (defn use-sub
@@ -14,7 +15,7 @@
   (a vector of a keyword and an optional hashmap of arguments)."
   [data-source query]
   (when goog/DEBUG (assert (fulcro.app/fulcro-app? data-source)))
-  (common/use-in-reaction (fn [] (subs/<sub data-source query))))
+  (common/use-reaction (subs/subscribe data-source query)))
 
 (defn use-sub-map
   "A react hook that subscribes to multiple subscriptions, the return value of the hook is the return value of the
@@ -29,11 +30,13 @@
   [data-source query-map]
   (when goog/DEBUG (assert (fulcro.app/fulcro-app? data-source)))
   (when goog/DEBUG (assert (map? query-map)))
-  (common/use-in-reaction
-    (fn [] (->> query-map
-             (reduce-kv
-               (fn [acc k query-vec] (assoc acc k (subs/<sub data-source query-vec)))
-               {})))))
+  (common/use-reaction
+    (ratom/make-reaction
+      (fn []
+        (->> query-map
+          (reduce-kv
+            (fn [acc k query-vec] (assoc acc k (subs/<sub data-source query-vec)))
+            {}))))))
 
 (defn use-in-reaction
   "A react hook that takes a function with no arguments (a thunk) and runs the provided function inside a reagent `run-in-reaction`,
@@ -42,3 +45,8 @@
   The hook causes the consuming component to re-render at most once per frame even if the reactive callback fires more than
   once per frame."
   [f] (common/use-in-reaction f))
+
+(defn use-reaction
+  "Takes a Reagent Reaction and rerenders the UI component when the Reaction's value changes.
+  Returns current value of the Reaction"
+  [r] (common/use-reaction r))

@@ -2,6 +2,7 @@
   (:require
     [clojure.java.io :as io]
     [com.fulcrologic.fulcro.application :as fulcro.app]
+    [edn-query-language.core :as eql]
     [integrant.core :as ig]
     [space.matterandvoid.subscriptions.core :refer [reg-sub-raw reg-sub <sub]]
     [space.matterandvoid.subscriptions.impl.fulcro-queries :as impl]
@@ -11,6 +12,12 @@
   (:import
     [xtdb.query QueryDatasource]
     [xtdb.api DBProvider]))
+
+(def query-key impl/query-key)
+(def cycle-marker impl/cycle-marker)
+(def missing-val impl/missing-val)
+(def walk-fn-key impl/walk-fn-key)
+(def xform-fn-key impl/xform-fn-key)
 
 ;(def lmdb-xt-config
 ;  {:xtdb/index-store    {:kv-store {:xtdb/module 'xtdb.lmdb/->kv-store :db-dir (io/file "tmp/lmdb-index-store")}}
@@ -64,10 +71,14 @@
 
 (def xtdb-data-source
   (reify impl/IDataSource
+    (-ref-value? [_ xt-node-or-db value]
+      (or (eql/ident? value) (uuid? value) (keyword? value)))
     (-entity-id [_ _ id-attr args] (get args id-attr))
     (-entity [_ xt-node-or-db id-attr args]
-      (log/info "-entity: " id-attr)
-      (xt/entity (->db xt-node-or-db) (get args id-attr)))
+      (log/info "xtdb lookup -entity, id-attr: " id-attr " value: " (get args id-attr))
+      (try
+        (xt/entity (->db xt-node-or-db) (get args id-attr))
+        (catch IllegalArgumentException e)))
     (-attr [_ xt-node-or-db id-attr attr args]
       (log/info "-attr: " id-attr " attr " attr)
       (get (xt/entity (->db xt-node-or-db) (get args id-attr)) attr))))

@@ -18,9 +18,6 @@
 (log/set-level! :debug)
 (enable-console-print!)
 (set! *print-namespace-maps* false)
-(subs/set-memoize-fn! identity)
-
-(set! *print-namespace-maps* false)
 
 (def user-comp (sut/nc {:query [:user/id :user/name {:user/friends '...}] :name ::user :ident :user/id}))
 (def bot-comp (sut/nc {:query [:bot/id :bot/name] :name ::bot :ident :bot/id}))

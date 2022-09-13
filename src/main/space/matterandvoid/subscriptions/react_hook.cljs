@@ -42,3 +42,8 @@
   The hook causes the consuming component to re-render at most once per frame even if the reactive callback fires more than
   once per frame."
   [f] (common/use-in-reaction f))
+
+(defn use-reaction
+  "Takes a Reagent Reaction and rerenders the UI component when the Reaction's value changes.
+  Returns current value of the Reaction"
+  [r] (common/use-reaction r))

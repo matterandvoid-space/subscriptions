@@ -68,17 +68,30 @@
    [::xt/put {:xt/id :user-7 :user/id :user-7 :user/name "user 7"}]
 
    [::xt/put {:xt/id :bot-1 :bot/id :bot-1 :bot/name "bot 1"}]
-
    ;; union queries
-   [::xt/put {:xt/id :tood-1 :todo/id :todo-1 :todo/text "todo 1" :todo/author [:bot/id :bot-1] :todo/comment [:comment/id :comment-1]}]
-   [::xt/put {:xt/id :tood-2 :todo/id :todo-2 :todo/text "todo 2" :todo/author [:user/id :user-2]}]
-   [::xt/put {:xt/id :tood-3 :todo/id :todo-3 :todo/text "todo 3" :todo/comments [[:comment/id :comment-1] [:comment/id :comment-3]]}]
+   [::xt/put {:xt/id :todo-1 :todo/id :todo-1 :todo/text "todo 1" :todo/author [:bot/id :bot-1] :todo/comment [:comment/id :comment-1]}]
+   [::xt/put {:xt/id :todo-2 :todo/id :todo-2 :todo/text "todo 2" :todo/author [:user/id :user-2]}]
+   [::xt/put {:xt/id :todo-3 :todo/id :todo-3 :todo/text "todo 3" :todo/comments [[:comment/id :comment-1] [:comment/id :comment-3]]}]
 
    [::xt/put {:xt/id :user-9 :user/id :user-9 :user/name "user 9" :user/friends [:user-10]}]
    [::xt/put {:xt/id :user-10 :user/id :user-10 :user/name "user 10" :user/friends [:user-10 :user-9 :user-11]}]
    [::xt/put {:xt/id :user-11 :user/id :user-11 :user/name "user 11" :user/friends [:user-10 :user-12]}]
    [::xt/put {:xt/id :user-12 :user/id :user-12 :user/name "user 12" :user/friends [:user-11 :user-12]}]]
   )
+
+(xt/sync xt-node)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(xt/submit-tx xt-node
+  ;; to-many cycle with plain id refs
+  [[::xt/put {:xt/id :user-1-a :user/id :user-1-a :user/name "user 1" :user/friends [:user-2-a]}]
+   [::xt/put {:xt/id :user-2-a :user/id :user-2-a :user/name "user 2" :user/friends [:user-2-a :user-1-a :user-3-a :user-5-a]}]
+   [::xt/put {:xt/id :user-3-a :user/id :user-3-a :user/name "user 3" :user/friends [:user-2-a :user-4-a]}]
+   [::xt/put {:xt/id :user-4-a :user/id :user-4-a :user/name "user 4" :user/friends [:user-3-a :user-4-a]}]
+   [::xt/put {:xt/id :user-5-a :user/id :user-5-a :user/name "user 5" :user/friends [:user-6-a :user-7-a]}]
+   [::xt/put {:xt/id :user-6-a :user/id :user-6-a :user/name "user 6" :user/friends [:user-7-a]}]
+   [::xt/put {:xt/id :user-7-a :user/id :user-7-a :user/name "user 7"}]])
 
 (xt/sync xt-node)
 
@@ -99,7 +112,15 @@
 ; Then from there you can also add support for middleware - after the entity is expanded
 ; then invoke the middleware/transform function and replace the entity with whatever it returns
 ; fn hashmap -> hashmap
+; another idea is to have strict types supported from the walk key
+; for example - a recursive union query.
+; like the notion example
+; for that though they would all be the same entity type regarding the subscription
+
 (comment
+  (<sub db_ [::user {:user/id :user-1-a sut/query-key [:user/name :user/id {:user/friends 1}]}])
+  (<sub db_ [::user {:user/id :user-2-a sut/query-key [:user/name :user/id {:user/friends 1}]}])
+  (<sub db_ [::user {:user/id :user-2 sut/query-key [:user/name :user/id {:user/friends 1}]}])
   (<sub db_ [::user {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends 1}]}])
   (<sub db_ [::user {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends 0}]}])
   (<sub db_ [::user {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends '...}]}])
@@ -115,8 +136,8 @@
                                       (#{"user 1" "user 2"} (:user/name e))
                                       ;(= "user 1" (:user/name e))
                                       )
-                     :user/id       :user-1 sut/query-key
-                     [:user/name :user/id {(list :user/friends {sut/walk-fn-key 'keep-walking?}) '...}]}])
+                     :user/id       :user-1
+                     sut/query-key  [:user/name :user/id {(list :user/friends {sut/walk-fn-key 'keep-walking?}) '...}]}])
 
   (<sub db_ [::user {'get-friends           (fn [e]
                                               (println "IN GET FRIENDS " e)
@@ -154,11 +175,9 @@
   (xt/pull (xt/db xt-node) [:user/name :user/id {:user/friends '...}] :user-9)
   (xt/pull (xt/db xt-node) [:user/name :user/id {:user/friends ['*]}] :user-9)
   (xt/entity (xt/db xt-node) :user-1)
-  ;(<sub xt-node )
   )
 
 ;(<sub app [::user {:user/id 1 ::subs/query [:user/id {:user/friends `keep-walking?}]}])
-
 
 ;; prop queries
 ;; - individual kw
@@ -179,41 +198,41 @@
 ;;   - to-one
 ;;   - to-many
 
-;(deftest union-queries-test
-;  (testing "to-one union queries"
-;    (is (= {:todo/id 1, :todo/author {:bot/name "bot 1", :bot/id 1}}
-;          (<sub app [::todo {:todo/id 1 ::subs/query [:todo/id :todo/author]}])))
-;    (is (=
-;          {:todo/id 2, :todo/author #:user{:id 2, :name "user 2", :friends [[:user/id 2] [:user/id 1] [:user/id 3]]}}
-;          (<sub app [::todo {:todo/id 2 ::subs/query [:todo/id :todo/author]}])))
-;    (is (= {:todo/id 2, :todo/author {:user/name "user 2"}}
-;          (<sub app [::todo {:todo/id 2 ::subs/query [:todo/id {:todo/author {:user/id        [:user/name]
-;                                                                              :does-not/exist [:a :b :c]}}]}])))
-;    (testing "support for * query"
-;      (is (= #:todo{:id 1, :author #:bot{:id 1, :name "bot 1"}} (<sub app [::todo {:todo/id 1 ::subs/query [:todo/id {:todo/author ['*]}]}])))
-;      (is (= #:todo{:id 2, :author #:user{:id 2, :name "user 2", :friends [[:user/id 2] [:user/id 1] [:user/id 3]]}}
-;            (<sub app [::todo {:todo/id 2 ::subs/query [:todo/id {:todo/author '[*]}]}])))))
-;
-;  (testing "to-many union queries"
-;    (is (=
-;          #:list{:items   [#:todo{:id     2, :text "todo 2",
-;                                  :author #:user{:id 2, :name "user 2", :friends [#:user{:id 2, :name "user 2", :friends ::subs/cycle}
-;                                                                                  #:user{:id 1, :name "user 1", :friends [#:user{:id 2, :name "user 2", :friends ::subs/cycle}]}
-;                                                                                  #:user{:id      3, :name "user 3",
-;                                                                                         :friends [#:user{:id 2, :name "user 2", :friends ::subs/cycle}
-;                                                                                                   #:user{:id      4, :name "user 4",
-;                                                                                                          :friends [#:user{:id 3, :name "user 3", :friends ::subs/cycle}
-;                                                                                                                    #:user{:id 4, :name "user 4", :friends ::subs/cycle}]}]}]}}
-;                           #:comment{:id 1, :text "FIRST COMMENT", :sub-comments [#:comment{:id 2, :text "SECOND COMMENT"}]}],
-;                 :members [#:comment{:id 1, :text "FIRST COMMENT"} #:todo{:id 2, :text "todo 2"}]}
-;
-;          (<sub app [::list {:list/id 1 ::subs/query [{:list/items list-member-q}
-;                                                      {:list/members {:comment/id [:comment/id :comment/text] :todo/id [:todo/id :todo/text]}}]}])))
-;
-;    (testing "unions should only return queried-for branches"
-;      (is (= {:list/items []} (<sub app [::list {:list/id 1 ::subs/query [{:list/items {:todo2/id [:todo/id :todo/text]}}]}])))
-;      (is (= {:list/items [{:todo/id 2, :todo/text "todo 2"}]}
-;            (<sub app [::list {:list/id 1 ::subs/query [{:list/items {:todo/id [:todo/id :todo/text]}}]}]))))))
+(deftest union-queries-test
+  (testing "to-one union queries"
+    (is (= {:todo/id :todo-1, :todo/author {:bot/name "bot 1", :bot/id :bot-1 :xt/id :bot-1}}
+          (<sub db_ [::todo {:todo/id :todo-1 sut/query-key [:todo/id :todo/author]}])))
+    (is (=
+          {:todo/id :todo-2, :todo/author {:xt/id :user-2 :user/id :user-2, :user/name "user 2", :user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3] [:user/id :user-5]]}}
+          (<sub db_ [::todo {:todo/id :todo-2 sut/query-key [:todo/id :todo/author]}])))
+    (is (= {:todo/id :todo-2, :todo/author {:user/name "user 2"}}
+          (<sub db_ [::todo {:todo/id :todo-2 sut/query-key [:todo/id {:todo/author {:user/id        [:user/name]
+                                                                                     :does-not/exist [:a :b :c]}}]}])))
+    (testing "support for * query"
+      (is (= #:todo{:id 1, :author #:bot{:id 1, :name "bot 1"}} (<sub db_ [::todo {:todo/id :todo-1 sut/query-key [:todo/id {:todo/author ['*]}]}])))
+      (is (= #:todo{:id 2, :author #:user{:id 2, :name "user 2", :friends [[:user/id 2] [:user/id 1] [:user/id 3]]}}
+            (<sub db_ [::todo {:todo/id :todo-2 sut/query-key [:todo/id {:todo/author '[*]}]}])))))
+
+  #_(testing "to-many union queries"
+      (is (=
+            #:list{:items   [#:todo{:id     2, :text "todo 2",
+                                    :author #:user{:id 2, :name "user 2", :friends [#:user{:id 2, :name "user 2", :friends ::subs/cycle}
+                                                                                    #:user{:id 1, :name "user 1", :friends [#:user{:id 2, :name "user 2", :friends ::subs/cycle}]}
+                                                                                    #:user{:id      3, :name "user 3",
+                                                                                           :friends [#:user{:id 2, :name "user 2", :friends ::subs/cycle}
+                                                                                                     #:user{:id      4, :name "user 4",
+                                                                                                            :friends [#:user{:id 3, :name "user 3", :friends ::subs/cycle}
+                                                                                                                      #:user{:id 4, :name "user 4", :friends ::subs/cycle}]}]}]}}
+                             #:comment{:id 1, :text "FIRST COMMENT", :sub-comments [#:comment{:id 2, :text "SECOND COMMENT"}]}],
+                   :members [#:comment{:id 1, :text "FIRST COMMENT"} #:todo{:id 2, :text "todo 2"}]}
+
+            (<sub db_ [::list {:list/id :list-1 sut/query-key [{:list/items list-member-q}
+                                                               {:list/members {:comment/id [:comment/id :comment/text] :todo/id [:todo/id :todo/text]}}]}])))
+
+      (testing "unions should only return queried-for branches"
+        (is (= {:list/items []} (<sub db_ [::list {:list/id 1 ::subs/query [{:list/items {:todo2/id [:todo/id :todo/text]}}]}])))
+        (is (= {:list/items [{:todo/id 2, :todo/text "todo 2"}]}
+              (<sub db_ [::list {:list/id 1 ::subs/query [{:list/items {:todo/id [:todo/id :todo/text]}}]}]))))))
 ;
 ;(deftest plain-join-queries
 ;
@@ -284,16 +303,16 @@
 ;                                                                              #:user{:name "user 4", :id 4, :friends ::subs/cycle}]}]}]}]}
 ;          (<sub app [::user {:user/id 1 subs/query-key [:user/name :user/id {:user/friends '...}]}])))))
 ;
-;(deftest queries-test
-;  (testing "props"
-;    (<sub app [::todo {:todo/id 1 subs/query-key [:todo/id :todo/text]}])
-;    (<sub app [::todo {:todo/id 1 subs/query-key ['* :todo/text]}])
-;    )
-;  (testing "entity subscription with no query returns all attributes"
-;    (is (= {:list/members [[:comment/id 1] [:todo/id 2]]
-;            :list/items   [[:todo/id 2] [:comment/id 1]], :list/name "first list", :list/id 1}
-;          (<sub app [::list {:list/id 1}])))))
-;
+(deftest queries-test
+  (testing "props"
+    (<sub db_ [::todo {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]}])
+    (<sub db_ [::todo {:todo/id :todo-1 sut/query-key ['* :todo/text]}])
+    )
+  (testing "entity subscription with no query returns all attributes"
+    (is (= {:list/members [[:comment/id :comment-1] [:todo/id :todo-2]]
+            :list/items   [[:todo/id :todo-2] [:comment/id :comment-1]], :list/name "first list", :list/id :list-1}
+          (<sub db_ [::list {:list/id :list-1}])))))
+
 ;(comment
 ;  (<sub app [::list {:list/id 1 ::subs/query [{:list/items list-member-q}
 ;                                              {:list/members {:comment/id [:comment/id :comment/text] :todo/id [:todo/id :todo/text]}}]}])

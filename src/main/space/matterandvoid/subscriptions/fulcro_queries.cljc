@@ -19,7 +19,7 @@
 
 (def fulcro-data-source
   (reify impl/IDataSource
-    (-ref-value? [_ _ value] (eql/ident? value))
+    (-ref->id [_ ref] (assert (eql/ident? ref)) (second ref))
     (-entity-id [_ _ id-attr args] (get args id-attr))
     (-entity [_ fulcro-app id-attr args]
       (log/info "-entity for id attr: " id-attr)

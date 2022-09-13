@@ -71,8 +71,11 @@
 
 (def xtdb-data-source
   (reify impl/IDataSource
-    (-ref-value? [_ xt-node-or-db value]
-      (or (eql/ident? value) (uuid? value) (keyword? value)))
+    (-ref->id [_ ref]
+      (cond (eql/ident? ref)
+            (second ref)
+            (keyword? ref) ref
+            :else ref))
     (-entity-id [_ _ id-attr args] (get args id-attr))
     (-entity [_ xt-node-or-db id-attr args]
       (log/info "xtdb lookup -entity, id-attr: " id-attr " value: " (get args id-attr))

@@ -9,18 +9,6 @@
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
     [taoensso.timbre :as log]))
 
-(defmacro my-m [nme]
-  `'~(symbol (str nme)))
-
-(defmacro curr-ns [x]
-  `'~(symbol (str *ns*) (str x)))
-(comment
-  (macroexpand '(curr-ns hi))
-
-  (println (my-m hello-there)
-           )
-  (= (my-m hello) 'hello))
-
 (log/set-level! :debug)
 
 (def schema
@@ -52,7 +40,7 @@
    :todo/comment         {:db/valueType :db.type/ref :db/cardinality :db.cardinality/one}
    :todo/comments        {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}})
 
-(defonce conn (d/get-conn "/tmp/datalevin/mydb" schema))
+(def conn (d/get-conn "/tmp/datalevin/mydb" schema))
 
 (comment
   (d/transact! conn
@@ -83,20 +71,25 @@
                                 {:list/items (rc/get-query list-member-comp)}
                                 {:list/members (rc/get-query list-member-comp)}]}))
 
-(run! sut/reg-component-subs! [user-comp bot-comp comment-comp todo-comp list-comp human-comp])
+(run! sut/register-component-subs! [user-comp bot-comp comment-comp todo-comp list-comp human-comp])
+
+(def conn)
+(d/transact! conn
+  [{:user/id :user-2 :user/name "user 2"}
+   {:user/id :user-1 :user/name "user 1" :user/friends [[:user/id :user-2]]}])
 
 (d/transact! conn
-  [{:comment/id :comment-1 :comment/text "FIRST COMMENT" :comment/sub-comments [:comment/id :comment-2]}
-   {:comment/id :comment-2 :comment/text "SECOND COMMENT"}
+  [{:user/id :user-2 :user/friends [[:user/id :user-2] [:user/id :user-1]]}])
+
+(d/transact! conn
+  [{:comment/id :comment-1 :comment/text "FIRST COMMENT" :comment/sub-comments ["comment-2"]}
+   {:db/id "comment-2" :comment/id :comment-2 :comment/text "SECOND COMMENT"}
    {:comment/id :comment-3 :comment/text "THIRD COMMENT"}
-   {:list/id      :list-1 :list/name "first list"
-    :list/members [[:comment/id :comment-1] [:todo/id :todo-2]]
-    :list/items   [[:todo/id :todo-2] [:comment/id :comment-1]]}
 
    ;; to-one cycle
-   {:human/id :human-1 :human/name "human Y" :human/best-friend [:human/id :humnan-1]}
-   {:human/id :human-2 :human/name "human X" :human/best-friend [:human/id :human-3]}
-   {:human/id :human-3 :human/name "human Z" :human/best-friend [:human/id :human-1]}
+   {:db/id "human-1" :human/id :human-1 :human/name "human Y" :human/best-friend "human-1"}
+   {:human/id :human-2 :human/name "human X" :human/best-friend "human-3"}
+   {:db/id "human-3" :human/id :human-3 :human/name "human Z" :human/best-friend [:human/id :human-1]}
 
    ;; to-many cycle
    {:user/id :user-7 :user/name "user 7"}
@@ -107,10 +100,14 @@
    {:user/id :user-4 :user/name "user 4" :user/friends [[:user/id :user-3] [:user/id :user-4]]}
    {:user/id :user-3 :user/name "user 3" :user/friends [[:user/id :user-2] [:user/id :user-4]]}
 
+   {:todo/id :todo-2 :todo/text "todo 2" :todo/author [:user/id :user-2]}
+   {:list/id      :list-1 :list/name "first list"
+    :list/members [[:comment/id :comment-1] [:todo/id :todo-2]]
+    :list/items   [[:todo/id :todo-2] [:comment/id :comment-1]]}
+
    {:bot/id :bot-1 :bot/name "bot 1"}
    ;; union queries
    {:todo/id :todo-1 :todo/text "todo 1" :todo/author [:bot/id :bot-1] :todo/comment [:comment/id :comment-1]}
-   {:todo/id :todo-2 :todo/text "todo 2" :todo/author [:user/id :user-2]}
    {:todo/id :todo-3 :todo/text "todo 3" :todo/comments [[:comment/id :comment-1] [:comment/id :comment-3]]}
 
    {:user/id :user-9 :user/name "user 9" :user/friends ["user-10"]}
@@ -131,6 +128,7 @@
   (d/touch (d/entity db 13)) ; user-5
   (d/touch (d/entity db 13))
   (d/touch (d/entity db {:db/id 2}))
+  (<sub db_ [::user {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends 0}]}])
   (try
     (d/entity @db [:user/id #{{:db/id 2}}])
     (catch ClassCastException e))

@@ -308,80 +308,38 @@
             ;; if you don't get back anything or there is an error AND it is a collection/vector
             ;; then it is a to-many, and treat it as such
 
-            (comment (sc.api/defsc 4))
-            (sc.api/spy
-              (cond
-                ;; pointer was nil
-                (and recur-query (not refs)) missing-val
+            (cond
+              ;; pointer was nil
+              (and recur-query (not refs)) missing-val
 
-                ;; self cycle
-                infinite-self-join? refs
+              ;; self cycle
+              infinite-self-join? refs
 
-                walk-fn
-                (let [recur-output (walk-fn entity)]
-                  (cond
-                    (map? recur-output)
-                    (let [{:keys [expand stop]} recur-output]
-                      (when-not (or
-                                  (contains? recur-output :expand)
-                                  (contains? recur-output :stop))
-                        (error "Your walk function returned a map, but did not provide :expand or :stop keys."))
-                      (let [refs-to-expand expand
-                            join-ref       (-entity datasource app id-attr (assoc args id-attr expand))
-                            to-one?        (some? join-ref)]
-                        (cond
-                          to-one?
-                          (let [ref-id (-ref->id datasource refs-to-expand)]
-                            (if seen-entity-id?
-                              ;; cycle
-                              (do
-                                (-> (<sub app [entity-sub
-                                               (-> args
-                                                 (update ::depth (fnil inc 0))
-                                                 (update ::entity-history (fnil conj #{}) entity-id)
-                                                 (assoc query-key recur-query, id-attr ref-id))])
-                                  (assoc recur-prop refs)
-                                  (xform-fn)))
-
-                              (xform-fn (<sub app [entity-sub
-                                                   (-> args
-                                                     (update ::depth (fnil inc 0))
-                                                     (update ::entity-history (fnil conj #{}) entity-id)
-                                                     (assoc query-key recur-query, id-attr ref-id))]))))
-
-                          ;; to-many join
-                          refs-to-expand
-                          (if seen-entity-id?
-                            refs
-                            (into
-                              (mapv (fn [join-ref]
-                                      (xform-fn (<sub app [entity-sub
-                                                           (-> args
-                                                             (update ::depth (fnil inc 0))
-                                                             (update ::entity-history (fnil conj #{}) entity-id)
-                                                             (assoc query-key parent-query id-attr (-ref->id datasource join-ref)))])))
-                                    refs-to-expand)
-                              (when stop (mapv (fn [join-ref]
-                                                 (-entity datasource app id-attr (assoc args id-attr (-ref->id datasource join-ref))))
-                                               stop)))))))
-
-                    ;; some dbs support arbitrary collections as keys
-                    (coll? recur-output)
-                    (let [refs-to-recur recur-output
-                          join-ref      (-entity datasource app id-attr (assoc args id-attr refs-to-recur))
-                          to-one?       (some? join-ref)]
-
-                      (if to-one?
-                        (let [ref-id (-ref->id datasource refs-to-recur)]
+              walk-fn
+              (let [recur-output (walk-fn entity)]
+                (cond
+                  (map? recur-output)
+                  (let [{:keys [expand stop]} recur-output]
+                    (when-not (or
+                                (contains? recur-output :expand)
+                                (contains? recur-output :stop))
+                      (error "Your walk function returned a map, but did not provide :expand or :stop keys."))
+                    (let [refs-to-expand expand
+                          join-ref       (-entity datasource app id-attr (assoc args id-attr expand))
+                          to-one?        (some? join-ref)]
+                      (cond
+                        to-one?
+                        (let [ref-id (-ref->id datasource refs-to-expand)]
                           (if seen-entity-id?
                             ;; cycle
-                            (-> (<sub app [entity-sub
-                                           (-> args
-                                             (update ::depth (fnil inc 0))
-                                             (update ::entity-history (fnil conj #{}) entity-id)
-                                             (assoc query-key recur-query, id-attr ref-id))])
-                              (assoc recur-prop refs)
-                              (xform-fn))
+                            (do
+                              (-> (<sub app [entity-sub
+                                             (-> args
+                                               (update ::depth (fnil inc 0))
+                                               (update ::entity-history (fnil conj #{}) entity-id)
+                                               (assoc query-key recur-query, id-attr ref-id))])
+                                (assoc recur-prop refs)
+                                (xform-fn)))
 
                             (xform-fn (<sub app [entity-sub
                                                  (-> args
@@ -390,62 +348,102 @@
                                                    (assoc query-key recur-query, id-attr ref-id))]))))
 
                         ;; to-many join
+                        refs-to-expand
                         (if seen-entity-id?
                           refs
-                          (mapv (fn [join-ref]
-                                  (xform-fn (<sub app [entity-sub
-                                                       (-> args
-                                                         (update ::depth (fnil inc 0))
-                                                         (update ::entity-history (fnil conj #{}) entity-id)
-                                                         (assoc query-key parent-query id-attr (-ref->id datasource join-ref)))])))
-                                refs-to-recur))))
+                          (into
+                            (mapv (fn [join-ref]
+                                    (xform-fn (<sub app [entity-sub
+                                                         (-> args
+                                                           (update ::depth (fnil inc 0))
+                                                           (update ::entity-history (fnil conj #{}) entity-id)
+                                                           (assoc query-key parent-query id-attr (-ref->id datasource join-ref)))])))
+                                  refs-to-expand)
+                            (when stop (mapv (fn [join-ref]
+                                               (-entity datasource app id-attr (assoc args id-attr (-ref->id datasource join-ref))))
+                                             stop)))))))
 
-                    (some? recur-output)
-                    (let [join-ref (-entity datasource app id-attr (assoc args id-attr (-ref->id datasource refs)))
-                          to-one?  (some? join-ref)]
-                      (if seen-entity-id? ;; cycle
-                        refs
-                        (if to-one?
+                  ;; some dbs support arbitrary collections as keys
+                  (coll? recur-output)
+                  (let [refs-to-recur recur-output
+                        join-ref      (-entity datasource app id-attr (assoc args id-attr refs-to-recur))
+                        to-one?       (some? join-ref)]
+
+                    (if to-one?
+                      (let [ref-id (-ref->id datasource refs-to-recur)]
+                        (if seen-entity-id?
+                          ;; cycle
+                          (-> (<sub app [entity-sub
+                                         (-> args
+                                           (update ::depth (fnil inc 0))
+                                           (update ::entity-history (fnil conj #{}) entity-id)
+                                           (assoc query-key recur-query, id-attr ref-id))])
+                            (assoc recur-prop refs)
+                            (xform-fn))
+
                           (xform-fn (<sub app [entity-sub
                                                (-> args
                                                  (update ::depth (fnil inc 0))
-                                                 (update ::entity-history (fnil conj #{}) refs)
-                                                 (assoc query-key recur-query, id-attr refs))]))
-                          ;; to-many
-                          (mapv (fn [join-ref]
-                                  (xform-fn (<sub app [entity-sub
-                                                       (-> args
-                                                         (update ::entity-history (fnil conj #{}) entity-id)
-                                                         (assoc query-key recur-query, id-attr (-ref->id datasource join-ref)))])))
-                                refs))))
-
-                    ;; stop walking
-                    :else refs))
-
-                ;; to-one join
-                (and recur-query to-one?)
-                (if seen-entity-id?
-                  refs ;; cycle
-                  (xform-fn (<sub app [entity-sub
-                                       (-> args
-                                         (update ::depth (fnil inc 0))
-                                         (update ::entity-history (fnil conj #{}) entity-id)
-                                         (assoc query-key recur-query, id-attr (-ref->id datasource refs)))])))
-
-                ;; to-many join
-                (and recur-query (not to-one?))
-                (if seen-entity-id?
-                  refs
-                  (mapv (fn [join-ref]
-                          (xform-fn (<sub app [entity-sub
-                                               (-> args
                                                  (update ::entity-history (fnil conj #{}) entity-id)
-                                                 (assoc query-key recur-query id-attr (-ref->id datasource join-ref)))])))
-                        refs))
+                                                 (assoc query-key recur-query, id-attr ref-id))]))))
 
-                ;; do not recur
-                refs (vec refs)
-                :else missing-val))))))))
+                      ;; to-many join
+                      (if seen-entity-id?
+                        refs
+                        (mapv (fn [join-ref]
+                                (xform-fn (<sub app [entity-sub
+                                                     (-> args
+                                                       (update ::depth (fnil inc 0))
+                                                       (update ::entity-history (fnil conj #{}) entity-id)
+                                                       (assoc query-key parent-query id-attr (-ref->id datasource join-ref)))])))
+                              refs-to-recur))))
+
+                  (some? recur-output)
+                  (let [join-ref (-entity datasource app id-attr (assoc args id-attr (-ref->id datasource refs)))
+                        to-one?  (some? join-ref)]
+                    (if seen-entity-id? ;; cycle
+                      refs
+                      (if to-one?
+                        (xform-fn (<sub app [entity-sub
+                                             (-> args
+                                               (update ::depth (fnil inc 0))
+                                               (update ::entity-history (fnil conj #{}) refs)
+                                               (assoc query-key recur-query, id-attr refs))]))
+                        ;; to-many
+                        (mapv (fn [join-ref]
+                                (xform-fn (<sub app [entity-sub
+                                                     (-> args
+                                                       (update ::entity-history (fnil conj #{}) entity-id)
+                                                       (assoc query-key recur-query, id-attr (-ref->id datasource join-ref)))])))
+                              refs))))
+
+                  ;; stop walking
+                  :else refs))
+
+              ;; to-one join
+              (and recur-query to-one?)
+              (if seen-entity-id?
+                refs ;; cycle
+                (xform-fn (<sub app [entity-sub
+                                     (-> args
+                                       (update ::depth (fnil inc 0))
+                                       (update ::entity-history (fnil conj #{}) entity-id)
+                                       (assoc query-key recur-query, id-attr (-ref->id datasource refs)))])))
+
+              ;; to-many join
+              (and recur-query (not to-one?))
+              (if seen-entity-id?
+                refs
+                (mapv (fn [join-ref]
+                        (xform-fn (<sub app [entity-sub
+                                             (-> args
+                                               (update ::entity-history (fnil conj #{}) entity-id)
+                                               (assoc query-key recur-query id-attr (-ref->id datasource join-ref)))])))
+                      refs))
+
+              ;; do not recur
+              refs (vec refs)
+              :else missing-val)))))))
 
 (defn component-id-prop [c] (first (rc/get-ident c {})))
 

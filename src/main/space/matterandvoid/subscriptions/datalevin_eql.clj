@@ -12,7 +12,6 @@
     [taoensso.timbre :as log]))
 
 (def query-key impl/query-key)
-(def cycle-marker impl/cycle-marker)
 (def missing-val impl/missing-val)
 (def walk-fn-key impl/walk-fn-key)
 (def xform-fn-key impl/xform-fn-key)
@@ -67,7 +66,7 @@
   Returns a fulcro component created by fulcro.raw.components/nc"
   [args] (impl/nc args))
 
-(defn reg-component-subs!
+(defn register-component-subs!
   "Registers subscriptions that will fulfill the given fulcro component's query.
   The component must have a name as well as any components in its query."
   [c] (impl/reg-component-subs! reg-sub-raw reg-sub <sub datalevin-data-source c))

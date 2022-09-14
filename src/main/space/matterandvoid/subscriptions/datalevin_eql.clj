@@ -27,7 +27,7 @@
 (def datalevin-data-source
   (reify impl/IDataSource
     (-ref->id [_ ref]
-      (log/info "ref->id ref: " ref )
+      (log/info "ref->id ref: " ref)
       (cond (and (map? ref) (contains? ref :db/id))
             (:db/id ref)
             :else ref))
@@ -44,12 +44,16 @@
               (do
                 (try
                   (println "in first try" id-val)
-                  (d/touch id-val)
+                  (if (eql/ident? id-val)
+                    (d/touch (d/entity (->db conn-or-db) id-val))
+                    ;; todo can check if id-val is a primitive type (allowed in value position, this way we don't have to use
+                    ;; the catch, can just return nil, should be slightly faster.
+                    (d/touch (d/entity (->db conn-or-db) [id-attr id-val])))
                   (catch AssertionError e
                     (println "in catch")
                     (d/touch (d/entity (->db conn-or-db) [id-attr id-val]))))))))
         (catch ClassCastException e
-          (println "class cast exc, return nil for id " id-val))))
+          (println "class cast exc, return nil for id " (get args id-attr)))))
     (-attr [this conn-or-db id-attr attr args]
       (log/info "-attr: " id-attr " attr " attr " id: " (get args id-attr))
       (get (impl/-entity this conn-or-db id-attr args) attr))))

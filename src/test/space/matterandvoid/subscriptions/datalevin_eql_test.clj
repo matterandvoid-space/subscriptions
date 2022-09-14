@@ -1,12 +1,25 @@
 (ns space.matterandvoid.subscriptions.datalevin-eql-test
   (:require
     [clojure.test :refer [deftest testing is]]
+    [clojure.string :as str]
     [datalevin.core :as d]
     [space.matterandvoid.subscriptions.core :as subs :refer [<sub]]
     [space.matterandvoid.subscriptions.datalevin-eql :as sut]
     [com.fulcrologic.fulcro.raw.components :as rc]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
     [taoensso.timbre :as log]))
+
+(defmacro my-m [nme]
+  `'~(symbol (str nme)))
+
+(defmacro curr-ns [x]
+  `'~(symbol (str *ns*) (str x)))
+(comment
+  (macroexpand '(curr-ns hi))
+
+  (println (my-m hello-there)
+           )
+  (= (my-m hello) 'hello))
 
 (log/set-level! :debug)
 
@@ -111,7 +124,7 @@
 (defonce db_ (r/atom (d/db conn)))
 
 (comment
-  (d/touch (d/entity db 1))
+  (d/touch (d/entity db 1)) ; user-2
   (d/touch (d/entity db 2)) ; user-2
   (d/touch (d/entity db 3)) ; user-3
   (d/touch (d/entity db 11)) ; user-7
@@ -132,4 +145,13 @@
                                       )
                      :user/id       :user-1
                      sut/query-key  [:user/name :user/id {(list :user/friends {sut/walk-fn-key 'keep-walking?}) '...}]}])
+
+  (<sub db_ [::user {'upper-case-name (fn [e] (println "IN xform fn " e) (update e :user/name str/upper-case))
+                     :user/id         :user-1
+                     sut/query-key    [:user/name :user/id {(list :user/friends {sut/xform-fn-key 'upper-case-name}) 4}]}])
+  (<sub db_ [::user {'upper-case-name (fn [e] (println "IN xform fn " e) (update e :user/name str/upper-case))
+                     'keep-walking?   (fn [e] (println "IN KEEP walking?  " e) (#{"user 1" "user 2"} (:user/name e)))
+                     :user/id         :user-1
+                     sut/query-key    [:user/name :user/id {(list :user/friends {sut/xform-fn-key 'upper-case-name
+                                                                                 sut/walk-fn-key  'keep-walking?}) '...}]}])
   )

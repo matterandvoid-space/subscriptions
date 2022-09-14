@@ -7,7 +7,6 @@
     [taoensso.timbre :as log]))
 
 (def query-key impl/query-key)
-(def cycle-marker impl/cycle-marker)
 (def missing-val impl/missing-val)
 (def walk-fn-key impl/walk-fn-key)
 (def xform-fn-key impl/xform-fn-key)

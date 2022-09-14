@@ -16,7 +16,7 @@
 ;(eql/query->ast [:comment/id :comment/text {:comment/sub-comments `traverse?}])
 
 (log/set-level! :debug)
-(enable-console-print!)
+#?(:cljs (enable-console-print!))
 (set! *print-namespace-maps* false)
 
 (def user-comp (sut/nc {:query [:user/id :user/name {:user/friends '...}] :name ::user :ident :user/id}))
@@ -111,13 +111,13 @@
   (testing "to-many union queries"
     (is (=
           #:list{:items   [#:todo{:id     2, :text "todo 2",
-                                  :author #:user{:id 2, :name "user 2", :friends [#:user{:id 2, :name "user 2", :friends sut/cycle-marker}
-                                                                                  #:user{:id 1, :name "user 1", :friends [#:user{:id 2, :name "user 2", :friends sut/cycle-marker}]}
+                                  :author #:user{:id 2, :name "user 2", :friends [#:user{:id 2, :name "user 2", :friends ::cycle-marker}
+                                                                                  #:user{:id 1, :name "user 1", :friends [#:user{:id 2, :name "user 2", :friends ::cycle-marker}]}
                                                                                   #:user{:id      3, :name "user 3",
-                                                                                         :friends [#:user{:id 2, :name "user 2", :friends sut/cycle-marker}
+                                                                                         :friends [#:user{:id 2, :name "user 2", :friends ::cycle-marker}
                                                                                                    #:user{:id      4, :name "user 4",
-                                                                                                          :friends [#:user{:id 3, :name "user 3", :friends sut/cycle-marker}
-                                                                                                                    #:user{:id 4, :name "user 4", :friends sut/cycle-marker}]}]}]}}
+                                                                                                          :friends [#:user{:id 3, :name "user 3", :friends ::cycle-marker}
+                                                                                                                    #:user{:id 4, :name "user 4", :friends ::cycle-marker}]}]}]}}
                            #:comment{:id 1, :text "FIRST COMMENT", :sub-comments [#:comment{:id 2, :text "SECOND COMMENT"}]}],
                  :members [#:comment{:id 1, :text "FIRST COMMENT"} #:todo{:id 2, :text "todo 2"}]}
 
@@ -163,7 +163,7 @@
           {:human/id 1, :human/best-friend [:human/id 1], :human/name "human Y"}
           (<sub app [::human {:human/id 1 sut/query-key [:human/id :human/best-friend :human/name]}])))
 
-    (is (= {:human/id 1, :human/best-friend sut/cycle-marker, :human/name "human Y"}
+    (is (= {:human/id 1, :human/best-friend [:human/id 1], :human/name "human Y"}
           (<sub app [::human {:human/id 1 sut/query-key [:human/id {:human/best-friend '...} :human/name]}])))
 
     (testing "handles multi-level to-one cycle"
@@ -180,7 +180,7 @@
     (testing "handles finite self-recursive (to-one) cycles"
       (is (= {:human/id          1,
               :human/best-friend {:human/id          1,
-                                  :human/best-friend {:human/id 1, :human/best-friend sut/cycle-marker, :human/name "human Y"},
+                                  :human/best-friend {:human/id 1, :human/best-friend [:human/id 1], :human/name "human Y"},
                                   :human/name        "human Y"},
               :human/name        "human Y"}
             (<sub app [::human {:human/id 1 sut/query-key [:human/id {:human/best-friend 2} :human/name]}])))))
@@ -189,13 +189,13 @@
     (is (=
           #:user{:name    "user 1", :id 1,
                  :friends [#:user{:name    "user 2", :id 2,
-                                  :friends [#:user{:name "user 2", :id 2, :friends sut/cycle-marker}
-                                            #:user{:name "user 1", :id 1, :friends sut/cycle-marker}
+                                  :friends [#:user{:name "user 2", :id 2, :friends ::cycle-marker}
+                                            #:user{:name "user 1", :id 1, :friends ::cycle-marker}
                                             #:user{:name    "user 3", :id 3,
-                                                   :friends [#:user{:name "user 2", :id 2, :friends sut/cycle-marker}
+                                                   :friends [#:user{:name "user 2", :id 2, :friends ::cycle-marker}
                                                              #:user{:name    "user 4", :id 4,
-                                                                    :friends [#:user{:name "user 3", :id 3, :friends sut/cycle-marker}
-                                                                              #:user{:name "user 4", :id 4, :friends sut/cycle-marker}]}]}]}]}
+                                                                    :friends [#:user{:name "user 3", :id 3, :friends ::cycle-marker}
+                                                                              #:user{:name "user 4", :id 4, :friends ::cycle-marker}]}]}]}]}
           (<sub app [::user {:user/id 1 sut/query-key [:user/name :user/id {:user/friends '...}]}])))))
 
 (deftest queries-test

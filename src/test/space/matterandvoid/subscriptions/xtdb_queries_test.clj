@@ -2,7 +2,6 @@
   (:require
     [space.matterandvoid.subscriptions.xtdb-queries :as sut]
     [space.matterandvoid.subscriptions.core :as subs :refer [<sub]]
-    [space.matterandvoid.subscriptions :as-alias subs-keys]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
     [com.fulcrologic.fulcro.raw.components :as rc]
     [taoensso.timbre :as log]
@@ -139,20 +138,20 @@
                      :user/id       :user-1
                      sut/query-key  [:user/name :user/id {(list :user/friends {sut/walk-fn-key 'keep-walking?}) '...}]}])
 
-  (<sub db_ [::user {'get-friends           (fn [e]
-                                              (println "IN GET FRIENDS " e)
-                                              (let [friends (map (fn [[_ f-id]] (xt/entity (xt/db xt-node) f-id)) (:user/friends e))]
-                                                (println "friends: " friends)
-                                                ;; stop keeps the entity but does not recur on it, vs removing it completely from the
-                                                ;; result set.
-                                                {:stop   (mapv (fn [{:user/keys [id]}] [:user/id id])
-                                                           (filter (fn [{:user/keys [name]}] (= name "user 3")) friends))
-                                                 :expand (mapv (fn [{:user/keys [id]}] [:user/id id])
-                                                           (remove
-                                                             (fn [{:user/keys [name]}] (= name "user 3")) friends))}))
-                     ::subs-keys/walk-style :expand
-                     :user/id               :user-1 sut/query-key [:user/name :user/id
-                                                                   {(list :user/friends {sut/walk-fn-key 'get-friends}) '...}]}])
+  (<sub db_ [::user {'get-friends (fn [e]
+                                    (println "IN GET FRIENDS " e)
+                                    (let [friends (map (fn [[_ f-id]] (xt/entity (xt/db xt-node) f-id)) (:user/friends e))]
+                                      (println "friends: " friends)
+                                      ;; stop keeps the entity but does not recur on it, vs removing it completely from the
+                                      ;; result set.
+                                      {:stop   (mapv (fn [{:user/keys [id]}] [:user/id id])
+                                                 (filter (fn [{:user/keys [name]}] (= name "user 3")) friends))
+                                       :expand (mapv (fn [{:user/keys [id]}] [:user/id id])
+                                                 (remove
+                                                   (fn [{:user/keys [name]}] (= name "user 3")) friends))}))
+
+                     :user/id     :user-1 sut/query-key [:user/name :user/id
+                                                         {(list :user/friends {sut/walk-fn-key 'get-friends}) '...}]}])
 
   ;This returns:
 

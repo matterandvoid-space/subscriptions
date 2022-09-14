@@ -371,11 +371,13 @@
                             (if seen-entity-id?
                               refs
                               (into
-                                (mapv (fn [[_ id]] (<sub app [entity-sub
-                                                              (-> args
-                                                                (update ::depth (fnil inc 0))
-                                                                (update ::entity-history (fnil conj #{}) entity-id)
-                                                                (assoc query-key parent-query id-attr id))]))
+                                (mapv (fn [join-ref]
+                                        (println "calling tomany recursive sub: " refs-to-expand)
+                                        (<sub app [entity-sub
+                                                   (-> args
+                                                     (update ::depth (fnil inc 0))
+                                                     (update ::entity-history (fnil conj #{}) entity-id)
+                                                     (assoc query-key parent-query id-attr (-ref->id datasource join-ref)))]))
                                       refs-to-expand)
                                 (when stop (mapv (fn [[_ id]] (-entity datasource app id-attr
                                                                 (assoc args id-attr id)))
@@ -430,15 +432,17 @@
                                          (update ::entity-history (fnil conj #{}) refs)
                                          (assoc query-key recur-query, id-attr refs))])
                             ;; to-many
-                            (mapv (fn [join-ref]
-                                    (<sub app [entity-sub
-                                               (-> args
-                                                 (update ::entity-history (fnil conj #{}) entity-id)
-                                                 (assoc query-key recur-query, id-attr (-ref->id datasource join-ref)))]))
-                                  refs))))
+                            (do
+                              (println "\n\npredicate output, calling subs for refs: " refs)
+                              (mapv (fn [join-ref]
+                                      (<sub app [entity-sub
+                                                 (-> args
+                                                   (update ::entity-history (fnil conj #{}) entity-id)
+                                                   (assoc query-key recur-query, id-attr (-ref->id datasource join-ref)))]))
+                                    refs)))))
 
                       ;; stop walking
-                      :else nil)))
+                      :else refs)))
 
               ;; to-one join
               (and recur-query to-one?)
@@ -448,24 +452,28 @@
                                (-> args
                                  (update ::depth (fnil inc 0))
                                  (update ::entity-history (fnil conj #{}) entity-id)
-                                 (assoc query-key recur-query, id-attr (second refs)))])
+                                 (assoc query-key recur-query, id-attr (-ref->id datasource refs)))])
                   (assoc recur-prop cycle-marker))
 
-                (<sub app [entity-sub
-                           (-> args
-                             (update ::depth (fnil inc 0))
-                             (update ::entity-history (fnil conj #{}) entity-id)
-                             (assoc query-key recur-query, id-attr (second refs)))]))
+                (do
+                  (println "TO ONE " refs)
+                  (<sub app [entity-sub
+                             (-> args
+                               (update ::depth (fnil inc 0))
+                               (update ::entity-history (fnil conj #{}) entity-id)
+                               (assoc query-key recur-query, id-attr (-ref->id datasource refs)))])))
 
               ;; to-many join
               (and recur-query (not to-one?))
               (if seen-entity-id?
-                cycle-marker
-                (mapv (fn [join-ref] (<sub app [entity-sub
-                                                (-> args
-                                                  (update ::entity-history (fnil conj #{}) entity-id)
-                                                  (assoc query-key recur-query id-attr (-ref->id datasource join-ref)))]))
-                      refs))
+                refs
+                (do
+                  (println "TO MANY " refs)
+                  (mapv (fn [join-ref] (<sub app [entity-sub
+                                                  (-> args
+                                                    (update ::entity-history (fnil conj #{}) entity-id)
+                                                    (assoc query-key recur-query id-attr (-ref->id datasource join-ref)))]))
+                        refs)))
 
               ;; do not recur
               refs (vec refs)

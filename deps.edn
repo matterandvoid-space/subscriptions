@@ -21,6 +21,9 @@
 
            :dev
            {:extra-paths ["examples" "public" "src/test"]
+            ;; for datalevin
+            :jvm-opts    ["--add-opens=java.base/java.nio=ALL-UNNAMED"
+                          "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"]
             :extra-deps  {org.slf4j/slf4j-nop       {:mvn/version "2.0.0-alpha7"}
                           com.xtdb/xtdb-core        {:mvn/version "1.21.0"}
                           com.xtdb/xtdb-lmdb        {:mvn/version "1.21.0"}
@@ -30,10 +33,8 @@
                           org.clojure/clojurescript {:mvn/version "1.11.54"}
                           binaryage/devtools        {:mvn/version "1.0.6"}
                           datascript/datascript     {:mvn/version "1.3.13"}
-                          ;edn-query-language/eql    {:mvn/version "2021.07.18"}
-                          edn-query-language/eql    {:git/url "git@github.com:matterandvoid-space/eql.git" :git/sha "a586804e6ffaa071341d183b7d95d050feff8f44"}
+                          datalevin/datalevin       {:mvn/version "0.6.18"}
+                          edn-query-language/eql    {:mvn/version "2021.07.18"}
                           reagent/reagent           {:mvn/version "1.1.1"}
                           com.fulcrologic/fulcro    {:mvn/version "3.5.21"}
                           thheller/shadow-cljs      {:mvn/version "2.19.0"}}}}}
-
-

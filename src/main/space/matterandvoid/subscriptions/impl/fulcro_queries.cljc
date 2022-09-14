@@ -110,8 +110,7 @@
   "Return hashmap of data attribute keywords -> subscription output implementation for '* queries"
   [datasource app id-attr props args]
   (let [entity (-entity datasource app id-attr args)]
-    (sc.api/spy
-      (reduce (fn [acc prop] (assoc acc prop (get entity prop missing-val))) {} props))))
+    (reduce (fn [acc prop] (assoc acc prop (get entity prop missing-val))) {} props)))
 
 (defn reg-sub-entity
   "Registers a subscription that returns a domain entity as a hashmap.
@@ -149,9 +148,7 @@
                                                 (assoc prop output))))
                                     {} props')))
                     output    (merge all-props output)]
-                (comment (sc.api/defsc 92))
-                (sc.api/spy
-                  output)))))
+                output))))
         (make-reaction
           (fn []
             (reduce

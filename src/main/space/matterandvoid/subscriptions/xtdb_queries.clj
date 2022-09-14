@@ -8,10 +8,7 @@
     [space.matterandvoid.subscriptions.impl.fulcro-queries :as impl]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
     [taoensso.timbre :as log]
-    [xtdb.api :as xt])
-  (:import
-    [xtdb.query QueryDatasource]
-    [xtdb.api DBProvider]))
+    [xtdb.api :as xt]))
 
 (def query-key impl/query-key)
 (def missing-val impl/missing-val)
@@ -58,8 +55,8 @@
 ;; I want to "pull" only some of those entities
 ;; in a nested fashion following some set of criteria and get that data back in a tree shape (nested), not normalized.
 
-(defn xt-node? [n] (instance? DBProvider n))
-(defn db? [x] (or (instance? QueryDatasource x) (.isInstance QueryDatasource x)))
+(defn xt-node? [n] (satisfies? xt/DBProvider n))
+(defn db? [x] (satisfies? xt/PXtdbDatasource x))
 
 (defn ->db [node-or-db]
   (let [v (if (r/ratom? node-or-db) @node-or-db node-or-db)]

@@ -2,7 +2,7 @@
   (:require
     ["react" :as react]
     ["react-dom" :as react-dom]
-    ;["use-sync-external-store/shim" :refer [useSyncExternalStore]]
+    ["use-sync-external-store/shim" :refer [useSyncExternalStore]]
     ["use-sync-external-store/shim/with-selector" :refer [useSyncExternalStoreWithSelector]]
     [goog.object :as gobj]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
@@ -31,10 +31,10 @@
                     (set! (.-current render-scheduled?) true)
                     (js/requestAnimationFrame
                       (fn [_]
-                        (set-output-value! (deref-fn))
+                        (react-dom/unstable_batchedUpdates (fn [] (set-output-value! (deref-fn))))
                         (set! (.-current render-scheduled?) false)))))
                 {:no-cache true})]
-          (set-output-value! return-val))
+          (react-dom/unstable_batchedUpdates (fn [] (set-output-value! return-val))))
         (fn cleanup-subscription []
           (ratom/dispose! (gobj/get (.-current reaction-obj) reaction-key))))
       #js[])
@@ -52,9 +52,18 @@
     ;; When the ref is updated, execute all listeners in a batch
     (add-watch ref ::batched-subscribe
       (fn [_ _ _ _]
+        (println "Watched ref fired")
         (react-dom/unstable_batchedUpdates
           #(doseq [listener @(.-react-listeners ref)]
+             (println "BATCHED listener is firing! " listener)
              (listener)))))))
+
+(defn- setup-batched-updates-listener2 [^js ref]
+  ;; Adding an atom holding a set of listeners on a ref if it wasn't added yet
+  (when-not (.-react-listeners ref)
+    (set! (.-react-listeners ref) (atom #{}))
+    ;; When the ref is updated, execute all listeners in a batch
+    ))
 
 (defn- teardown-batched-updates-listener [^js ref]
   ;; When the last listener is removed remove batched updates listener from the ref
@@ -75,6 +84,31 @@
         (teardown-batched-updates-listener ref)))
     #js[ref]))
 
+(defn use-run-in-reaction [^js reaction]
+  (let [render-scheduled? (react/useRef false)
+        reaction-key      "reaction"
+        reaction-obj      (react/useRef #js{})]
+    (react/useCallback
+      (fn setup-subscription [listener]
+        (let [return-val
+              (ratom/run-in-reaction
+                (fn [] (println "IN DEREF FN") @reaction)
+                (.-current reaction-obj)
+                reaction-key
+                (fn on-react! []
+                  (when-not (.-current render-scheduled?)
+                    (set! (.-current render-scheduled?) true)
+                    (js/requestAnimationFrame
+                      (fn [_]
+                        (println "CALLING LISTENER")
+                        (listener)
+                        (set! (.-current render-scheduled?) false)))))
+                {:no-cache true})])
+        (fn cleanup-subscription []
+          (println "CLEANUP use-in-reaction")
+          (ratom/dispose! (gobj/get (.-current reaction-obj) reaction-key))))
+      #js [reaction])))
+
 (defn use-sync-external-store [subscribe get-snapshot]
   (useSyncExternalStoreWithSelector
     subscribe
@@ -89,11 +123,35 @@
   "Takes a Reagent Reaction and rerenders the UI component when the Reaction's value changes.
   Returns current value of the Reaction"
   [reaction]
-  (let [subscribe    (use-batched-subscribe reaction)
+  (let [
+        ;subscribe    (use-batched-subscribe reaction)
+        subscribe    (use-run-in-reaction reaction)
         get-snapshot (react/useCallback (fn []
                                           ;; Mocking ratom context
                                           ;; This makes sure that watchers added to the `reaction`
                                           ;; will be triggered when the `reaction` gets updated.
-                                          (ratom/in-reactive-context @reaction))
+                                          (println "IN USE REACTION CALLBACK getSnapshot")
+                                          (binding [reagent.ratom/*ratom-context* #js{}] @reaction)
+                                          ;(ratom/in-reactive-context @reaction)
+                                          )
+                       #js[reaction])]
+    (useSyncExternalStore subscribe get-snapshot)
+    ;(use-sync-external-store subscribe get-snapshot)
+    ))
+
+(defn use-reaction2
+  [reaction]
+  (let [
+        ;subscribe    (use-batched-subscribe reaction)
+        subscribe    (use-run-in-reaction reaction)
+        get-snapshot (react/useCallback (fn []
+                                          (println "use-reaction2!! useCallback getSnapshot")
+                                          ;; Mocking ratom context
+                                          ;; This makes sure that watchers added to the `reaction`
+                                          ;; will be triggered when the `reaction` gets updated.
+                                          ;@reaction
+                                          (binding [reagent.ratom/*ratom-context* #js{}] @reaction)
+                                          ;(ratom/in-reactive-context @reaction)
+                                          )
                        #js[reaction])]
     (use-sync-external-store subscribe get-snapshot)))

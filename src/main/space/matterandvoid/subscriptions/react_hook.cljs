@@ -47,3 +47,4 @@
   "Takes a Reagent Reaction and rerenders the UI component when the Reaction's value changes.
   Returns current value of the Reaction"
   [r] (common/use-reaction r))
+(def use-reaction2 common/use-reaction2)

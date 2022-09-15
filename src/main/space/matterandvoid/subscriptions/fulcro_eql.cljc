@@ -1,9 +1,9 @@
-(ns space.matterandvoid.subscriptions.fulcro-queries
+(ns space.matterandvoid.subscriptions.fulcro-eql
   (:require
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [edn-query-language.core :as eql]
     [space.matterandvoid.subscriptions.fulcro :refer [reg-sub-raw reg-sub <sub]]
-    [space.matterandvoid.subscriptions.impl.fulcro-queries :as impl]
+    [space.matterandvoid.subscriptions.impl.eql-queries :as impl]
     [taoensso.timbre :as log]))
 
 (def query-key impl/query-key)
@@ -18,11 +18,13 @@
 
 (def fulcro-data-source
   (reify impl/IDataSource
-    (-ref->id [_ ref] (assert (eql/ident? ref)) (second ref))
+    (-ref->id [_ ref]
+      (if (eql/ident? ref) (second ref) ref))
     (-entity-id [_ _ id-attr args] (get args id-attr))
     (-entity [_ fulcro-app id-attr args]
       (log/info "-entity for id attr: " id-attr)
-      (get-in (->db fulcro-app) [id-attr (get args id-attr)]))
+      (when (eql/ident? [id-attr (get args id-attr)])
+        (get-in (->db fulcro-app) [id-attr (get args id-attr)])))
     (-attr [_ fulcro-app id-attr attr args]
       (get-in (->db fulcro-app) [id-attr (get args id-attr) attr]))))
 

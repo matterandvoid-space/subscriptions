@@ -34,11 +34,8 @@
   other than that they do redundant work."
   [f]
   (reify clojure.lang.IDeref (deref [_] (f))))
-
 (defn run-in-reaction [f obj key run opts] (f))
-
-(defmacro in-reactive-context [args]
-  `(binding [reagent.ratom/*ratom-context* (cljs.core/js-obj)] ~args))
+(defn in-reactive-context [_ f] (f))
 
 (defn add-on-dispose!
   "On JVM Clojure, use an atom to register `f` to be invoked when `dispose!` is

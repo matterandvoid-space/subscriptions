@@ -1,6 +1,6 @@
-(ns space.matterandvoid.subscriptions.xtdb-queries-test
+(ns space.matterandvoid.subscriptions.xtdb-eql-test
   (:require
-    [space.matterandvoid.subscriptions.xtdb-queries :as sut]
+    [space.matterandvoid.subscriptions.xtdb-eql :as sut]
     [space.matterandvoid.subscriptions.core :as subs :refer [<sub]]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
     [com.fulcrologic.fulcro.raw.components :as rc]
@@ -37,6 +37,8 @@
 
 (run! sut/reg-component-subs! [user-comp bot-comp comment-comp todo-comp list-comp human-comp])
 
+
+(meta (rc/get-query user-comp))
 ;; for now to get this working I am having all refs be idents or vec of idents
 ;; later you can make this generic
 ;; i'm thinking the protocol would have -attr for simple getter

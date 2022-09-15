@@ -1,11 +1,9 @@
-(ns space.matterandvoid.subscriptions.xtdb-queries
+(ns space.matterandvoid.subscriptions.xtdb-eql
   (:require
     [clojure.java.io :as io]
-    [com.fulcrologic.fulcro.application :as fulcro.app]
     [edn-query-language.core :as eql]
-    [integrant.core :as ig]
     [space.matterandvoid.subscriptions.core :refer [reg-sub-raw reg-sub <sub]]
-    [space.matterandvoid.subscriptions.impl.fulcro-queries :as impl]
+    [space.matterandvoid.subscriptions.impl.eql-queries :as impl]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
     [taoensso.timbre :as log]
     [xtdb.api :as xt]))
@@ -15,37 +13,11 @@
 (def walk-fn-key impl/walk-fn-key)
 (def xform-fn-key impl/xform-fn-key)
 
-;(def lmdb-xt-config
-;  {:xtdb/index-store    {:kv-store {:xtdb/module 'xtdb.lmdb/->kv-store :db-dir (io/file "tmp/lmdb-index-store")}}
-;   :xtdb/document-store {:kv-store {:xtdb/module 'xtdb.lmdb/->kv-store :sync? true :db-dir (io/file "tmp/lmdb-doc-store")}}
-;   :xtdb/tx-log         {:kv-store {:xtdb/module 'xtdb.lmdb/->kv-store :sync? true :db-dir (io/file "tmp/lmdb-tx-log-store")}}})
-;
-;(def config
-;  {:xtdb/node lmdb-xt-config})
-;
-;(defmethod ig/init-key :xtdb/node
-;  [_ opts]
-;  (log/info "opts: " opts)
-;  (xt/start-node opts))
-;
-;(defmethod ig/halt-key! :xtdb/node [_ node]
-;  (log/info "Stopping xt node")
-;  (.close node))
-;
-;(comment
-;  (xt/submit-tx (:xtdb/node system) [[::xt/put {:xt/id :hi :dan 5}]])
-;  (xt/entity (xt/db (:xtdb/node system)) :hi)
-;  (def system (ig/init config))
-;  (ig/halt! system)
-;  )
-
-;;
 ;; so the idea is ....
 ;; implement graph walking algos using the subscriptions.
 ;; current design flaw is that it uses stack recursion
 ;; can look into using loom maybe?
 ;;
-
 ;; what is the goal?
 ;; what problem are you trying to solve?
 
@@ -82,7 +54,6 @@
       (log/info "-attr: " id-attr " attr " attr)
       (get (xt/entity (->db xt-node-or-db) (get args id-attr)) attr))))
 
-;(impl/-attr xtdb-data-source (xt/start-node {}) :id :attr {} )
 (defn nc
   "Wraps fulcro.raw.components/nc to take one hashmap of fulcro component options, supports :ident being a keyword.
   Args:
@@ -91,6 +62,10 @@
   :name -> same as :componentName
   Returns a fulcro component created by fulcro.raw.components/nc"
   [args] (impl/nc args))
+
+(def get-query impl/get-query)
+(def class->registry-key impl/class->registry-key)
+(def get-ident impl/get-ident)
 
 (defn reg-component-subs!
   "Registers subscriptions that will fulfill the given fulcro component's query.

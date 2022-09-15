@@ -8,112 +8,40 @@
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [space.matterandvoid.subscriptions.fulcro :as subs]))
 
-(defn use-in-reaction
-  "A react hook that takes a function with no arguments (a thunk) and runs the provided function inside a reagent `run-in-reaction`,
-   returning the passed in function's value to the calling component. re-runs passed in function when any reagent reactive updates fire.
-
-  The hook causes the consuming component to re-render at most once per frame even if the reactive callback fires more than
-  once per frame."
-  [deref-fn]
-  (let [[output-value set-output-value!] (react/useState nil)
-        render-scheduled? (react/useRef false)
-        reaction-key      "reaction"
-        reaction-obj      (react/useRef #js{})]
-    (react/useEffect
-      (fn setup-subscription []
-        (let [return-val
-              (ratom/run-in-reaction
-                deref-fn
-                (.-current reaction-obj)
-                reaction-key
-                (fn on-react! []
-                  (when-not (.-current render-scheduled?)
-                    (set! (.-current render-scheduled?) true)
-                    (js/requestAnimationFrame
-                      (fn [_]
-                        (react-dom/unstable_batchedUpdates (fn [] (set-output-value! (deref-fn))))
-                        (set! (.-current render-scheduled?) false)))))
-                {:no-cache true})]
-          (react-dom/unstable_batchedUpdates (fn [] (set-output-value! return-val))))
-        (fn cleanup-subscription []
-          (ratom/dispose! (gobj/get (.-current reaction-obj) reaction-key))))
-      #js[])
-    output-value))
-
 ;; The following was adapted from
 ;; https://github.com/roman01la/hooks/blob/1a98408280892da1abebde206b5ca2444aced1b3/src/hooks/impl.cljs
 
 ;; for more on implementation details see https://github.com/reactwg/react-18/discussions/86
 
-(defn- setup-batched-updates-listener [^js ref]
-  ;; Adding an atom holding a set of listeners on a ref if it wasn't added yet
-  (when-not (.-react-listeners ref)
-    (set! (.-react-listeners ref) (atom #{}))
-    ;; When the ref is updated, execute all listeners in a batch
-    (add-watch ref ::batched-subscribe
-      (fn [_ _ _ _]
-        (println "Watched ref fired")
-        (react-dom/unstable_batchedUpdates
-          #(doseq [listener @(.-react-listeners ref)]
-             (println "BATCHED listener is firing! " listener)
-             (listener)))))))
-
-(defn- setup-batched-updates-listener2 [^js ref]
-  ;; Adding an atom holding a set of listeners on a ref if it wasn't added yet
-  (when-not (.-react-listeners ref)
-    (set! (.-react-listeners ref) (atom #{}))
-    ;; When the ref is updated, execute all listeners in a batch
-    ))
-
-(defn- teardown-batched-updates-listener [^js ref]
-  ;; When the last listener is removed remove batched updates listener from the ref
-  (when (empty? @(.-react-listeners ref))
-    (set! (.-react-listeners ref) nil)
-    (remove-watch ref ::batched-subscribe)))
-
-(defn- use-batched-subscribe
-  "Takes an atom-like ref type and returns a function that subscribes to changes
-  in the ref, where subscribed listeners execution is batched via `react-dom/unstable_batchedUpdates`"
-  [^js ref]
-  (react/useCallback
-    (fn [listener]
-      (setup-batched-updates-listener ref)
-      (swap! (.-react-listeners ref) conj listener)
-      (fn []
-        (swap! (.-react-listeners ref) disj listener)
-        (teardown-batched-updates-listener ref)))
-    #js[ref]))
-
-(defn use-run-in-reaction [^js reaction]
+(defn use-run-in-reaction [reaction]
   (let [render-scheduled? (react/useRef false)
         reaction-key      "reaction"
         reaction-obj      (react/useRef #js{})]
     (react/useCallback
       (fn setup-subscription [listener]
-        (let [return-val
-              (ratom/run-in-reaction
-                (fn [] (println "IN DEREF FN") @reaction)
-                (.-current reaction-obj)
-                reaction-key
-                (fn on-react! []
-                  (when-not (.-current render-scheduled?)
-                    (set! (.-current render-scheduled?) true)
-                    (js/requestAnimationFrame
-                      (fn [_]
-                        (println "CALLING LISTENER")
-                        (listener)
-                        (set! (.-current render-scheduled?) false)))))
-                {:no-cache true})])
+        (ratom/run-in-reaction
+          (fn [] @reaction)
+          (.-current reaction-obj)
+          reaction-key
+          (fn on-react! []
+            (when-not (.-current render-scheduled?)
+              (set! (.-current render-scheduled?) true)
+              (js/requestAnimationFrame
+                (fn [_]
+                  (listener)
+                  (set! (.-current render-scheduled?) false)))))
+          {:no-cache true})
         (fn cleanup-subscription []
-          (println "CLEANUP use-in-reaction")
           (ratom/dispose! (gobj/get (.-current reaction-obj) reaction-key))))
       #js [reaction])))
 
 (defn use-sync-external-store [subscribe get-snapshot]
+  ;; https://reactjs.org/docs/hooks-reference.html#usesyncexternalstore
+  ;; this version uses useMemo to avoid rerenders when the snapshot is the same across renders.
   (useSyncExternalStoreWithSelector
     subscribe
     get-snapshot
-    nil ;; getServerSnapshot, only needed for SSR
+    get-snapshot ;; getServerSnapshot, only needed for SSR ;; todo need to test this
     identity ;; selector, not using, just returning the value itself
     =)) ;; value equality check
 
@@ -121,37 +49,13 @@
 
 (defn use-reaction
   "Takes a Reagent Reaction and rerenders the UI component when the Reaction's value changes.
-  Returns current value of the Reaction"
-  [reaction]
-  (let [
-        ;subscribe    (use-batched-subscribe reaction)
+   Returns the current value of the Reaction"
+  [^js reaction-ref]
+  (when goog/DEBUG
+    (when (not (gobj/containsKey reaction-ref "current"))
+      (throw (js/Error (str "use-reaction hook must be passed a reaction inside a React ref."
+                         " You passed: " (pr-str reaction-ref))))))
+  (let [reaction     (.-current reaction-ref)
         subscribe    (use-run-in-reaction reaction)
-        get-snapshot (react/useCallback (fn []
-                                          ;; Mocking ratom context
-                                          ;; This makes sure that watchers added to the `reaction`
-                                          ;; will be triggered when the `reaction` gets updated.
-                                          (println "IN USE REACTION CALLBACK getSnapshot")
-                                          (binding [reagent.ratom/*ratom-context* #js{}] @reaction)
-                                          ;(ratom/in-reactive-context @reaction)
-                                          )
-                       #js[reaction])]
-    (useSyncExternalStore subscribe get-snapshot)
-    ;(use-sync-external-store subscribe get-snapshot)
-    ))
-
-(defn use-reaction2
-  [reaction]
-  (let [
-        ;subscribe    (use-batched-subscribe reaction)
-        subscribe    (use-run-in-reaction reaction)
-        get-snapshot (react/useCallback (fn []
-                                          (println "use-reaction2!! useCallback getSnapshot")
-                                          ;; Mocking ratom context
-                                          ;; This makes sure that watchers added to the `reaction`
-                                          ;; will be triggered when the `reaction` gets updated.
-                                          ;@reaction
-                                          (binding [reagent.ratom/*ratom-context* #js{}] @reaction)
-                                          ;(ratom/in-reactive-context @reaction)
-                                          )
-                       #js[reaction])]
+        get-snapshot (react/useCallback (fn [] (ratom/in-reactive-context #js{} (fn [] @reaction))) #js[reaction])]
     (use-sync-external-store subscribe get-snapshot)))

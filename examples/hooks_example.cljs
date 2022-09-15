@@ -4,7 +4,7 @@
     ["react" :as react]
     [reagent.ratom :as ratom]
     [space.matterandvoid.subscriptions.core :as subs :refer [defsub reg-sub <sub]]
-    [space.matterandvoid.subscriptions.react-hook :refer [use-sub use-sub-map use-reaction use-in-reaction use-reaction2]]))
+    [space.matterandvoid.subscriptions.react-hook :refer [use-sub use-sub-map use-reaction use-reaction-ref]]))
 
 (def my-atom (ratom/atom {:a {:nested {:2-nested 500}}}))
 (def my-cursor (ratom/cursor my-atom [:a :nested]))
@@ -57,14 +57,17 @@
       0)))
 
 (defn third-hook []
-  (let [output (use-reaction (ratom/make-reaction (fn [] (+ 100 (<sub db_ [:a-number])))))]
-    ($ :h1 "use-in-reaction hook: " output)))
+  (let [output2 (use-reaction (ratom/make-reaction (fn [] (+ 100 (<sub db_ [:a-number])))))
+        ;reaction (react/useRef (ratom/make-reaction (fn [] (+ 100 (<sub db_ [:a-number])))))
+        ;output   (use-reaction reaction)
+        ]
+    ($ :h1 "use-in-reaction hook: " output2)))
 
 (defonce start-state (get-in @db_ [:level1 :level2]))
 
 (defonce add-watchX
   (add-watch lvl2-cursor_ :dan (fn [key curs] (println "IN CURSOR WATCH: " @curs))))
-;(-add-watch lvl2-cursor_ :dan (fn [key curs] (println "IN CURSOR WATCH: " @curs)))
+
 (comment
   (swap! db_ update-in [:level1 :level2 :level3] inc)
   (identical? start-state (get-in @db_ [:level1 :level2]))
@@ -83,20 +86,20 @@
           ($ "div" "cursor1 "
             ($ "pre" (pr-str cursor-val))))))))
 
-(def cursor-hook2
-  (react/memo
-    (fn [] cursor-hook
-      (let [cursor2 (use-in-reaction (fn [] @lvl2-cursor_))]
-        (println "Rendering level2 cursor cursor-hook2")
-        ($ "div"
-          "level 2 cursor: "
-          ($ "button" {:onClick #(swap! db_ update-in [:level1 :level2 :level3] inc)} "Nested inc")
-          ($ "div" "cursor2" ($ "pre" (pr-str cursor2))))))))
+;(def cursor-hook2
+;  (react/memo
+;    (fn [] cursor-hook
+;      (let [cursor2 (use-in-reaction (fn [] @lvl2-cursor_))]
+;        (println "Rendering level2 cursor cursor-hook2")
+;        ($ "div"
+;          "level 2 cursor: "
+;          ($ "button" {:onClick #(swap! db_ update-in [:level1 :level2 :level3] inc)} "Nested inc")
+;          ($ "div" "cursor2" ($ "pre" (pr-str cursor2))))))))
 
 (def cursor-hook3
   (react/memo
     (fn [] cursor-hook
-      (let [cursor2 (use-reaction2 lvl2-cursor_)]
+      (let [cursor2 (use-reaction lvl2-cursor_)]
         (println "Rendering hook3 cursor-hook3")
         ($ "div"
           "use selector reaction: "
@@ -106,16 +109,16 @@
           ($ "div" "cursor3" ($ "pre" (pr-str cursor2))))))))
 
 (defn second-hook []
-  (let [show-comp? (use-reaction2 (subs/subscribe db_ [:show-comp?]))
-        #_#_{:keys [my-number my-str show-comp?] :as args} (use-sub-map db_ {:my-number  [:a-number]
-                                                                             :number2    [:another-num]
-                                                                             :my-str     [:a-string]
-                                                                             :twice-num1 [::twice-num1]
-                                                                             :show-comp? [:show-comp?]
-                                                                             :twice      [::twice-num2]})]
+  (let [show-comp? (use-sub db_ [:show-comp?])
+        {:keys [my-number my-str show-comp?] :as args} (use-sub-map db_ {:my-number  [:a-number]
+                                                                         :number2    [:another-num]
+                                                                         :my-str     [:a-string]
+                                                                         :twice-num1 [::twice-num1]
+                                                                         :show-comp? [:show-comp?]
+                                                                         :twice      [::twice-num2]})]
     ($ "div"
-      ;($ "div" "str is: " ($ :p {:style {:overflowWrap "break-word"}} my-str))
-      ;($ cursor-hook)
+      ($ "div" "str is: " ($ :p {:style {:overflowWrap "break-word"}} my-str))
+      ($ cursor-hook)
       ;($ cursor-hook2)
       ($ "hr")
       ($ "button" {:onClick (fn [] (swap! db_ update-in [:show-component?] not))} "Hide cusor component")
@@ -125,11 +128,10 @@
       (when show-comp? ($ cursor-hook3))
       (when show-comp? ($ cursor-hook3))
       (when show-comp? ($ cursor-hook3))
-      ;($ "h4" "num 2: " (:number2 args))
-      ;($ "h4" "twice num 1: " (:twice-num1 args))
-      ;($ "h4" "twice num 2: " (:twice args))
-      ;(str "my number is : " my-number)
-      )))
+      ($ "h4" "num 2: " (:number2 args))
+      ($ "h4" "twice num 1: " (:twice-num1 args))
+      ($ "h4" "twice num 2: " (:twice args))
+      (str "my number is : " my-number))))
 
 (defn first-hook []
   (let [[the-count set-count] (react/useState 0)
@@ -138,7 +140,7 @@
     (println "DRAW FIRST HOOK")
     ($ :div {:style {:padding 10 :border "1px dashed"}}
       ($ :h3 (str "The number is : " sub-val))
-      ;($ third-hook)
+      ($ third-hook)
       ($ second-hook)
       ($ :button {:onClick #(inc! db_)} "INC!")
       ($ :button {:onClick #(inc-alot! db_)} "INC a lot!")

@@ -6,7 +6,7 @@
     [datalevin.core :as d]
     [edn-query-language.core :as eql]
     [space.matterandvoid.subscriptions.core :refer [reg-sub-raw reg-sub <sub]]
-    [space.matterandvoid.subscriptions.impl.fulcro-queries :as impl]
+    [space.matterandvoid.subscriptions.impl.eql-queries :as impl]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
     [sc.api]
     [taoensso.timbre :as log]))

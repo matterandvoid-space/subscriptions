@@ -1,9 +1,9 @@
-(ns space.matterandvoid.subscriptions.impl.fulcro-queries
+(ns space.matterandvoid.subscriptions.impl.eql-queries
   "Automatically register subscriptions to fulfill EQL queries for fulcro components."
   (:require
-    [com.fulcrologic.fulcro.raw.components :as rc]
-    [space.matterandvoid.subscriptions.impl.reagent-ratom :refer [make-reaction]]
+    [borkdude.dynaload :refer [dynaload]]
     [edn-query-language.core :as eql]
+    [space.matterandvoid.subscriptions.impl.reagent-ratom :refer [make-reaction]]
     [sc.api]
     [taoensso.timbre :as log]))
 
@@ -12,11 +12,35 @@
 (def walk-fn-key ::walk-fn)
 (def xform-fn-key ::xform-fn)
 
-;; todo you could possibly remove the fulcro dependency and implement just these:
-;; api you're using: class->registry-key get-ident get-query
-;;
+(defn default-class->registry-key [c] (:componentName c))
+(defn default-get-ident [c props] ((:ident c) c props))
+(defn default-get-query [c] (with-meta (:query c) {:component c}))
+(defn default-nc [args]
+  (assert (map? args))
+  (assert (and (:name args) (keyword? (:name args))))
+  (assert (and (:query args) (or (vector? (:query args)) (map? (:query args)))))
+  (let [vec-query? (vector? (:query args))
+        ident      (:ident args)]
+    (when vec-query? (assert (and (:ident args) (or (keyword? (:ident args)) (fn? (:ident args))))))
+    {:query         (:query args)
+     :ident         (if (keyword? ident) (fn [_ props] [ident (ident props)]) ident)
+     :componentName (:name args)}))
 
-(defn nc
+(def class->registry* (dynaload 'com.fulcrologic.fulcro.raw.components/class->registry-key
+                        {:default default-class->registry-key}))
+(def get-ident* (dynaload 'com.fulcrologic.fulcro.raw.components/get-ident
+                  {:default default-get-ident}))
+(def get-query* (dynaload 'com.fulcrologic.fulcro.raw.components/get-query
+                  {:default default-get-query}))
+(def fulcro-nc (dynaload 'com.fulcrologic.fulcro.raw.components/nc {:default default-nc}))
+(def fulcro-loaded? (dynaload 'com.fulcrologic.fulcro.raw.components/nc {:default false}))
+
+;; Fulcro API used
+(defn class->registry-key [component] (class->registry* component))
+(defn get-ident [component props] (get-ident* component props))
+(defn get-query [component] (get-query* component))
+
+(defn nc-wrapper
   "Wraps fulcro.raw.components/nc to take one hashmap of fulcro component options, supports :ident being a keyword.
   Args:
   :query - fulcro eql query
@@ -29,15 +53,23 @@
   (let [vec-query? (vector? (:query args))
         ident      (:ident args)]
     (when vec-query? (assert (and (:ident args) (or (keyword? (:ident args)) (fn? (:ident args))))))
-    (rc/nc (:query args)
+    (fulcro-nc (:query args)
       (-> args
         (cond-> ident (assoc :ident (if (keyword? ident) (fn [_ props] [ident (ident props)]) ident)))
         (assoc :componentName (:name args))
         (dissoc :query :name)))))
 
+(defn nc
+  "Wraps fulcro.raw.components/nc to take one hashmap of fulcro component options, supports :ident being a keyword.
+  Args:
+  :query - fulcro eql query
+  :ident - kw or function
+  :name -> same as :componentName
+  Returns a fulcro component created by fulcro.raw.components/nc"
+  [args]
+  (if @fulcro-loaded? (nc-wrapper args) (default-nc args)))
+
 (defn group-by-flat [f coll] (persistent! (reduce #(assoc! %1 (f %2) %2) (transient {}) coll)))
-
-
 (defn eql-by-key [query] (group-by-flat :dispatch-key (:children (eql/query->ast query))))
 (defn eql-by-key-&-keys [query] (let [out (group-by-flat :dispatch-key (:children (eql/query->ast query)))]
                                   [out (keys out)]))
@@ -55,7 +87,7 @@
 
 (defn union-key->entity-sub [union-ast]
   (reduce (fn [acc {:keys [union-key component]}]
-            (let [reg-key (rc/class->registry-key component)]
+            (let [reg-key (class->registry-key component)]
               (when-not reg-key (throw (error "missing union component name for key: " union-key)))
               (assoc acc union-key reg-key)))
     {}
@@ -77,7 +109,7 @@
         plain-joins       (remove #(contains? union-keys (:dispatch-key %)) plain-joins)
         ;; todo here you want to make this a fn that dynamically
         ;; maps for unions fn of argsmap -> entity sub {:comment/id ::comment :todo/id ::todo}
-        plain-joins       (set (map (juxt :dispatch-key (comp rc/class->registry-key :component)) plain-joins))
+        plain-joins       (set (map (juxt :dispatch-key (comp class->registry-key :component)) plain-joins))
         union-joins       (set (map (fn [{:keys [dispatch-key children]}]
                                       (let [union-key->entity    (union-key->entity-sub (first children))
                                             union-key->component [dispatch-key (fn [kw]
@@ -133,12 +165,8 @@
                               (if (or (nil? query) (= query '[*]))
                                 (-entity datasource app id-attr args)
                                 (do
-                                  (println "in the reduce case" args)
                                   (reduce (fn [acc prop]
-                                            (println "Subscribe to: " prop)
-                                            (println "new query: " (:query (props->ast prop)))
                                             (let [output
-
                                                   (<sub app [prop (assoc args
                                                                     ;; to implement recursive queries
                                                                     ::parent-query query
@@ -445,16 +473,16 @@
               refs (vec refs)
               :else missing-val)))))))
 
-(defn component-id-prop [c] (first (rc/get-ident c {})))
+(defn component-id-prop [c] (first (get-ident c {})))
 
 (defn reg-component-subs!
   "Registers subscriptions that will fulfill the given fulcro component's query.
-  The subscription name will by the fully qualified keyword or symbol returned from rc/class->registry-key of the component.
+  The subscription name will by the fully qualified keyword or symbol returned from class->registry-key of the component.
   The component must have a name and so must any components in its query."
   [reg-sub-raw reg-sub <sub datasource c]
-  (when-not (rc/class->registry-key c) (throw (error "Component name missing on component: " c)))
-  (let [query      (rc/get-query c)
-        entity-sub (rc/class->registry-key c)
+  (when-not (class->registry-key c) (throw (error "Component name missing on component: " c)))
+  (let [query      (get-query c)
+        entity-sub (class->registry-key c)
         id-attr    (component-id-prop c)
         {:keys [props plain-joins union-joins recur-joins all-children]} (eql-query-keys-by-type query)]
     (when-not id-attr (throw (error "Component missing ident: " c)))

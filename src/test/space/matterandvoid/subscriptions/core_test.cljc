@@ -83,7 +83,7 @@
               {:db/id 2, :todo/id #uuid"b13319dd-3200-40ec-b8ba-559e404f9aa5", :todo/text "hello2"}
               {:db/id 3, :todo/id #uuid"0ecf7b8a-c3ab-42f7-a1e3-118fcbcee30c", :todo/text "hello3"}
               {:db/id 4, :todo/id #uuid"5860a879-a5e6-4a5f-844b-c8ecc6443f2e", :todo/text "hello4"}])))
-  (is (= (sorted-todos dscript-db_)
+  (is (= (vec (sorted-todos dscript-db_))
         [{:db/id 1, :todo/id #uuid"6848eac7-245c-4c5c-b932-8525279d4f0a", :todo/text "hello1"}
          {:db/id 2, :todo/id #uuid"b13319dd-3200-40ec-b8ba-559e404f9aa5", :todo/text "hello2"}
          {:db/id 3, :todo/id #uuid"0ecf7b8a-c3ab-42f7-a1e3-118fcbcee30c", :todo/text "hello3"}
@@ -270,10 +270,10 @@
         (get @db_ (:kw args))))))
 
 (deftest args-to-inputs-fn-test
-  (let [out (sut/<sub db-r_ [::todos-list {:list-id :root/todos}])]
+  (let [out (vec (sut/<sub db-r_ [::todos-list {:list-id :root/todos}]))]
     (is (=
-          (list #:todo{:text "helo138", :id #uuid"7dea2e3a-9b3d-4d35-a120-d65db43868cb"}
-            #:todo{:text "helo139", :id #uuid"31a54f54-a701-4e92-af91-78447f5294e6"})
+          [#:todo{:text "helo138", :id #uuid"7dea2e3a-9b3d-4d35-a120-d65db43868cb"}
+           #:todo{:text "helo139", :id #uuid"31a54f54-a701-4e92-af91-78447f5294e6"}]
           out))
     (let [id   #uuid"d3a00f08-f6a3-49e0-bda9-97f245b9feed",
           todo {:todo/id id :todo/text "new one" :todo/state :incomplete}

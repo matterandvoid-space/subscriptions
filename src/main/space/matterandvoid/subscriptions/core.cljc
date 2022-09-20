@@ -46,6 +46,10 @@
   [query-id & args]
   (apply impl/reg-sub query-id args))
 
+(defn reg-layer2-sub
+  [query-id path-vec-or-fn]
+  (impl/reg-layer2-sub query-id path-vec-or-fn))
+
 (defn subscribe
   "Given a `query` vector, returns a Reagent `reaction` which will, over
   time, reactively deliver a stream of values. Also known as a `Signal`.

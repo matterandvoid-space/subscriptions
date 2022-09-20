@@ -2,7 +2,6 @@
   (:require
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
-    [space.matterandvoid.subscriptions.impl.memoize :as memoize]
     [space.matterandvoid.subscriptions.impl.trace :as trace :include-macros true]
     [taoensso.timbre :as log]))
 
@@ -65,7 +64,7 @@
   ;(log/info "subscribe q id : " (first query))
   ;(log/info "subscribe q: " query)
 
-  (assert (vector? query))
+  (assert (vector? query) (str "Queries must be vectors, you passed: " query))
   (let [cnt      (count query),
         query-id (first query)]
     (def q' query)
@@ -143,7 +142,7 @@
   [inputs-fn computation-fn query-id]
   (fn subs-handler-fn
     [app query-vec]
-    (assert (vector? query-vec))
+    (assert (vector? query-vec) (str "Queries must be vectors, you passed: " query-vec))
     (let [args                  (second query-vec)
           subscriptions #?(:cljs (inputs-fn app args)
                            :clj (try (inputs-fn app args) (catch clojure.lang.ArityException _ (inputs-fn app))))
@@ -248,9 +247,23 @@
                                       ([app args*]
                                        (map #(subscribe get-handler cache-lookup get-subscription-cache app (merge-update-args % args*))
                                          vecs)))))]
-    ;(js/console.log "registering subscription: " query-id)
-    ;(js/console.log "input args: " input-args)
     (register-handler! query-id (make-subs-handler-fn inputs-fn memoized-computation-fn query-id))))
+
+(defn reg-layer2-sub
+  [get-input-db-signal register-handler!
+   query-id path-vec-or-fn]
+  (println "register layer 2: " query-id path-vec-or-fn)
+
+  (register-handler! query-id
+    (fn layer2-handler-fn [app query-vec]
+      (println "in layer 2 sub handler")
+      (assert (vector? query-vec))
+      (println "2 in layer 2 sub handler")
+      (let [args     (second query-vec)
+            db-ratom (get-input-db-signal app)
+            path     (if (fn? path-vec-or-fn) (path-vec-or-fn args) path-vec-or-fn)]
+        (println "3 in layer 2 sub handler" path)
+        (ratom/cursor db-ratom path)))))
 
 (defn reg-sub-raw [register-handler! query-id handler-fn]
   (register-handler! query-id

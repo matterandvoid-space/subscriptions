@@ -31,7 +31,7 @@ jobs:
         with:
           cli: latest
       - name: Run tests
-        run: clojure -X:dev:test
+        run: clojure -X:dev:test:run-tests
 
   build-cljs:
     name: ClojureScript

@@ -2,6 +2,7 @@
   (:require
     [space.matterandvoid.subscriptions.xtdb-eql :as sut]
     [space.matterandvoid.subscriptions.core :as subs :refer [<sub]]
+    [space.matterandvoid.subscriptions.impl.core :as subs.impl]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
     [com.fulcrologic.fulcro.raw.components :as rc]
     [taoensso.timbre :as log]
@@ -33,6 +34,8 @@
                                 {:list/items (rc/get-query list-member-comp)}
                                 {:list/members (rc/get-query list-member-comp)}]}))
 
+;(reset! subs.impl/handler-registry_ {})
+;(subs/clear-subscription-cache! nil)
 (run! sut/register-component-subs! [user-comp bot-comp comment-comp todo-comp list-comp human-comp])
 
 (xt/submit-tx xt-node
@@ -83,7 +86,12 @@
 
 (xt/sync xt-node)
 
-(defonce db_ (r/atom (xt/db xt-node)))
+(def db_ (r/atom (xt/db xt-node)))
+(comment
+  (xt/entity @db_ :todo-2)
+  [::xt/put {:xt/id :todo-2 :todo/id :todo-2 :todo/text "todo 2" :todo/author [:user/id :user-2]}]
+  (instance? clojure.lang.Atom db_)
+  )
 ;(reset! db_ (xt/db xt-node))
 
 (comment
@@ -242,15 +250,14 @@
           (<sub db_ [::human {:human/id :human-1 sut/query-key [:human/id {:human/best-friend '...} :human/name]}])))
 
     (testing "handles multi-level to-one cycle"
-      (is (=
-            {:human/id          2,
-             :human/best-friend {:human/id          3,
-                                 :human/best-friend {:human/id          1,
-                                                     :human/best-friend :space.matterandvoid.subscriptions.fulcro/cycle,
-                                                     :human/name        "human Y"},
-                                 :human/name        "human Z"},
-             :human/name        "human X"})
-        (<sub db_ [::human {:human/id 2 sut/query-key [:human/id {:human/best-friend '...} :human/name]}])))
+      (is (= {:human/id          :human-2,
+              :human/best-friend {:human/id          :human-3,
+                                  :human/best-friend {:human/id          :human-1,
+                                                      :human/best-friend [:human/id :human-1],
+                                                      :human/name        "human Y"},
+                                  :human/name        "human Z"},
+              :human/name        "human X"}
+            (<sub db_ [::human {:human/id :human-2 sut/query-key [:human/id {:human/best-friend '...} :human/name]}]))))
 
     (testing "handles finite self-recursive (to-one) cycles"
       (is (= {:human/id          :human-1,
@@ -280,15 +287,15 @@
 
 (deftest queries-test
   (testing "props"
-    (is (= {:todo/id :todo-1, :todo/text "todo 1"})
-      (<sub db_ [::todo {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]}]))
+    (is (= {:todo/id :todo-1, :todo/text "todo 1"}
+          (<sub db_ [::todo {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]}])))
     (is (=
           {:todo/comments sut/missing-val
            :todo/author   [:bot/id :bot-1],
            :todo/comment  [:comment/id :comment-1],
            :todo/text     "todo 1",
-           :todo/id       :todo-1})
-      (<sub db_ [::todo {:todo/id :todo-1 sut/query-key ['* :todo/text]}])))
+           :todo/id       :todo-1}
+          (<sub db_ [::todo {:todo/id :todo-1 sut/query-key ['* :todo/text]}]))))
   (testing "entity subscription with no query returns all attributes"
     (is (= {:list/items   [{:todo/comments :space.matterandvoid.subscriptions.impl.eql-queries/missing,
                             :todo/author   {:user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3] [:user/id :user-5]],

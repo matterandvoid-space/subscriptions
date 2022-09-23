@@ -20,7 +20,7 @@
     (cond
       (xt-node? v) (xt/db v)
       (db? v) v
-      :else (throw (Exception. (str "Unsopported value passed to ->db: " (pr-str node-or-db)))))))
+      :else (throw (Exception. (str "Unsupported value passed to ->db: " (pr-str node-or-db)))))))
 
 (def xtdb-data-source
   (reify impl/IDataSource

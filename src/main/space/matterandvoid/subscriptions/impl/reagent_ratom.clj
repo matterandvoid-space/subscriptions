@@ -17,7 +17,7 @@
 ;; allow you to write some useful tests that can run on the JVM.
 
 (def debug-enabled? true)
-(defn ratom? [x] (instance? clojure.lang.IAtom x))
+(defn ratom? [x] (instance? clojure.lang.Atom x))
 (defn atom [x] (clojure.core/atom x))
 (defn deref? [x] (instance? clojure.lang.IDeref x))
 ;; no-op

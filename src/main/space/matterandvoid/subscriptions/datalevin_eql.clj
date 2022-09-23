@@ -1,8 +1,6 @@
 (ns space.matterandvoid.subscriptions.datalevin-eql
   (:require
-    [clojure.java.io :as io]
     [datascript.impl.entity :as d.entity]
-    [com.fulcrologic.fulcro.application :as fulcro.app]
     [datalevin.core :as d]
     [edn-query-language.core :as eql]
     [space.matterandvoid.subscriptions.core :refer [reg-sub-raw reg-sub <sub]]
@@ -20,11 +18,11 @@
     (cond
       (d/conn? v) (d/db v)
       (d/db? v) v
-      :else (throw (Exception. (str "Unsopported value passed to ->db: " (pr-str conn-or-db)))))))
+      :else (throw (Exception. (str "Unsupported value passed to ->db: " (pr-str conn-or-db)))))))
 
 (def datalevin-data-source
   (reify impl/IDataSource
-    (-ref->attribute [_ ref] :db/id)
+    (-ref->attribute [_ _ref] :db/id)
     (-ref->id [_ ref]
       ;(log/info "ref->id ref: " ref)
       (cond (and (map? ref) (contains? ref :db/id))
@@ -34,7 +32,7 @@
             :else ref))
     (-entity-id [_ _ id-attr args] (get args id-attr))
     (-entity [_ conn-or-db id-attr args]
-      (log/info "datalevin lookup -entity, id-attr: " id-attr " value: " (get args id-attr))
+      (log/debug "datalevin lookup -entity, id-attr: " id-attr " value: " (get args id-attr))
       (try
         (let [id-val (get args id-attr)]
           (if (number? id-val)
@@ -49,12 +47,9 @@
                     ;; the catch, can just return nil, should be slightly faster.
                     (d/touch (d/entity (->db conn-or-db) [id-attr id-val])))
                   (catch AssertionError e
-                    (println "in catch")
                     (d/touch (d/entity (->db conn-or-db) [id-attr id-val])))
-                  (catch clojure.lang.ExceptionInfo e (println "in catch 2")))))))
-        (catch ClassCastException e
-          ;(println "class cast exc, return nil for id " (get args id-attr))
-          )))
+                  (catch clojure.lang.ExceptionInfo e))))))
+        (catch ClassCastException e)))
     (-attr [this conn-or-db id-attr attr args]
       ;(log/info "-attr: " id-attr " attr " attr " id: " (get args id-attr))
       (get (impl/-entity this conn-or-db id-attr args) attr))))

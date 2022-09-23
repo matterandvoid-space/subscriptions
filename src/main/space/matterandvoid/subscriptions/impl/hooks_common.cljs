@@ -48,7 +48,7 @@
 ;; Public API
 
 (defn use-reaction
-  "Takes a Reagent Reaction and rerenders the UI component when the Reaction's value changes.
+  "Takes a Reagent Reaction inside a React Ref and rerenders the UI component when the Reaction's value changes.
    Returns the current value of the Reaction"
   [^js reaction-ref]
   (when goog/DEBUG

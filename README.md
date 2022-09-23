@@ -137,17 +137,20 @@ I haven't used datascript much so there may be better/more efficient integration
 
 ## Use with React hooks
 
-There are three react hooks in the `space.matterandvoid.subscriptions.react-hook` namespace 
+There are four react hooks in the `space.matterandvoid.subscriptions.react-hook` namespace 
 
 - `use-sub`, which takes one subscription vector 
 - `use-sub-map` which takes a hashmap of keywords to subscription vectors intended to be destructured.
-- `use-reaction` which takes a reagent reaction, the output of the hook is the return value of the reaction.
-   (this is the more low level of the three hooks, in case you want to do more custom things)
+- `use-reaction` which takes a Reagent Reaction, the output of the hook is the return value of the Reaction.
+- `use-reaction-ref` which takes a React Ref which contains a Reagent Reaction, the output of the hook is the return value of the reaction.
 
 The same hooks for fulcro use are in `space.matterandvoid.subscriptions.react-hook-fulcro`
 
 With this implementation components will re-render once per animation frame (via requestAnimationFrame) even if the reactive
 callback fires multiple times in one frame.
+
+These hooks are all implemented via [useSyncExternalStore](https://beta.reactjs.org/apis/react/useSyncExternalStore) allowing
+them to be used in React's concurrent rendering mode.
 
 See the examples directory in the source for working code.
 

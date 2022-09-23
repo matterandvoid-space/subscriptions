@@ -4,7 +4,6 @@
     [borkdude.dynaload :refer [dynaload]]
     [edn-query-language.core :as eql]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :refer [make-reaction]]
-    [sc.api]
     [taoensso.timbre :as log]))
 
 (def query-key ::query)
@@ -26,12 +25,9 @@
      :ident         (if (keyword? ident) (fn [_ props] [ident (ident props)]) ident)
      :componentName (:name args)}))
 
-(def class->registry* (dynaload 'com.fulcrologic.fulcro.raw.components/class->registry-key
-                        {:default default-class->registry-key}))
-(def get-ident* (dynaload 'com.fulcrologic.fulcro.raw.components/get-ident
-                  {:default default-get-ident}))
-(def get-query* (dynaload 'com.fulcrologic.fulcro.raw.components/get-query
-                  {:default default-get-query}))
+(def class->registry* (dynaload 'com.fulcrologic.fulcro.raw.components/class->registry-key {:default default-class->registry-key}))
+(def get-ident* (dynaload 'com.fulcrologic.fulcro.raw.components/get-ident {:default default-get-ident}))
+(def get-query* (dynaload 'com.fulcrologic.fulcro.raw.components/get-query {:default default-get-query}))
 (def fulcro-nc (dynaload 'com.fulcrologic.fulcro.raw.components/nc {:default default-nc}))
 (def fulcro-loaded? (dynaload 'com.fulcrologic.fulcro.raw.components/nc {:default false}))
 
@@ -77,7 +73,7 @@
 (defn ast-by-key->query [k->ast] (vec (mapcat eql/ast->query (vals k->ast))))
 
 (defprotocol IDataSource
-  (-ref->id [this ref] "Given a ref type for storing normalized relationships, return the ID of the pointed to entity.")
+  (-ref->id [this ref] "Given a ref type for storing normalized relationships, or a full entity, return the ID of the pointed to entity.")
   (-entity-id [this db id-attr args-query-map])
   (-entity [this db id-attr args-query-map])
   (-attr [this db id-attr attr args-query-map]))
@@ -107,14 +103,14 @@
         union-keys        (set-keys unions)
         [recur-joins plain-joins] (split-with (comp recur? :query) joins)
         plain-joins       (remove #(contains? union-keys (:dispatch-key %)) plain-joins)
-        ;; todo here you want to make this a fn that dynamically
-        ;; maps for unions fn of argsmap -> entity sub {:comment/id ::comment :todo/id ::todo}
         plain-joins       (set (map (juxt :dispatch-key (comp class->registry-key :component)) plain-joins))
         union-joins       (set (map (fn [{:keys [dispatch-key children]}]
                                       (let [union-key->entity    (union-key->entity-sub (first children))
-                                            union-key->component [dispatch-key (fn [kw]
-                                                                                 (assert (keyword? kw))
-                                                                                 (kw union-key->entity))]]
+                                            union-id-keys        (set (keys union-key->entity))
+                                            union-key->component [dispatch-key (fn [entity]
+                                                                                 (assert (map? entity))
+                                                                                 (let [id-attr (first (filter union-id-keys (keys entity)))]
+                                                                                   [id-attr (get entity id-attr) (id-attr union-key->entity)]))]]
                                         union-key->component))
                                  unions))
         missing-join-keys (filter (comp nil? second) plain-joins)]
@@ -135,7 +131,6 @@
   [reg-sub datasource id-attr prop]
   (reg-sub prop (fn [db args]
                   (missing-id-check! id-attr prop args)
-                  ;(log/info "reg-sub-prop : '" id-attr)
                   (-attr datasource db id-attr prop args))))
 
 (defn get-all-props-shallow
@@ -150,14 +145,12 @@
   [reg-sub-raw <sub datasource id-attr entity-kw props]
   (reg-sub-raw entity-kw
     (fn [app args]
-      (log/info "(contains? args query-key)" (pr-str (contains? args query-key)))
-      (if (contains? args query-key)
+      (if (some? (get args query-key))
         (let [props->ast  (eql-by-key (get args query-key args))
               props'      (keys (dissoc props->ast '*))
               query       (get args query-key)
-              star-query  (get props->ast '*)
-              star-query? (some? star-query)]
-          (comment (props->ast :todo/id))
+              star-query? (some? (get props->ast '*))]
+          ;(log/debug "\n\n------ENTITY sub " entity-kw "have query" (pr-str query))
           (make-reaction
             (fn []
               (let [all-props (if star-query? (get-all-props-shallow datasource app id-attr props args) nil)
@@ -177,15 +170,10 @@
                                     {} props')))
                     output    (merge all-props output)]
                 output))))
-        (make-reaction
-          (fn []
-            (reduce
-              (fn [acc prop]
-                (log/info "reg-sub-entity recur: '" prop)
-                (def app app)
-                (def args args)
-                (assoc acc prop (<sub app [prop args])))
-              {} props)))))))
+        (do
+          ;(log/debug "ENTITY SUB NO QUERY: selecting props "  props)
+          (make-reaction (fn [] (reduce (fn [acc prop] (assoc acc prop (<sub app [prop args])))
+                                  {} props))))))))
 
 (defn reg-sub-plain-join
   "Takes two keywords: id attribute and property attribute, registers a layer 2 subscription using the id to lookup the
@@ -199,7 +187,7 @@
           (let [refs    (not-empty (-attr datasource app id-attr join-prop args))
                 to-one? (some? (-entity datasource app id-attr (assoc args id-attr (-ref->id datasource refs))))
                 query   (get args query-key)]
-            (log/info "plain join query: " query)
+            ;(log/debug "plain join query: " query)
             (cond
               to-one?
               (<sub app [join-component-sub (apply assoc args refs)])
@@ -225,7 +213,7 @@
     (fn [app args]
       (make-reaction
         (fn []
-          (log/info "in union join: " join-prop)
+          ;(log/debug "\n--------------------------IN UNION join: " join-prop)
           (missing-id-check! id-attr join-prop args)
 
           (let [refs                 (-attr datasource app id-attr join-prop args)
@@ -234,21 +222,27 @@
                 union-branch-map     (union-query->branch-map join-prop (::parent-query args))
                 branch-keys-in-query (set (keys union-branch-map))]
             (cond
-
-              ;; to-one
               to-one?
-              (let [[kw id] refs]
-                (<sub app [(join-component-sub kw) (assoc args kw id, query-key (union-branch-map kw))]))
+              (let [ref-entity (-entity datasource app id-attr (assoc args id-attr (-ref->id datasource refs)))
+                    [id-attr id-val join-sub] (join-component-sub ref-entity)]
+                (<sub app [join-sub (assoc args id-attr id-val, query-key (union-branch-map id-attr))]))
 
               ;; to-many
               refs
               (if query
-                (->> refs
-                  (filter (fn [[id]] (contains? branch-keys-in-query id)))
-                  (mapv (fn [[id v]]
-                          (let [args' (assoc args id v query-key (union-branch-map id))]
-                            (<sub app [(join-component-sub id) args'])))))
-                refs)
+                (let [ref-entities (map #(-entity datasource app id-attr (assoc args id-attr (-ref->id datasource %))) refs)]
+                  (->> ref-entities
+                    (filter (fn [ref-entity] (let [[id-attr] (join-component-sub ref-entity)]
+                                               (contains? branch-keys-in-query id-attr))))
+                    (mapv (fn [ref-entity]
+                            (let [[id-attr id-val join-sub] (join-component-sub ref-entity)]
+                              (<sub app [join-sub (assoc args id-attr id-val query-key (union-branch-map id-attr))]))))))
+                (mapv (fn [ref]
+                        (let [ref-entity (-entity datasource app id-attr (assoc args id-attr (-ref->id datasource ref)))
+                              [id-attr id-val join-sub] (join-component-sub ref-entity)]
+                          (<sub app [join-sub (assoc args id-attr id-val)])))
+                      refs))
+
               :else (throw (error "Union Invalid join: for join prop " join-prop, " value: " refs)))))))))
 
 (defn reg-sub-recur-join
@@ -259,15 +253,23 @@
         (fn []
           (missing-id-check! id-attr recur-prop args)
 
-          (log/info "in recur join for prop: " recur-prop)
-          (let [entity-id           (get args id-attr)
-                entity              (-entity datasource app id-attr args)
+          ;(log/debug "\n=====================IN RECUR JOIN FOR PROP: " recur-prop " entity id: " (get args id-attr))
+          ;(log/debug "        entity history: " entity-history)
+          (let [entity              (-entity datasource app id-attr args)
+                entity-db-id        (-ref->id datasource entity)
                 refs                (-attr datasource app id-attr recur-prop args)
                 ;; it is a to-one join if the attribute's value can successfully be used to lookup an entity in the DB.
                 to-one?             (some? (-entity datasource app id-attr (assoc args id-attr (-ref->id datasource refs))))
                 sub-query           (get args query-key)
-                seen-entity-id?     (contains? entity-history entity-id)
+                seen-entity-id?     (contains? entity-history entity-db-id)
 
+                ;_                   (log/debug "ENTITY Id : " entity-db-id)
+                ;_                   (log/debug "ENTITY : " entity)
+                ;_                   (log/debug "LOOKUP ENTITY ID: " lookup-entity-id)
+                ;_                   (log/debug "ENTITY DB ID: " entity-db-id)
+                ;; when entity-id and lookup-entity-id are the same then we want to get a db id somehow
+                ;; they should not be the same?
+                ;; maybe add another fn to the protocol
                 ;; parse the recursive join arguments
                 [recur-query recur-value walk-fn xform-fn]
                 (when (and sub-query parent-query)
@@ -276,7 +278,6 @@
                         recur-value  (:query recur-map)
                         walk-fn-sym  (get-in recur-map [:params walk-fn-key])
                         xform-fn-sym (get-in recur-map [:params xform-fn-key])]
-                    (log/info "recur-value: " recur-value)
                     (cond
                       ;; plain unbounded recursion no logic
                       (and (nil? walk-fn-sym) (= recur-value '...))
@@ -317,20 +318,19 @@
                             xform-fn     (get args xform-fn-sym)]
                         [(ast-by-key->query (update-in by-key [recur-prop :query] dec)) recur-value nil (or xform-fn identity)]))))
 
-                self-join?          (= (-ref->id datasource refs) entity-id)
+                self-join?          (= (-ref->id datasource refs) entity-db-id)
                 infinite-self-join? (and recur-query self-join? (= recur-value '...))]
 
-            (log/info "recur-query: " (pr-str recur-query))
+            ;(log/debug "recur-query: " (pr-str recur-query))
 
             ; Logic to implement recursion
             ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
             ;; how this works - we have an entity map from the db
             ;; for the recursion point we lookup the value in the db which will be normalized
-            ;; the task is to determine given that normalized value is it a single id or is it
-            ;; a to-many id?
+            ;; the task is to determine given that normalized value is it a single id or is it a to-many id?
 
-            ;---------------------------------------------------
+            ;--------------------------------------------------------------------------------
             ;; so if you take the ref and call entity on it and get back a map then you know it is to-one
 
             ;; if you don't get back anything or there is an error AND it is a collection/vector
@@ -364,7 +364,7 @@
                               (-> (<sub app [entity-sub
                                              (-> args
                                                (update ::depth (fnil inc 0))
-                                               (update ::entity-history (fnil conj #{}) entity-id)
+                                               (update ::entity-history (fnil conj #{}) entity-db-id)
                                                (assoc query-key recur-query, id-attr ref-id))])
                                 (assoc recur-prop refs)
                                 (xform-fn)))
@@ -372,7 +372,7 @@
                             (xform-fn (<sub app [entity-sub
                                                  (-> args
                                                    (update ::depth (fnil inc 0))
-                                                   (update ::entity-history (fnil conj #{}) entity-id)
+                                                   (update ::entity-history (fnil conj #{}) entity-db-id)
                                                    (assoc query-key recur-query, id-attr ref-id))]))))
 
                         ;; to-many join
@@ -384,7 +384,7 @@
                                     (xform-fn (<sub app [entity-sub
                                                          (-> args
                                                            (update ::depth (fnil inc 0))
-                                                           (update ::entity-history (fnil conj #{}) entity-id)
+                                                           (update ::entity-history (fnil conj #{}) entity-db-id)
                                                            (assoc query-key parent-query id-attr (-ref->id datasource join-ref)))])))
                                   refs-to-expand)
                             (when stop (mapv (fn [join-ref]
@@ -404,7 +404,7 @@
                           (-> (<sub app [entity-sub
                                          (-> args
                                            (update ::depth (fnil inc 0))
-                                           (update ::entity-history (fnil conj #{}) entity-id)
+                                           (update ::entity-history (fnil conj #{}) entity-db-id)
                                            (assoc query-key recur-query, id-attr ref-id))])
                             (assoc recur-prop refs)
                             (xform-fn))
@@ -412,7 +412,7 @@
                           (xform-fn (<sub app [entity-sub
                                                (-> args
                                                  (update ::depth (fnil inc 0))
-                                                 (update ::entity-history (fnil conj #{}) entity-id)
+                                                 (update ::entity-history (fnil conj #{}) entity-db-id)
                                                  (assoc query-key recur-query, id-attr ref-id))]))))
 
                       ;; to-many join
@@ -422,7 +422,7 @@
                                 (xform-fn (<sub app [entity-sub
                                                      (-> args
                                                        (update ::depth (fnil inc 0))
-                                                       (update ::entity-history (fnil conj #{}) entity-id)
+                                                       (update ::entity-history (fnil conj #{}) entity-db-id)
                                                        (assoc query-key parent-query id-attr (-ref->id datasource join-ref)))])))
                               refs-to-recur))))
 
@@ -441,7 +441,7 @@
                         (mapv (fn [join-ref]
                                 (xform-fn (<sub app [entity-sub
                                                      (-> args
-                                                       (update ::entity-history (fnil conj #{}) entity-id)
+                                                       (update ::entity-history (fnil conj #{}) entity-db-id)
                                                        (assoc query-key recur-query, id-attr (-ref->id datasource join-ref)))])))
                               refs))))
 
@@ -455,7 +455,7 @@
                 (xform-fn (<sub app [entity-sub
                                      (-> args
                                        (update ::depth (fnil inc 0))
-                                       (update ::entity-history (fnil conj #{}) entity-id)
+                                       (update ::entity-history (fnil conj #{}) entity-db-id)
                                        (assoc query-key recur-query, id-attr (-ref->id datasource refs)))])))
 
               ;; to-many join
@@ -465,7 +465,7 @@
                 (mapv (fn [join-ref]
                         (xform-fn (<sub app [entity-sub
                                              (-> args
-                                               (update ::entity-history (fnil conj #{}) entity-id)
+                                               (update ::entity-history (fnil conj #{}) entity-db-id)
                                                (assoc query-key recur-query id-attr (-ref->id datasource join-ref)))])))
                       refs))
 
@@ -475,7 +475,7 @@
 
 (defn component-id-prop [c] (first (get-ident c {})))
 
-(defn reg-component-subs!
+(defn register-component-subs!
   "Registers subscriptions that will fulfill the given fulcro component's query.
   The subscription name will by the fully qualified keyword or symbol returned from class->registry-key of the component.
   The component must have a name and so must any components in its query."

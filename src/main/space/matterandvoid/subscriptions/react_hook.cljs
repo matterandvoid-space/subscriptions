@@ -6,6 +6,20 @@
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [space.matterandvoid.subscriptions.core :as subs]))
 
+
+;; All of these subscription hooks use a React Ref to wrap the Reaction.
+;; The reason for doing so is so that React does not re-create the Reaction object each time the component is rendered.
+;;
+;; This is safe because the ref's value never changes for the lifetime of the component (per use of use-reaction)
+;; Thus the caution to not read .current from a ref during rendering doesn't apply because we know it never changes.
+;;
+;; The guideline exists for refs whose underlying value will change between renders, but we are just using it
+;; as a cache local to the component in order to not recreate the Reaction with each render.
+;;
+;; References:
+;; - https://beta.reactjs.org/apis/react/useRef#referencing-a-value-with-a-ref
+;; - https://beta.reactjs.org/apis/react/useRef#avoiding-recreating-the-ref-contents
+
 (defn use-sub
   "A react hook that subscribes to a subscription, the return value of the hook is the return value of the
   subscription which will cause the consuming react function component to update when the subscription's value updates.

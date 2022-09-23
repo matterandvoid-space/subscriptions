@@ -126,9 +126,11 @@
     (ratom/deref? signals) (f signals)
     :else '()))
 
+(def valid-signals (some-fn sequential? map? ratom/deref?))
+
 (defn- deref-input-signals
   [signals query-id]
-  (when-not ((some-fn sequential? map? ratom/deref?) signals)
+  (when-not (valid-signals signals)
     (let [to-seq #(cond-> % (not (sequential? %)) list)]
       (console :error "space.matterandvoid.subscriptions: in the reg-sub for" query-id ", the input-signals function returns:" signals)
       ;(trace/merge-trace! {:tags {:input-signals (doall (to-seq (map-signals reagent-id signals)))}})

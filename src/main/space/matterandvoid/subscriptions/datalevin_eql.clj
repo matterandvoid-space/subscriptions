@@ -26,13 +26,15 @@
 (def datalevin-data-source
   (reify impl/IDataSource
     (-ref->id [_ ref]
-      (log/info "ref->id ref: " ref)
+      ;(log/info "ref->id ref: " ref)
       (cond (and (map? ref) (contains? ref :db/id))
             (:db/id ref)
+            ;(eql/ident? ref)
+            ;(:db/id (d/touch (d/entity (->db conn-or-db) ref)))
             :else ref))
     (-entity-id [_ _ id-attr args] (get args id-attr))
     (-entity [_ conn-or-db id-attr args]
-      (log/info "datalevin lookup -entity, id-attr: " id-attr " value: " (get args id-attr))
+      ;(log/info "datalevin lookup -entity, id-attr: " id-attr " value: " (get args id-attr))
       (try
         (comment (sc.api/defsc 63))
         (let [id-val (get args id-attr)]
@@ -52,21 +54,26 @@
                     (println "in catch")
                     (d/touch (d/entity (->db conn-or-db) [id-attr id-val]))))))))
         (catch ClassCastException e
-          (println "class cast exc, return nil for id " (get args id-attr)))))
+          ;(println "class cast exc, return nil for id " (get args id-attr))
+          )))
     (-attr [this conn-or-db id-attr attr args]
-      (log/info "-attr: " id-attr " attr " attr " id: " (get args id-attr))
+      ;(log/info "-attr: " id-attr " attr " attr " id: " (get args id-attr))
       (get (impl/-entity this conn-or-db id-attr args) attr))))
 
 (defn nc
   "Wraps fulcro.raw.components/nc to take one hashmap of fulcro component options, supports :ident being a keyword.
   Args:
   :query - fulcro eql query
-  :ident - kw or function
-  :name -> same as :componentName
-  Returns a fulcro component created by fulcro.raw.components/nc"
+  :ident - keyword or function
+  :name -> same as :componentName (fully qualified keyword or symbol)
+  Returns a fulcro component (or a mock version if fulcro is not installed) created by fulcro.raw.components/nc"
   [args] (impl/nc args))
+
+(def get-query impl/get-query)
+(def class->registry-key impl/class->registry-key)
+(def get-ident impl/get-ident)
 
 (defn register-component-subs!
   "Registers subscriptions that will fulfill the given fulcro component's query.
   The component must have a name as well as any components in its query."
-  [c] (impl/reg-component-subs! reg-sub-raw reg-sub <sub datalevin-data-source c))
+  [c] (impl/register-component-subs! reg-sub-raw reg-sub <sub datalevin-data-source c))

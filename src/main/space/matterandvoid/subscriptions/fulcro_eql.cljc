@@ -32,12 +32,12 @@
   "Wraps fulcro.raw.components/nc to take one hashmap of fulcro component options, supports :ident being a keyword.
   Args:
   :query - fulcro eql query
-  :ident - kw or function
-  :name -> same as :componentName
-  Returns a fulcro component created by fulcro.raw.components/nc"
+  :ident - keyword or function
+  :name -> same as :componentName (fully qualified keyword or symbol)
+  Returns a fulcro component (or a mock version if fulcro is not installed) created by fulcro.raw.components/nc"
   [args] (impl/nc args))
 
-(defn reg-component-subs!
+(defn register-component-subs!
   "Registers subscriptions that will fulfill the given fulcro component's query.
   The component and any components in its query must have a name (cannot be anonymous)."
-  [c] (impl/reg-component-subs! reg-sub-raw reg-sub <sub fulcro-data-source c))
+  [c] (impl/register-component-subs! reg-sub-raw reg-sub <sub fulcro-data-source c))

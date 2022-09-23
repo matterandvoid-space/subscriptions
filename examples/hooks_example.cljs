@@ -122,7 +122,7 @@
 (defn first-hook []
   (let [[the-count set-count] (react/useState 0)
         cursor-sub (use-sub db_ [::lvl2-cursor2] )
-        cursor-sub2 (use-sub db_ [lvl2-cursor2 {:key :level2}] )
+        cursor-sub2 (use-sub db_ [`lvl2-cursor2 {:key :level2}] )
         level3-sub (use-sub db_ [:plus-level3])
         sub-val (use-sub db_ [:a-number])]
     (react/useEffect (fn [] (println "IN EFFECT") js/undefined) #js[the-count])

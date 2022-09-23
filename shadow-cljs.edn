@@ -20,7 +20,6 @@
    :output-to        "target/ci.js"
    :ns-regexp        "-test$"}
 
-
   :hooks-example
   {:target  :browser :output-dir "public/hooks-example/js" :asset-path "/js"
    ;:dev     {:compiler-options {:output-feature-set :es6}}

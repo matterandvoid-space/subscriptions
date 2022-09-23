@@ -36,7 +36,7 @@
                                 {:list/items (rc/get-query list-member-comp)}
                                 {:list/members (rc/get-query list-member-comp)}]}))
 
-(run! sut/reg-component-subs! [user-comp bot-comp comment-comp todo-comp list-comp human-comp])
+(run! sut/register-component-subs! [user-comp bot-comp comment-comp todo-comp list-comp human-comp])
 
 (def db_ (r/atom {:comment/id {1 {:comment/id           1 :comment/text "FIRST COMMENT"
                                   :comment/sub-comments [[:comment/id 2]]}

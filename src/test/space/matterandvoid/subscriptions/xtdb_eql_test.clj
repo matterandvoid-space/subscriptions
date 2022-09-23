@@ -7,15 +7,13 @@
     [taoensso.timbre :as log]
     [edn-query-language.core :as eql]
     [xtdb.api :as xt]
-    [clojure.test :refer [deftest is testing]]))
-
-;; idea to use a predicate to determine recursion - this is not part of eql currently
-;(eql/query->ast [:comment/id :comment/text {:comment/sub-comments `traverse?}])
-
-(defonce xt-node (xt/start-node {}))
+    [clojure.test :refer [deftest is testing]]
+    [clojure.string :as str]))
 
 (log/set-level! :debug)
 (set! *print-namespace-maps* false)
+
+(defonce xt-node (xt/start-node {}))
 
 (def user-comp (sut/nc {:query [:user/id :user/name {:user/friends '...}] :name ::user :ident :user/id}))
 (def bot-comp (sut/nc {:query [:bot/id :bot/name] :name ::bot :ident :bot/id}))
@@ -35,16 +33,7 @@
                                 {:list/items (rc/get-query list-member-comp)}
                                 {:list/members (rc/get-query list-member-comp)}]}))
 
-(run! sut/reg-component-subs! [user-comp bot-comp comment-comp todo-comp list-comp human-comp])
-
-
-(meta (rc/get-query user-comp))
-;; for now to get this working I am having all refs be idents or vec of idents
-;; later you can make this generic
-;; i'm thinking the protocol would have -attr for simple getter
-;; and -join-attr - which must return one of: nil, ident, vec of idents
-;; join-attr will be used for any join operations
-;; this way you have some flexibility in how normalized data is stored in whatever storage you're using.
+(run! sut/register-component-subs! [user-comp bot-comp comment-comp todo-comp list-comp human-comp])
 
 (xt/submit-tx xt-node
   [[::xt/put {:xt/id :comment-1 :comment/id :comment-1 :comment/text "FIRST COMMENT" :comment/sub-comments [[:comment/id :comment-2]]}]
@@ -82,8 +71,6 @@
 
 (xt/sync xt-node)
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 (xt/submit-tx xt-node
   ;; to-many cycle with plain id refs
   [[::xt/put {:xt/id :user-1-a :user/id :user-1-a :user/name "user 1" :user/friends [:user-2-a]}]
@@ -98,25 +85,6 @@
 
 (defonce db_ (r/atom (xt/db xt-node)))
 ;(reset! db_ (xt/db xt-node))
-
-;; todo document this
-;; in docs/eql.md
-
-;; okay so I'm thinking
-;; there will be one callback function
-; return values:
-; - false or nil -> stop walking
-; - true -> keep walking with all idents
-; - {:stop [] - keep these as refs/idents but do not continuing walking them
-;    :expand [] - keep walking these as nested hashmaps}
-; - [vec of idents] - keep walking all of these
-; Then from there you can also add support for middleware - after the entity is expanded
-; then invoke the middleware/transform function and replace the entity with whatever it returns
-; fn hashmap -> hashmap
-; another idea is to have strict types supported from the walk key
-; for example - a recursive union query.
-; like the notion example
-; for that though they would all be the same entity type regarding the subscription
 
 (comment
   (<sub db_ [::user {:user/id :user-1-a sut/query-key [:user/name :user/id {:user/friends 1}]}])
@@ -174,8 +142,6 @@
   (xt/entity (xt/db xt-node) :user-1)
   )
 
-;(<sub db_ [::user {:user/id 1 ::subs/query [:user/id {:user/friends `keep-walking?}]}])
-
 ;; prop queries
 ;; - individual kw
 ;; - '* attribute
@@ -192,22 +158,22 @@
 ;; see ns com.fulcrologic.fulcro.algorithms.denormalize
 
 ;; union join
-;;   - to-one
+;;   - to-one0
 ;;   - to-many
 
 (deftest union-queries-test
   (testing "to-one union queries"
-    (is (= {:todo/id :todo-1, :todo/author {:bot/name "bot 1", :bot/id :bot-1 :xt/id :bot-1}}
+    (is (= {:todo/id :todo-1, :todo/author {:bot/name "bot 1", :bot/id :bot-1}}
           (<sub db_ [::todo {:todo/id :todo-1 sut/query-key [:todo/id :todo/author]}])))
     (is (=
-          {:todo/id :todo-2, :todo/author {:xt/id :user-2 :user/id :user-2, :user/name "user 2", :user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3] [:user/id :user-5]]}}
+          {:todo/id :todo-2, :todo/author {:user/id :user-2, :user/name "user 2", :user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3] [:user/id :user-5]]}}
           (<sub db_ [::todo {:todo/id :todo-2 sut/query-key [:todo/id :todo/author]}])))
     (is (= {:todo/id :todo-2, :todo/author {:user/name "user 2"}}
           (<sub db_ [::todo {:todo/id :todo-2 sut/query-key [:todo/id {:todo/author {:user/id        [:user/name]
                                                                                      :does-not/exist [:a :b :c]}}]}])))
     (testing "support for * query"
-      (is (= #:todo{:id :todo-1, :author {:bot/id :bot-1 :xt/id :bot-1 :bot/name "bot 1"}} (<sub db_ [::todo {:todo/id :todo-1 sut/query-key [:todo/id {:todo/author ['*]}]}])))
-      (is (= #:todo{:id :todo-2, :author {:xt/id :user-2 :user/id :user-2, :user/name "user 2", :user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3] [:user/id :user-5]]}}
+      (is (= #:todo{:id :todo-1, :author {:bot/id :bot-1 :bot/name "bot 1"}} (<sub db_ [::todo {:todo/id :todo-1 sut/query-key [:todo/id {:todo/author ['*]}]}])))
+      (is (= #:todo{:id :todo-2, :author {:user/id :user-2, :user/name "user 2", :user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3] [:user/id :user-5]]}}
             (<sub db_ [::todo {:todo/id :todo-2 sut/query-key [:todo/id {:todo/author '[*]}]}])))))
 
   (testing "to-many union queries"
@@ -236,8 +202,8 @@
 
   (testing "to-one joins"
     (is (= {:todo/id      :todo-1,
-            :todo/author  {:xt/id :bot-1 :bot/id :bot-1, :bot/name "bot 1"},
-            :todo/comment {:xt/id                :comment-1 :comment/id :comment-1, :comment/text "FIRST COMMENT",
+            :todo/author  {:bot/id :bot-1, :bot/name "bot 1"},
+            :todo/comment {:comment/id           :comment-1, :comment/text "FIRST COMMENT",
                            :comment/sub-comments [[:comment/id :comment-2]]}}
           (<sub db_ [::todo {:todo/id :todo-1 sut/query-key [:todo/id :todo/author :todo/comment]}])))
     (is (= #:todo{:id :todo-1 :comment #:comment{:id :comment-1, :text "FIRST COMMENT"}}
@@ -324,9 +290,127 @@
            :todo/id       :todo-1})
       (<sub db_ [::todo {:todo/id :todo-1 sut/query-key ['* :todo/text]}])))
   (testing "entity subscription with no query returns all attributes"
-    (is (= {:list/members [[:comment/id :comment-1] [:todo/id :todo-2]]
-            :list/items   [[:todo/id :todo-2] [:comment/id :comment-1]], :list/name "first list", :list/id :list-1}
+    (is (= {:list/items   [{:todo/comments :space.matterandvoid.subscriptions.impl.eql-queries/missing,
+                            :todo/author   {:user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3] [:user/id :user-5]],
+                                            :user/name    "user 2",
+                                            :user/id      :user-2},
+                            :todo/comment  sut/missing-val,
+                            :todo/text     "todo 2", :todo/id :todo-2}
+                           {:comment/sub-comments [[:comment/id :comment-2]], :comment/id :comment-1, :comment/text "FIRST COMMENT"}],
+            :list/members [{:comment/sub-comments [[:comment/id :comment-2]],
+                            :comment/id           :comment-1,
+                            :comment/text         "FIRST COMMENT"}
+                           {:todo/comments sut/missing-val,
+                            :todo/author   {:user/friends [[:user/id :user-2]
+                                                           [:user/id :user-1]
+                                                           [:user/id :user-3]
+                                                           [:user/id :user-5]],
+                                            :user/name    "user 2", :user/id :user-2},
+                            :todo/comment  sut/missing-val
+                            :todo/text     "todo 2", :todo/id :todo-2}],
+            :list/name    "first list",
+            :list/id      :list-1}
           (<sub db_ [::list {:list/id :list-1}])))))
+
+(deftest walking-test
+  (testing "hashmap expansion"
+    (let [out (<sub db_ [::user {`get-friends (fn [e]
+                                                (let [friends (map (fn [[_ f-id]] (xt/entity (xt/db xt-node) f-id)) (:user/friends e))]
+                                                  ;; stop keeps the entity but does not recur on it, vs removing it completely from the
+                                                  ;; result set.
+                                                  {:stop   (mapv (fn [{:user/keys [id]}] [:user/id id]) (filter (fn [{:user/keys [name]}] (= name "user 3")) friends))
+                                                   :expand (mapv (fn [{:user/keys [id]}] [:user/id id]) (remove (fn [{:user/keys [name]}] (= name "user 3")) friends))}))
+
+                                 :user/id     :user-1 sut/query-key [:user/name :user/id
+                                                                     {(list :user/friends {sut/walk-fn-key `get-friends}) '...}]}])]
+      (is (= {:user/name    "user 1",
+              :user/id      :user-1,
+              :user/friends [{:user/name    "user 2",
+                              :user/id      :user-2,
+                              :user/friends [{:user/name    "user 2",
+                                              :user/id      :user-2,
+                                              :user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3] [:user/id :user-5]]}
+                                             {:user/name "user 1", :user/id :user-1, :user/friends [[:user/id :user-2]]}
+                                             {:user/name    "user 5",
+                                              :user/id      :user-5,
+                                              :user/friends [{:user/name "user 6", :user/id :user-6, :user/friends [{:user/name "user 7", :user/id :user-7}]} {:user/name "user 7", :user/id :user-7}]}
+                                             {:user/id :user-3, :user/name "user 3", :user/friends [[:user/id :user-2] [:user/id :user-4]], :xt/id :user-3}]}]} out))))
+
+  (testing "collection expansion"
+    (let [out1 (<sub db_ [::user {`get-friends (fn [e]
+                                                 (let [friends (map (fn [[_ f-id]] (xt/entity (xt/db xt-node) f-id)) (:user/friends e))]
+                                                   (->> friends
+                                                     (filter (fn [{:user/keys [name]}] (or (= name "user 3") (= name "user 2") (= name "user 1"))))
+                                                     (mapv (fn [{:user/keys [id]}] [:user/id id])))))
+                                  :user/id     :user-1 sut/query-key [:user/name :user/id
+                                                                      {(list :user/friends {sut/walk-fn-key `get-friends}) '...}]}])
+          out2 (<sub db_ [::user {`get-friends (fn [e]
+                                                 (let [friends (map (fn [[_ f-id]] (xt/entity (xt/db xt-node) f-id)) (:user/friends e))]
+                                                   (->> friends
+                                                     (filter (fn [{:user/keys [name]}] (or (= name "user 2") (= name "user 1"))))
+                                                     (mapv (fn [{:user/keys [id]}] [:user/id id])))))
+                                  :user/id     :user-1 sut/query-key [:user/name :user/id
+                                                                      {(list :user/friends {sut/walk-fn-key `get-friends}) '...}]}])]
+
+      (is (= {:user/name    "user 1", :user/id :user-1,
+              :user/friends [{:user/name    "user 2", :user/id :user-2,
+                              :user/friends [{:user/name    "user 2", :user/id :user-2,
+                                              :user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3] [:user/id :user-5]]}
+                                             {:user/name "user 1", :user/id :user-1, :user/friends [[:user/id :user-2]]}]}]}
+            out2))
+
+      (is (= {:user/name    "user 1", :user/id :user-1,
+              :user/friends [{:user/name    "user 2", :user/id :user-2,
+                              :user/friends [{:user/name    "user 2", :user/id :user-2,
+                                              :user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3] [:user/id :user-5]]}
+                                             {:user/name "user 1", :user/id :user-1, :user/friends [[:user/id :user-2]]}
+                                             {:user/name    "user 3", :user/id :user-3,
+                                              :user/friends [{:user/name    "user 2", :user/id :user-2,
+                                                              :user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3] [:user/id :user-5]]}]}]}]}
+            out1))))
+
+  (testing "truthy/falsey expansion"
+    (let [out (<sub db_ [::user {`keep-walking? (fn [e] (#{"user 1" "user 2"} (:user/name e))) :user/id :user-1
+                                 sut/query-key  [:user/name :user/id {(list :user/friends {sut/walk-fn-key `keep-walking?}) '...}]}])]
+      (is (= {:user/name    "user 1",
+              :user/id      :user-1,
+              :user/friends [{:user/name    "user 2",
+                              :user/id      :user-2,
+                              :user/friends [{:user/name    "user 2",
+                                              :user/id      :user-2,
+                                              :user/friends [[:user/id :user-2]
+                                                             [:user/id :user-1]
+                                                             [:user/id :user-3]
+                                                             [:user/id :user-5]]}
+                                             {:user/name "user 1", :user/id :user-1, :user/friends [[:user/id :user-2]]}
+                                             {:user/name    "user 3",
+                                              :user/id      :user-3,
+                                              :user/friends [[:user/id :user-2] [:user/id :user-4]]}
+                                             {:user/name    "user 5",
+                                              :user/id      :user-5,
+                                              :user/friends [[:user/id :user-6] [:user/id :user-7]]}]}]}
+            out)))))
+
+(deftest transform-test
+  (testing "transform a map"
+    (let [out1 (<sub db_ [::user {`upper-case   (fn [e] (update e :user/name str/upper-case))
+                                  :user/id      :user-4
+                                  sut/query-key [:user/name :user/id {(list :user/friends {sut/xform-fn-key `upper-case}) 0}]}])
+          out2 (<sub db_ [::user {`upper-case   (fn [e] (update e :user/name str/upper-case))
+                                  :user/id      :user-4
+                                  sut/query-key [:user/name :user/id {(list :user/friends {sut/xform-fn-key `upper-case}) 1}]}])]
+      (is (= {:user/name "user 4", :user/id :user-4, :user/friends [[:user/id :user-3] [:user/id :user-4]]} out1))
+      (is (= {:user/name    "user 4",
+              :user/id      :user-4,
+              :user/friends [{:user/name "USER 3", :user/id :user-3, :user/friends [[:user/id :user-2] [:user/id :user-4]]}
+                             {:user/name "USER 4", :user/id :user-4, :user/friends [[:user/id :user-3] [:user/id :user-4]]}]}
+            out2))))
+
+  (testing "replace the entity"
+    (let [out1 (<sub db_ [::user {`upper-case   (fn [_] "REPLACED")
+                                  :user/id      :user-4
+                                  sut/query-key [:user/name :user/id {(list :user/friends {sut/xform-fn-key `upper-case}) 1}]}])]
+      (is (= {:user/name "user 4", :user/id :user-4, :user/friends ["REPLACED" "REPLACED"]} out1)))))
 
 ;(comment
 ;  (<sub db_ [::list {:list/id 1 ::subs/query [{:list/items list-member-q}

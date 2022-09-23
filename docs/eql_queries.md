@@ -4,15 +4,14 @@ The goals of implementing this were:
 
 1. Use fulcro for client-side applications where fulcro is only used as a data management library and not a UI rendering
    library. The goal was to never rely on `db->tree` and instead fulfill all queries with subscriptions.
-2. Extend datomic pull syntax to support declarative graph walking logic and entity resolution and transformation in a
+2. Extend datomic pull syntax to support declarative graph walking logic, entity resolution, and transformation in a
    recursive/hierarchical fashion
 
 There are two pieces to have this work for your applicaiton.
 
 1. Pick a data source target, like a fulcro app db, XTDB, or Datalevin database.
 2. Define your data model using fulcro "naked" components - headless components that are only used for query and
-   normalization -
-   and register them which creates the necessary subscriptions.
+   normalization - and register them, which creates the necessary subscriptions.
 
 After that you can execute EQL queries against your datasource.
 
@@ -23,7 +22,7 @@ Here is an example using datalevin as the data source.
   (:require
     [datalevin.core :as d]
     [space.matterandvoid.subscriptions.core :as subs :refer [<sub]]
-    [space.matterandvoid.subscriptions.datalevin-eql :as datalevin.eql :refer [nc query-key]]))
+    [space.matterandvoid.subscriptions.datalevin-eql :as datalevin.eql :refer [nc query-key xform-fn-key walk-fn-key]]))
 
 (def schema
   {:user/id      {:db/valueType :db.type/keyword :db/unique      :db.unique/identity}
@@ -79,8 +78,8 @@ is currently no reactivitiy for JVM Clojure subscriptions.
 
 And now we can run arbitrary EQL queries!
 
-The syntax is as follows, for each registered domain entity there will be a subscription with the name of the component.
-`::user` in this example.
+The syntax is as follows, for each registered domain entity there will be a subscription with the name of the component
+(the `:name` key passed to `nc`), which is `::user` in this example.
 All subscriptions have the shape of a 2-tuple containing a keyword in the first position and a hashmap in the second position.
 The hashmap is open, you can put anything you want there.
 The EQL implementation makes use of the hashmap to pass your EQL query under the well-known key exported by the library `query-key`
@@ -96,13 +95,33 @@ The `0` in the recursive position means do not resolve any nested references, ju
 {:db/id "todo-2" :todo/id :todo-2 :todo/text "todo 2" :todo/author [:user/id :user-2]}
 ```
 
+Currently supported operations are transformation functions and recursive expansion logic:
+
 ```clojure
-(<sub db_ [::user {'upper-case-name (fn [e] (println "IN xform fn " e) (update e :user/name str/upper-case))
+(<sub db_ [::user {`upper-case-name (fn [e] (update e :user/name clojure.string/upper-case))
                      :user/id         :user-1
-                     sut/query-key    [:user/name :user/id {(list :user/friends {sut/xform-fn-key 'upper-case-name}) 4}]}])
-  (<sub db_ [::user {'upper-case-name (fn [e] (println "IN xform fn " e) (update e :user/name str/upper-case))
-                     'keep-walking?   (fn [e] (println "IN KEEP walking?  " e) (#{"user 1" "user 2"} (:user/name e)))
+                     query-key    [:user/name :user/id {(list :user/friends {xform-fn-key `upper-case-name}) 4}]}])
+  (<sub db_ [::user {`upper-case-name (fn [e] (update e :user/name str/upper-case))
+                     `keep-walking?   (fn [e] (#{"user 1" "user 2"} (:user/name e)))
                      :user/id         :user-1
-                     sut/query-key    [:user/name :user/id {(list :user/friends {sut/xform-fn-key 'upper-case-name
-                                                                                 sut/walk-fn-key  'keep-walking?}) '...}]}])
+                     query-key    [:user/name :user/id {(list :user/friends {xform-fn-key `upper-case-name
+                                                                             walk-fn-key  `keep-walking?}) '...}]}])
 ```
+
+The transformation function takes an entity returned from an entity subscription and can return any value, in the above
+example we upper-case the `:user/name` attribute - This transform happens in a recursive fashion for any entities found
+under the `:user/friends` key.
+
+For the walking function, when the subscription sees unbounded recursion (the `...`) it checks for a symbol under the `walk-fn-key` key,
+and uses that symbol to lookup the corresponding function in the paramaters hashmap provided to the subscription and then invokes it
+with the data found in the datasource under the corresponding key (`:user/friends` in this example).
+Based on the return value of that function the subscription will determine what to do next.
+The currenlty supported return values and the semantics of those returns values are:
+
+- a hashmap which currently only supports the keys `:stop` and `:expand`
+  - `:stop` is expected to be a collection of refs (normalized pointers for your database) which will be expanded as an entity, but whose recursive property will not continue to be expanded.
+  - `:expand` is expected to be a collection of refs (normalized pointers for your database) which will continue to be recursively queried for and expanded as a tree.
+  - even if the current node has other refs, if they are not included in either key they will not be included in the output
+- a non-hashmap collection of refs - these refs will continue to be walked, any others that may be at the current node but are not present in this collection will not be in the output
+- a truthy value - whatever refs are found at the current node will continue to be walked
+- a falsey value - stop walking and just return the refs in the output

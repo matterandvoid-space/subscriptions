@@ -9,7 +9,7 @@
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
     [taoensso.timbre :as log]))
 
-(log/set-level! :error)
+(log/set-level! :debug)
 (set! *print-namespace-maps* false)
 
 (def schema

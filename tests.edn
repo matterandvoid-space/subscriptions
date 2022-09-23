@@ -1,6 +1,6 @@
 #kaocha/v1
-        {:tests [{:id :all
-                  :test-paths ["src/test"]
-                  :ns-patterns [".*"]}
-
-                 ]}
+        {:tests [{:id :xtdb-eql :test-paths ["src/test"] :ns-patterns [".*xtdb-eql-test$"]}
+                 {:id :datalevin-eql :test-paths ["src/test"] :ns-patterns [".*datalevin-eql-test$"]}
+                 {:id :fulcro-eql :test-paths ["src/test"] :ns-patterns [".*fulcro-eql-test$"]}
+                 {:id :core :test-paths ["src/test"] :ns-patterns [".*core-test$"
+                                                                   ".*subs-test$"]}]}

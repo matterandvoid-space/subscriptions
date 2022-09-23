@@ -173,8 +173,8 @@
               :human/best-friend {:human/id          :human-3,
                                   :human/best-friend {:human/id :human-1, :human/best-friend [:human/id :human-1] :human/name "human Y"},
                                   :human/name        "human Z"},
-              :human/name        "human X"}))
-      (<sub app [::human {:human/id :human-2 sut/query-key [:human/id {:human/best-friend '...} :human/name]}]))
+              :human/name        "human X"}
+            (<sub app [::human {:human/id :human-2 sut/query-key [:human/id {:human/best-friend '...} :human/name]}]))))
 
     (testing "handles finite self-recursive (to-one) cycles"
       (is (= #:human{:id :human-1, :best-friend #:human{:id :human-1, :best-friend [:human/id :human-1], :name "human Y"}, :name "human Y"}

@@ -30,8 +30,18 @@ jobs:
         uses: DeLaGuardo/setup-clojure@master
         with:
           cli: latest
-      - name: Run tests
-        run: clojure -X:dev:test:run-tests
+      - name: Run xtdb-eql tests
+        run: clojure -X:dev:test:run-tests :xtdb-eql --reporter documentation
+
+      - name: Run datalevin-eql tests
+        run: clojure -X:dev:test:run-tests :datalevin-eql --reporter documentation
+
+      - name: Run fulcro-eql tests
+        run: clojure -X:dev:test:run-tests :fulcro-eql --reporter documentation
+
+      - name: Run core tests
+        run: clojure -X:dev:test:run-tests :core --reporter documentation
+
 
   build-cljs:
     name: ClojureScript

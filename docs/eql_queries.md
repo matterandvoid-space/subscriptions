@@ -125,3 +125,21 @@ The currenlty supported return values and the semantics of those returns values 
 - a non-hashmap collection of refs - these refs will continue to be walked, any others that may be at the current node but are not present in this collection will not be in the output
 - a truthy value - whatever refs are found at the current node will continue to be walked
 - a falsey value - stop walking and just return the refs in the output
+
+
+# Notes and gotchas
+
+The implementation assumes that entity IDs are unique across your entire database.
+This is mainly only a potential issue for usage with a fulcro DB because you can use a setup like:
+
+```clojure
+{:person/id {1 {:person/id 1 :person/name "a person"}}
+ :comment/id {1 {:comment/id 1 :comment/text "FIRST COMMENT"
+                               :comment/sub-comments [[:comment/id 2]]}
+              2 {:comment/id 2 :comment/text "SECOND COMMENT"}}}
+```
+
+In the implementation this is used to track cycles in recursive queries, thus the logic would be faulty because it would 
+assume the two entities with id 1 are the same, when they are not.
+
+In practice your applications should be using UUIDs, but I'm mentioning it just in case.

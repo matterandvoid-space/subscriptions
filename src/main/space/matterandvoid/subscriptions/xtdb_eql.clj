@@ -4,6 +4,7 @@
     [space.matterandvoid.subscriptions.core :refer [reg-sub-raw reg-sub <sub]]
     [space.matterandvoid.subscriptions.impl.eql-queries :as impl]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
+    [taoensso.timbre :as log]
     [xtdb.api :as xt]))
 
 (def query-key impl/query-key)
@@ -23,6 +24,7 @@
 
 (def xtdb-data-source
   (reify impl/IDataSource
+    (-ref->attribute [_ ref] :xt/id)
     (-ref->id [_ ref]
       (cond (eql/ident? ref)
             (second ref)

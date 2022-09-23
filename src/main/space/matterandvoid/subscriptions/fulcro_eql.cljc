@@ -18,12 +18,19 @@
 
 (def fulcro-data-source
   (reify impl/IDataSource
+    (-ref->attribute [_ ref] (first ref))
     (-ref->id [_ ref]
-      (if (eql/ident? ref) (second ref) ref))
+      (log/debug "-ref->id ref" ref)
+      (cond (eql/ident? ref) (second ref)
+            (map? ref) (let [id-key (first (filter (comp #(= % "id") name) (keys ref)))]
+                         (println "ID KEY: " id-key)
+                         (get ref id-key))
+            :else ref))
     (-entity-id [_ _ id-attr args] (get args id-attr))
     (-entity [_ fulcro-app id-attr args]
       (log/info "-entity for id attr: " id-attr)
       (when (eql/ident? [id-attr (get args id-attr)])
+        (log/info "IDENT" [id-attr (get args id-attr)])
         (get-in (->db fulcro-app) [id-attr (get args id-attr)])))
     (-attr [_ fulcro-app id-attr attr args]
       (get-in (->db fulcro-app) [id-attr (get args id-attr) attr]))))

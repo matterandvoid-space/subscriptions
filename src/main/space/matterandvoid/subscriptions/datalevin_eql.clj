@@ -8,7 +8,6 @@
     [space.matterandvoid.subscriptions.core :refer [reg-sub-raw reg-sub <sub]]
     [space.matterandvoid.subscriptions.impl.eql-queries :as impl]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
-    [sc.api]
     [taoensso.timbre :as log]))
 
 (def query-key impl/query-key)
@@ -25,6 +24,7 @@
 
 (def datalevin-data-source
   (reify impl/IDataSource
+    (-ref->attribute [_ ref] :db/id)
     (-ref->id [_ ref]
       ;(log/info "ref->id ref: " ref)
       (cond (and (map? ref) (contains? ref :db/id))
@@ -34,17 +34,15 @@
             :else ref))
     (-entity-id [_ _ id-attr args] (get args id-attr))
     (-entity [_ conn-or-db id-attr args]
-      ;(log/info "datalevin lookup -entity, id-attr: " id-attr " value: " (get args id-attr))
+      (log/info "datalevin lookup -entity, id-attr: " id-attr " value: " (get args id-attr))
       (try
-        (comment (sc.api/defsc 63))
         (let [id-val (get args id-attr)]
           (if (number? id-val)
             (d/touch (d/entity (->db conn-or-db) id-val))
-            ;sc.api/spy
             (when id-val
               (do
                 (try
-                  (println "in first try" id-val)
+                  ;(println "in first try" id-val)
                   (if (eql/ident? id-val)
                     (d/touch (d/entity (->db conn-or-db) id-val))
                     ;; todo can check if id-val is a primitive type (allowed in value position, this way we don't have to use
@@ -52,7 +50,8 @@
                     (d/touch (d/entity (->db conn-or-db) [id-attr id-val])))
                   (catch AssertionError e
                     (println "in catch")
-                    (d/touch (d/entity (->db conn-or-db) [id-attr id-val]))))))))
+                    (d/touch (d/entity (->db conn-or-db) [id-attr id-val])))
+                  (catch clojure.lang.ExceptionInfo e (println "in catch 2")))))))
         (catch ClassCastException e
           ;(println "class cast exc, return nil for id " (get args id-attr))
           )))

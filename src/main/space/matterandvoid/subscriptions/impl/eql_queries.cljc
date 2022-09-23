@@ -73,6 +73,7 @@
 (defn ast-by-key->query [k->ast] (vec (mapcat eql/ast->query (vals k->ast))))
 
 (defprotocol IDataSource
+  (-ref->attribute [this ref] "Given a ref type or a full entity return the attribute used for the entity's ref. ex: :user/id for the ref [:user/id 1]")
   (-ref->id [this ref] "Given a ref type for storing normalized relationships, or a full entity, return the ID of the pointed to entity.")
   (-entity-id [this db id-attr args-query-map])
   (-entity [this db id-attr args-query-map])
@@ -131,6 +132,7 @@
   [reg-sub datasource id-attr prop]
   (reg-sub prop (fn [db args]
                   (missing-id-check! id-attr prop args)
+                  ;(log/debug "lookup prop id-attr: " id-attr " prop " prop)
                   (-attr datasource db id-attr prop args))))
 
 (defn get-all-props-shallow
@@ -156,8 +158,11 @@
               (let [all-props (if star-query? (get-all-props-shallow datasource app id-attr props args) nil)
                     output
                               (if (or (nil? query) (= query '[*]))
-                                (-entity datasource app id-attr args)
                                 (do
+                                  ;(log/debug "entity in first else")
+                                  (-entity datasource app id-attr args))
+                                (do
+                                  ;(log/debug "entity in 2nd else")
                                   (reduce (fn [acc prop]
                                             (let [output
                                                   (<sub app [prop (assoc args
@@ -168,10 +173,12 @@
                                                 (not= missing-val output)
                                                 (assoc prop output))))
                                     {} props')))
+                    ;_         (log/debug "eneity output1: " output)
                     output    (merge all-props output)]
+                ;_ (log/debug "eneity output2: " output)
                 output))))
         (do
-          ;(log/debug "ENTITY SUB NO QUERY: selecting props "  props)
+          ;(log/debug "ENTITY SUB NO QUERY: selecting props " props)
           (make-reaction (fn [] (reduce (fn [acc prop] (assoc acc prop (<sub app [prop args])))
                                   {} props))))))))
 
@@ -184,10 +191,10 @@
       (make-reaction
         (fn []
           (missing-id-check! id-attr join-prop args)
-          (let [refs    (not-empty (-attr datasource app id-attr join-prop args))
-                to-one? (some? (-entity datasource app id-attr (assoc args id-attr (-ref->id datasource refs))))
-                query   (get args query-key)]
-            ;(log/debug "plain join query: " query)
+          (let [refs        (not-empty (-attr datasource app id-attr join-prop args))
+                ref-id-attr (-ref->attribute datasource refs)
+                to-one?     (some? (-entity datasource app ref-id-attr (assoc args ref-id-attr (-ref->id datasource refs))))
+                query       (get args query-key)]
             (cond
               to-one?
               (<sub app [join-component-sub (apply assoc args refs)])
@@ -217,20 +224,29 @@
           (missing-id-check! id-attr join-prop args)
 
           (let [refs                 (-attr datasource app id-attr join-prop args)
-                to-one?              (some? (-entity datasource app id-attr (assoc args id-attr (-ref->id datasource refs))))
+                ;_                    (log/debug "refs: " refs)
+                ref-attr             (-ref->attribute datasource refs)
+                to-one?              (some? (-entity datasource app ref-attr (assoc args ref-attr (-ref->id datasource refs))))
                 query                (get args query-key)
                 union-branch-map     (union-query->branch-map join-prop (::parent-query args))
                 branch-keys-in-query (set (keys union-branch-map))]
             (cond
               to-one?
-              (let [ref-entity (-entity datasource app id-attr (assoc args id-attr (-ref->id datasource refs)))
+              (let [ref-attr   (-ref->attribute datasource refs)
+                    ;_          (log/debug "ref attr" ref-attr)
+                    ref-entity (-entity datasource app ref-attr (assoc args ref-attr (-ref->id datasource refs)))
+                    ;_          (log/debug "union ref-entity " ref-entity)
+                    ;_          (log/debug "union (join-component-sub ref-entity) " (join-component-sub ref-entity))
                     [id-attr id-val join-sub] (join-component-sub ref-entity)]
                 (<sub app [join-sub (assoc args id-attr id-val, query-key (union-branch-map id-attr))]))
 
               ;; to-many
               refs
               (if query
-                (let [ref-entities (map #(-entity datasource app id-attr (assoc args id-attr (-ref->id datasource %))) refs)]
+                (let [ref-entities (map (fn [ref]
+                                          (let [ref-id-attr (-ref->attribute datasource ref)]
+                                            (-entity datasource app ref-id-attr (assoc args ref-id-attr (-ref->id datasource ref)))))
+                                     refs)]
                   (->> ref-entities
                     (filter (fn [ref-entity] (let [[id-attr] (join-component-sub ref-entity)]
                                                (contains? branch-keys-in-query id-attr))))
@@ -238,7 +254,8 @@
                             (let [[id-attr id-val join-sub] (join-component-sub ref-entity)]
                               (<sub app [join-sub (assoc args id-attr id-val query-key (union-branch-map id-attr))]))))))
                 (mapv (fn [ref]
-                        (let [ref-entity (-entity datasource app id-attr (assoc args id-attr (-ref->id datasource ref)))
+                        (let [ref-id-attr (-ref->attribute datasource ref)
+                              ref-entity  (-entity datasource app ref-id-attr (assoc args ref-id-attr (-ref->id datasource ref)))
                               [id-attr id-val join-sub] (join-component-sub ref-entity)]
                           (<sub app [join-sub (assoc args id-attr id-val)])))
                       refs))
@@ -265,7 +282,6 @@
 
                 ;_                   (log/debug "ENTITY Id : " entity-db-id)
                 ;_                   (log/debug "ENTITY : " entity)
-                ;_                   (log/debug "LOOKUP ENTITY ID: " lookup-entity-id)
                 ;_                   (log/debug "ENTITY DB ID: " entity-db-id)
                 ;; when entity-id and lookup-entity-id are the same then we want to get a db id somehow
                 ;; they should not be the same?

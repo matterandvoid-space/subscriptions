@@ -160,7 +160,7 @@
 ;; union join
 ;;   - to-one0
 ;;   - to-many
-
+(<sub db_ [::todo {:todo/id :todo-1 sut/query-key [:todo/id :todo/author]}])
 (deftest union-queries-test
   (testing "to-one union queries"
     (is (= {:todo/id :todo-1, :todo/author {:bot/name "bot 1", :bot/id :bot-1}}

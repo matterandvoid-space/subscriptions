@@ -88,11 +88,11 @@ imported in the above namespace `:require` form.
 Here we ask for the user with `:user/id` :user-1, pulling three attributes. 
 The `0` in the recursive position means do not resolve any nested references, just return them as pointers.
 
+;; todo fill in the examples
 ```clojure
 (<sub db_ [::user {:user/id :user-1 query-key [:user/name :user/id {:user/friends 0}]}])
 ; =>
 
-{:db/id "todo-2" :todo/id :todo-2 :todo/text "todo 2" :todo/author [:user/id :user-2]}
 ```
 
 Currently supported operations are transformation functions and recursive expansion logic:
@@ -101,11 +101,12 @@ Currently supported operations are transformation functions and recursive expans
 (<sub db_ [::user {`upper-case-name (fn [e] (update e :user/name clojure.string/upper-case))
                      :user/id         :user-1
                      query-key    [:user/name :user/id {(list :user/friends {xform-fn-key `upper-case-name}) 4}]}])
-  (<sub db_ [::user {`upper-case-name (fn [e] (update e :user/name str/upper-case))
-                     `keep-walking?   (fn [e] (#{"user 1" "user 2"} (:user/name e)))
-                     :user/id         :user-1
-                     query-key    [:user/name :user/id {(list :user/friends {xform-fn-key `upper-case-name
-                                                                             walk-fn-key  `keep-walking?}) '...}]}])
+
+(<sub db_ [::user {`upper-case-name (fn [e] (update e :user/name str/upper-case))
+                   `keep-walking?   (fn [e] (#{"user 1" "user 2"} (:user/name e)))
+                   :user/id         :user-1
+                   query-key    [:user/name :user/id {(list :user/friends {xform-fn-key `upper-case-name
+                                                                           walk-fn-key  `keep-walking?}) '...}]}])
 ```
 
 The transformation function takes an entity returned from an entity subscription and can return any value, in the above

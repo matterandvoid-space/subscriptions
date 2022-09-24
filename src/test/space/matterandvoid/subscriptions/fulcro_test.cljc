@@ -65,7 +65,7 @@
     (is (= out4 "500"))
     (is (= out5 520))
     (is (= a "hi"))
-    (is (= 5 @counter_))))
+    (is (= 4 @counter_))))
 
 ;(deftest subs-arg-must-be-map-test
 ;  (is (thrown-with-msg? js/Error #"Query must contain only one map" (sut/<sub app [::fifth 'a 'b])))
@@ -92,7 +92,7 @@
     (is (= out5 520))
     (is (= out6 540))
     (is (= a "hi"))
-    (is (= 7 @subs/counter_))))
+    (is (= 6 @subs/counter_))))
 
 (deftest test-sub-macros-->
   "test the syntactical sugar for input signal"

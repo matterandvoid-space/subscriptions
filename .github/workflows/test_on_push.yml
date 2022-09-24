@@ -31,7 +31,7 @@ jobs:
         with:
           cli: latest
       - name: Run xtdb-eql tests
-        run: clojure -X:dev:test:run-tests :xtdb-eql --reporter documentation
+        run: clojure -M:dev:test:run-tests :xtdb-eql --reporter documentation
 
       - name: Run datalevin-eql tests
         run: clojure -M:dev:test:run-tests :datalevin-eql --reporter documentation

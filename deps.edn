@@ -8,15 +8,16 @@
  ;; see https://github.com/clj-kondo/clj-kondo/blob/master/doc/config.md#exporting-and-importing-configuration
  ["src/main" "src/clj-kondo"]
 
- :aliases {:run-tests {:main-opts   ["-m" "kaocha.runner" "--reporter" "documentation"]}
+ :aliases {:run-tests {:main-opts ["-m" "kaocha.runner"]}
            :test
            {:extra-paths ["src/test"]
             ;:exec-fn     cognitect.test-runner.api/test
             ;:exec-args   {:dirs ["src/test"]}
-            }
+            :extra-deps  {lambdaisland/kaocha {:mvn/version "1.70.1086"}}}
 
-           :build {:deps       {io.github.seancorfield/build-clj {:git/tag "v0.8.0" :git/sha "9bd8b8a"}}
-                   :ns-default build}
+
+           :build     {:deps       {io.github.seancorfield/build-clj {:git/tag "v0.8.0" :git/sha "9bd8b8a"}}
+                       :ns-default build}
 
            :dev
            {:extra-paths ["examples" "public" "src/test"]
@@ -28,7 +29,6 @@
                           com.xtdb/xtdb-lmdb        {:mvn/version "1.21.0.1"}
                           integrant/integrant       {:mvn/version "0.8.0"}
                           integrant/repl            {:mvn/version "0.3.2"}
-                          lambdaisland/kaocha       {:mvn/version "1.70.1086"}
                           org.clojure/clojure       {:mvn/version "1.11.1"}
                           org.clojure/clojurescript {:mvn/version "1.11.60"}
                           binaryage/devtools        {:mvn/version "1.0.6"}

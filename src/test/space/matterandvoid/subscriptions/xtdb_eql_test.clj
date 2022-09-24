@@ -341,7 +341,7 @@
                                              {:user/name    "user 5",
                                               :user/id      :user-5,
                                               :user/friends [{:user/name "user 6", :user/id :user-6, :user/friends [{:user/name "user 7", :user/id :user-7}]} {:user/name "user 7", :user/id :user-7}]}
-                                             {:user/id :user-3, :user/name "user 3", :user/friends [[:user/id :user-2] [:user/id :user-4]], :xt/id :user-3}]}]} out))))
+                                             {:user/id :user-3, :user/name "user 3", :user/friends [[:user/id :user-2] [:user/id :user-4]]}]}]} out))))
 
   (testing "collection expansion"
     (let [out1 (<sub db_ [::user {`get-friends (fn [e]

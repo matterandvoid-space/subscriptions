@@ -17,13 +17,14 @@
 ;; allow you to write some useful tests that can run on the JVM.
 
 (def debug-enabled? true)
-(defn ratom? [x] (instance? clojure.lang.IAtom x))
+(defn ratom? [x] (instance? clojure.lang.Atom x))
 (defn atom [x] (clojure.core/atom x))
 (defn deref? [x] (instance? clojure.lang.IDeref x))
 ;; no-op
 (defn on-load [listener])
 (defonce ^:private executor (Executors/newSingleThreadExecutor))
 (defonce ^:private on-dispose-callbacks (atom {}))
+(defn cursor [src path] (atom (fn [] (get-in src path))))
 (defn make-reaction
   "On JVM Clojure, return a `deref`-able thing which invokes the given function
   on every `deref`. That is, `make-reaction` here provides precisely none of the
@@ -34,8 +35,8 @@
   other than that they do redundant work."
   [f]
   (reify clojure.lang.IDeref (deref [_] (f))))
-
 (defn run-in-reaction [f obj key run opts] (f))
+(defn in-reactive-context [_ f] (f))
 
 (defn add-on-dispose!
   "On JVM Clojure, use an atom to register `f` to be invoked when `dispose!` is

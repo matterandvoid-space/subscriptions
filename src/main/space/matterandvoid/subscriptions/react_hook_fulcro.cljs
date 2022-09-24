@@ -1,7 +1,10 @@
 (ns space.matterandvoid.subscriptions.react-hook-fulcro
   (:require
-    [space.matterandvoid.subscriptions.impl.hooks-common :as common]
     [com.fulcrologic.fulcro.application :as fulcro.app]
+    [goog.object :as gobj]
+    ["react" :as react]
+    [space.matterandvoid.subscriptions.impl.hooks-common :as common]
+    [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [space.matterandvoid.subscriptions.fulcro :as subs]))
 
 (defn use-sub
@@ -14,7 +17,9 @@
   (a vector of a keyword and an optional hashmap of arguments)."
   [data-source query]
   (when goog/DEBUG (assert (fulcro.app/fulcro-app? data-source)))
-  (common/use-in-reaction (fn [] (subs/<sub data-source query))))
+  (let [ref (react/useRef nil)]
+    (when-not (.-current ref) (set! (.-current ref) (subs/subscribe data-source query)))
+    (common/use-reaction ref)))
 
 (defn use-sub-map
   "A react hook that subscribes to multiple subscriptions, the return value of the hook is the return value of the
@@ -29,16 +34,27 @@
   [data-source query-map]
   (when goog/DEBUG (assert (fulcro.app/fulcro-app? data-source)))
   (when goog/DEBUG (assert (map? query-map)))
-  (common/use-in-reaction
-    (fn [] (->> query-map
-             (reduce-kv
-               (fn [acc k query-vec] (assoc acc k (subs/<sub data-source query-vec)))
-               {})))))
+  (let [ref (react/useRef nil)]
+    (when-not (.-current ref)
+      (set! (.-current ref)
+        (ratom/make-reaction
+          (fn []
+            (reduce-kv (fn [acc k query-vec] (assoc acc k (subs/<sub data-source query-vec)))
+              {} query-map)))))
+    (common/use-reaction ref)))
 
-(defn use-in-reaction
-  "A react hook that takes a function with no arguments (a thunk) and runs the provided function inside a reagent `run-in-reaction`,
-   returning the passed in function's value to the calling component. re-runs passed in function when any reagent reactive updates fire.
+(defn use-reaction-ref
+  "Takes a Reagent Reaction inside a React ref and rerenders the UI component when the Reaction's value changes.
+  Returns the current value of the Reaction"
+  [^js r]
+  (when goog/DEBUG (when (not (gobj/containsKey r "current"))
+                     (throw (js/Error (str "use-reaction-ref hook must be passed a reaction inside a React ref."
+                                        " You passed: " (pr-str r))))))
+  (common/use-reaction r))
 
-  The hook causes the consuming component to re-render at most once per frame even if the reactive callback fires more than
-  once per frame."
-  [f] (common/use-in-reaction f))
+(defn use-reaction
+  "Takes a Reagent Reaction and rerenders the UI component when the Reaction's value changes.
+   Returns the current value of the Reaction"
+  [r]
+  (let [ref (react/useRef r)]
+    (common/use-reaction ref)))

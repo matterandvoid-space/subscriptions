@@ -1,6 +1,8 @@
 (ns space.matterandvoid.subscriptions.core
   #?(:cljs (:require-macros [space.matterandvoid.subscriptions.core]))
-  (:require [space.matterandvoid.subscriptions.impl.core :as impl]))
+  (:require
+    [space.matterandvoid.subscriptions :as-alias subs-keys]
+    [space.matterandvoid.subscriptions.impl.core :as impl]))
 
 (defn set-memoize-fn! [f] (impl/set-memoize-fn! f))
 (defn set-args-merge-fn! [f] (impl/set-args-merge-fn! f))
@@ -44,6 +46,10 @@
   [query-id & args]
   (apply impl/reg-sub query-id args))
 
+(defn reg-layer2-sub
+  [query-id path-vec-or-fn]
+  (impl/reg-layer2-sub query-id path-vec-or-fn))
+
 (defn subscribe
   "Given a `query` vector, returns a Reagent `reaction` which will, over
   time, reactively deliver a stream of values. Also known as a `Signal`.
@@ -76,7 +82,7 @@
   Some explanation is available in the docs at
   <a href=\"http://day8.github.io/re-frame/flow-mechanics/\" target=\"_blank\">http://day8.github.io/re-frame/flow-mechanics/</a>"
   {:api-docs/heading "Subscriptions"}
-  [query-id handler-fn] (impl/register-handler! query-id handler-fn))
+  [query-id handler-fn] (impl/reg-sub-raw query-id handler-fn))
 
 (defn clear-subscription-cache!
   "Removes all subscriptions from the cache.

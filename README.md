@@ -37,6 +37,15 @@ Get the latest coordinates on clojars:
 _note_ this library depends on reagent, but given its prevalance and chance for version conflicts does not declare it 
 as a dependency, you must add it to your deps.
 
+Get the coordinates for the latest version of reagent here: https://clojars.org/reagent
+
+This library also requires the following packages be installed from npm:
+`react` `react-dom` and `use-sync-external-store`
+
+```bash
+npm install -D react react-dom use-sync-external-store
+```
+
 There are two API entry namespaces (for now) - one for use with fulcro `space.matterandvoid.subscriptions.fulcro` 
 and one for general use with any datasource, `space.matterandvoid.subscriptions.core`
 
@@ -128,22 +137,25 @@ I haven't used datascript much so there may be better/more efficient integration
 
 ## Use with React hooks
 
-There are three react hooks in the `space.matterandvoid.subscriptions.react-hook` namespace 
+There are four react hooks in the `space.matterandvoid.subscriptions.react-hook` namespace 
 
 - `use-sub`, which takes one subscription vector 
 - `use-sub-map` which takes a hashmap of keywords to subscription vectors intended to be destructured.
-- `use-in-reaction` which takes a function of no arguments (a thunk) and runs it inside reagent.ratom/run-in-reaction.
-  (this is the more low level of the three hooks, in case you want to do more custom things)
+- `use-reaction` which takes a Reagent Reaction, the output of the hook is the return value of the Reaction.
+- `use-reaction-ref` which takes a React Ref which contains a Reagent Reaction, the output of the hook is the return value of the reaction.
 
 The same hooks for fulcro use are in `space.matterandvoid.subscriptions.react-hook-fulcro`
 
 With this implementation components will re-render once per animation frame (via requestAnimationFrame) even if the reactive
 callback fires multiple times in one frame.
 
+These hooks are all implemented via [useSyncExternalStore](https://beta.reactjs.org/apis/react/useSyncExternalStore) allowing
+them to be used in React's concurrent rendering mode.
+
 See the examples directory in the source for working code.
 
 ```clojure 
-(require [space.matterandvoid.subscriptions.react-hook :refer [use-sub use-sub-map use-in-reaction]])
+(require [space.matterandvoid.subscriptions.react-hook :refer [use-sub use-sub-map use-reaction]])
 (defonce db_ (ratom/atom {}))
 
 (defn make-todo [id text] {:todo/id id :todo/text text})
@@ -169,7 +181,7 @@ See the examples directory in the source for working code.
          ;; this is contrived, but you could imagine passing in subs as a prop
          ;; or other dynamic possibilities
          some-subs [[::sorted-todos] [:all-todos]]
-         list-of-lists (use-in-reaction (fn[] (mapv <sub some-subs)))]
+         list-of-lists (use-reaction (make-reaction (fn [] (mapv <sub some-subs)))]
     ($ :div
       ($ :button #js{:onClick #(swap! db_ update :todos conj (make-todo (random-uuid) "another todo"))}
        "Add a todo")
@@ -185,8 +197,7 @@ Details below, but the three big differences are:
    The compute function is only passed your db and one hashmap as arguments.
    Neither gets passed the vector which was passed to `subscribe`.
 2. `subscribe` calls must be invoked with the base data source and optionally one argument which must be a hashmap.
-3. The reagent Reaction that backs a subscription computation function is only cached in a reactive context, and the 
-   computation function itself is memoized with a bounded cache, making subscriptions safe to use in any context.
+3. The reagent Reaction that backs a subscription computation function is only cached in a reactive context, making subscriptions safe to use in any context.
 
 ## Only one map for all queries
 
@@ -310,7 +321,7 @@ If you _really_ need the query id you can just assoc it onto the args map. One l
 This style also means there is no need for the `:=>` syntax sugar (but `:->` is still useful for functions that only need
 to operate on the db or the single computed value).
 
-## Memoized subscription computation functions.
+## Using subscriptions in any context
 
 The underlying reagent.ratom/Reaction used in re-frame is cached - this library also does this.
 
@@ -325,37 +336,8 @@ The key part is that reagent adds an on-dispose handler for the reaction which i
 Thus, if you try to use a subscription outside of the reactive context (and that is never used by a currently mounted component)
 the subscription's reaction will be cached but never disposed, consuming memory that is never relinquished until the application is restarted.
 
-This library incorporates two changes to make sure there are no memory leaks and yet that subscriptions can be used in any context
-while still being cached.
-
-The changes are:
-
-- do not cache reactions if we are not in a reactive context (reagent indicates a reactive context by binding a dynamic variable.)
-- memoize all subscription computation functions with a bounded cache that evicts the least recently used subscription arguments when full.
-
-This is possible because subscriptions are pure functions and the layer 2 accessor subscriptions will invalidate for new 
-data when a new value for app-db is `reset!`.
-
-As long as you follow the rules/intended design of using subscriptions this will not matter to you - the rule is 
-you can only compute on the inputs specified by the subscription mechanisms - if your functions are not pure you 
-will have a bad time (you will see stale values).
-
-The function used for memoization can be changed via this helper function:
-
-```clojure
-(subs/set-memoize-fn! memoize-fn)
-```
-Now any subsequent calls to `reg-sub` will have their computation functions wrapped in the memoization function specified
-which is `memoize-fn` in this example. 
-
-Thus if you want to disable the memoization cache you can:
-```clojure
-(subs/set-memoize-fn! identity)
-```
-
-Or if you want to change to your own caching policy/implementation you can do so.
-
-It also means you can cache some subscriptions and not others by changing the function before subsequent `reg-sub` calls.
+This library does not use the subscription cache if a subscription is called outside a reactive context (reagent indicates a reactive context by binding a dynamic variable)
+ and thus you can invoke your subscriptions in any context.
 
 ## `defsub` macro
 

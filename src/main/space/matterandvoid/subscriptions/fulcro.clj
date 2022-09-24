@@ -1,13 +1,14 @@
 (ns space.matterandvoid.subscriptions.fulcro
   (:require
-    [space.matterandvoid.subscriptions.impl.fulcro :as impl]
     [com.fulcrologic.fulcro.algorithm :as-alias fulcro.algo]
     [com.fulcrologic.fulcro.algorithms.indexing :as fulcro.index]
-    [com.fulcrologic.fulcro.rendering.ident-optimized-render :as ident-optimized-render]
-    [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [com.fulcrologic.fulcro.application :as fulcro.app]
-    [taoensso.timbre :as log]
-    [com.fulcrologic.fulcro.components :as c]))
+    [com.fulcrologic.fulcro.components :as c]
+    [com.fulcrologic.fulcro.rendering.ident-optimized-render :as ident-optimized-render]
+    [space.matterandvoid.subscriptions :as-alias subs-keys]
+    [space.matterandvoid.subscriptions.impl.fulcro :as impl]
+    [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
+    [taoensso.timbre :as log]))
 
 ;(defn get-fulcro-component-query-keys
 ;  []
@@ -27,6 +28,7 @@
 ;   This can be a normal function because reg-sub operates at runtime"
 ;  [com])
 
+(def query-key ::subs-keys/query)
 (defn set-memoize-fn! [f] (impl/set-memoize-fn! f))
 (defn set-args-merge-fn! [f] (impl/set-args-merge-fn! f))
 
@@ -102,7 +104,7 @@
   Some explanation is available in the docs at
   <a href=\"http://day8.github.io/re-frame/flow-mechanics/\" target=\"_blank\">http://day8.github.io/re-frame/flow-mechanics/</a>"
   {:api-docs/heading "Subscriptions"}
-  [query-id handler-fn] (impl/register-handler! query-id handler-fn))
+  [query-id handler-fn] (impl/reg-sub-raw query-id handler-fn))
 
 (defn clear-subscription-cache!
   "Removes all subscriptions from the cache.
@@ -113,6 +115,10 @@
   the subscriptions within those components won't have been cleaned up correctly. So this
   forces the issue."
   [registry] (impl/clear-subscription-cache! registry))
+
+(defn clear-handlers
+  ([app] (impl/clear-handlers app))
+  ([app id] (impl/clear-handlers app id)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; reactive refresh of components
@@ -218,3 +224,5 @@
        (defn ~sub-name
          ([app#] (deref (subscribe app# [~sub-kw])))
          ([app# args#] (deref (subscribe app# [~sub-kw args#])))))))
+
+

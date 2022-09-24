@@ -39,6 +39,12 @@
     get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
     query-id args))
 
+(defn reg-layer2-sub
+  [query-id path-vec-or-fn]
+  (subs/reg-layer2-sub
+    get-input-db-signal register-handler!
+    query-id path-vec-or-fn))
+
 (defn subscribe
   "Given a `query` vector, returns a Reagent `reaction` which will, over
   time, reactively deliver a stream of values. Also known as a `Signal`.
@@ -58,7 +64,7 @@
   ([registry query-id]
    (clear-handlers registry query-id)))
 
-(defn reg-sub-raw [query-id handler-fn] (register-handler! query-id handler-fn))
+(defn reg-sub-raw [query-id handler-fn] (subs/reg-sub-raw register-handler! query-id handler-fn))
 
 (defn clear-subscription-cache!
   "Removes all subscriptions from the cache."

@@ -1,26 +1,40 @@
 (ns space.matterandvoid.subscriptions.react-hook
   (:require
+    [goog.object :as gobj]
+    ["react" :as react]
     [space.matterandvoid.subscriptions.impl.hooks-common :as common]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [space.matterandvoid.subscriptions.core :as subs]))
+
+
+;; All of these subscription hooks use a React Ref to wrap the Reaction.
+;; The reason for doing so is so that React does not re-create the Reaction object each time the component is rendered.
+;;
+;; This is safe because the ref's value never changes for the lifetime of the component (per use of use-reaction)
+;; Thus the caution to not read .current from a ref during rendering doesn't apply because we know it never changes.
+;;
+;; The guideline exists for refs whose underlying value will change between renders, but we are just using it
+;; as a cache local to the component in order to not recreate the Reaction with each render.
+;;
+;; References:
+;; - https://beta.reactjs.org/apis/react/useRef#referencing-a-value-with-a-ref
+;; - https://beta.reactjs.org/apis/react/useRef#avoiding-recreating-the-ref-contents
 
 (defn use-sub
   "A react hook that subscribes to a subscription, the return value of the hook is the return value of the
   subscription which will cause the consuming react function component to update when the subscription's value updates.
 
-  Will cause the consuming component to re-render only once per animation frame (using requestAnimationFrame) when the subscription updates.
-
-  Arguments are a reagent ratom and a subscription query vector (vector of keyword and an optional hashmap of
+  Arguments are a reagent ratom `data-source`, and a subscription query vector (vector of keyword and an optional hashmap of
   arguments)."
   [data-source query]
   (when goog/DEBUG (assert (ratom/ratom? data-source)))
-  (common/use-in-reaction (fn [] (subs/<sub data-source query))))
+  (let [ref (react/useRef nil)]
+    (when-not (.-current ref) (set! (.-current ref) (subs/subscribe data-source query)))
+    (common/use-reaction ref)))
 
 (defn use-sub-map
   "A react hook that subscribes to multiple subscriptions, the return value of the hook is the return value of the
   subscriptions which will cause the consuming react function component to update when the subscriptions' values update.
-
-  Will cause the consuming component to re-render only once per animation frame (using requestAnimationFrame) when the subscriptions update.
 
   Takes a data source (reagent ratom) and a hashmap
   - keys are keywords (qualified or simple) that you make up.
@@ -29,16 +43,27 @@
   [data-source query-map]
   (when goog/DEBUG (assert (ratom/ratom? data-source)))
   (when goog/DEBUG (assert (map? query-map)))
-  (common/use-in-reaction
-    (fn [] (->> query-map
-             (reduce-kv
-               (fn [acc k query-vec] (assoc acc k (subs/<sub data-source query-vec)))
-               {})))))
+  (let [ref (react/useRef nil)]
+    (when-not (.-current ref)
+      (set! (.-current ref)
+        (ratom/make-reaction
+          (fn []
+            (reduce-kv (fn [acc k query-vec] (assoc acc k (subs/<sub data-source query-vec)))
+              {} query-map)))))
+    (common/use-reaction ref)))
 
-(defn use-in-reaction
-  "A react hook that takes a function with no arguments (a thunk) and runs the provided function inside a reagent `run-in-reaction`,
-   returning the passed in function's value to the calling component. re-runs passed in function when any reagent reactive updates fire.
+(defn use-reaction-ref
+  "Takes a Reagent Reaction inside a React ref and rerenders the UI component when the Reaction's value changes.
+  Returns the current value of the Reaction"
+  [^js r]
+  (when goog/DEBUG (when (not (gobj/containsKey r "current"))
+                     (throw (js/Error (str "use-reaction-ref hook must be passed a reaction inside a React ref."
+                                        " You passed: " (pr-str r))))))
+  (common/use-reaction r))
 
-  The hook causes the consuming component to re-render at most once per frame even if the reactive callback fires more than
-  once per frame."
-  [f] (common/use-in-reaction f))
+(defn use-reaction
+  "Takes a Reagent Reaction and rerenders the UI component when the Reaction's value changes.
+   Returns the current value of the Reaction"
+  [r]
+  (let [ref (react/useRef r)]
+    (common/use-reaction ref)))

@@ -1,5 +1,7 @@
 (ns fulcro-example
   (:require
+    ["react-dom/client" :as react-dom]
+    ["react" :as react]
     [com.fulcrologic.fulcro.algorithms.merge :as merge]
     [com.fulcrologic.fulcro.algorithms.normalized-state :as nstate]
     [com.fulcrologic.fulcro.algorithms.form-state :as fs]
@@ -14,6 +16,7 @@
 ;; Subscriptions
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
+(subs/set-memoize-fn! identity)
 (defsub all-todos :-> #(-> % :todo/id vals))
 (defsub complete-todos :<- [::all-todos] :-> #(filter (comp #{:complete} :todo/state) %))
 (defsub incomplete-todos :<- [::all-todos] :-> #(filter (comp #{:incomplete} :todo/state) %))
@@ -109,7 +112,7 @@
         (todos-list this {:list-id list-id})]
     ;(def t' todos)
     (dom/div {}
-      (dom/h1 "Todos2")
+      (dom/h1 "Todos3")
 
       (dom/p "hi")
       (dom/button {:style {:padding 20 :margin "0 1rem"} :onClick #(add-random-todo! this)} "Add")
@@ -140,7 +143,7 @@
    :query [:list-id]}
   (log/info "In TodoList render fn change10")
 
-  (let [todos (todos-list this {:list-id list-id})
+  (let [todos  (todos-list this {:list-id list-id})
         todos2 (reactive this [::todos-list {:list-id list-id}])]
     ;(def t' todos)
     (dom/div {}
@@ -161,23 +164,28 @@
 
 (defsc Root [this {:root/keys [list-id]}]
   {:initial-state {:root/list-id :root/todos}
-   :query         [:root/list-id]}
+   :query         [:root/list-id :root/todos]}
   (dom/div {} (ui-todo-list {:list-id list-id})))
 
 ;; Fulcro app and init function
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
+(defonce root (react-dom/createRoot (js/document.getElementById "app")))
 (defonce fulcro-app
-  (subs/with-reactive-subscriptions (fulcro.app/fulcro-app {})))
+  (subs/with-reactive-subscriptions (fulcro.app/fulcro-app {:render-root! (fn [component] (.render root component))})))
 
 (comment (fulcro.app/current-state fulcro-app))
 
 (defn ^:export init [] (fulcro.app/mount! fulcro-app Root js/app))
 
+
 (defn ^:dev/after-load refresh []
-  (fulcro.app/unmount! fulcro-app)
-  (fulcro.app/mount! fulcro-app Root js/app {:initialize-state? false})
-  (subs/clear-subscription-cache! fulcro-app))
+  (subs/clear-subscription-cache! fulcro-app)
+  (fulcro.app/force-root-render! fulcro-app)
+  ;(fulcro.app/unmount! fulcro-app)
+  ;(fulcro.app/mount! fulcro-app Root js/app {:initialize-state? false})
+  )
+
 
 ;; todo:
 ;; add input form instead of merge-comp in the repl

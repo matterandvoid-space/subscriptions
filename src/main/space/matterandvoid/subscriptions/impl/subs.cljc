@@ -2,7 +2,6 @@
   (:require
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
-    [space.matterandvoid.subscriptions.impl.memoize :as memoize]
     [space.matterandvoid.subscriptions.impl.trace :as trace :include-macros true]
     [taoensso.timbre :as log]))
 
@@ -62,10 +61,13 @@
   [get-handler cache-lookup get-subscription-cache
    app query]
   ;(log/info "\n\n--------------------------------------------")
+  ;(log/info "subscribe q id : " (first query))
   ;(log/info "subscribe q: " query)
-  (assert (vector? query))
+
+  (assert (vector? query) (str "Queries must be vectors, you passed: " query))
   (let [cnt      (count query),
         query-id (first query)]
+    (def q' query)
     (assert (or (= 1 cnt) (= 2 cnt)) (str "Query must contain only one map for subscription " query-id))
     ;(log/info "STEP 1")
     (when (and (= 2 cnt) (not (map? (get query 1))))
@@ -124,9 +126,11 @@
     (ratom/deref? signals) (f signals)
     :else '()))
 
+(def valid-signals (some-fn sequential? map? ratom/deref?))
+
 (defn- deref-input-signals
   [signals query-id]
-  (when-not ((some-fn sequential? map? ratom/deref?) signals)
+  (when-not (valid-signals signals)
     (let [to-seq #(cond-> % (not (sequential? %)) list)]
       (console :error "space.matterandvoid.subscriptions: in the reg-sub for" query-id ", the input-signals function returns:" signals)
       ;(trace/merge-trace! {:tags {:input-signals (doall (to-seq (map-signals reagent-id signals)))}})
@@ -134,39 +138,40 @@
   (map-signals deref signals))
 
 (defn make-subs-handler-fn
-  "This is where the inputs-fn is executed and the computation is put inside a reaction - ie a callback for later
+  "A subscription is just a function that returns a reagent.Reaction.
+  This is where the inputs-fn is executed and the computation is put inside a reaction - ie a callback for later
   invocation when subscribe is called and derefed.
   This is also where the args map is passed to both the inputs-function and the computation function instead of the complete query vector."
   [inputs-fn computation-fn query-id]
   (fn subs-handler-fn
     [app query-vec]
-    (assert (vector? query-vec))
-    (let [args          (second query-vec)
+    (assert (vector? query-vec) (str "Queries must be vectors, you passed: " query-vec))
+    (let [args                  (second query-vec)
           subscriptions #?(:cljs (inputs-fn app args)
                            :clj (try (inputs-fn app args) (catch clojure.lang.ArityException _ (inputs-fn app))))
-          reaction-id   (atom nil)
-          reaction      (ratom/make-reaction
-                          (fn []
-                            (trace/with-trace {:operation query-id
-                                               :op-type   :sub/run
-                                               :tags      {:query-v  [query-id args]
-                                                           :reaction @reaction-id}}
+          reaction-id           (atom nil)
+          reaction              (ratom/make-reaction
+                                  (fn []
+                                    (trace/with-trace {:operation query-id
+                                                       :op-type   :sub/run
+                                                       :tags      {:query-v  [query-id args]
+                                                                   :reaction @reaction-id}}
 
-                              #?(:cljs
-                                 (let [subscription-output (computation-fn (deref-input-signals subscriptions query-id) args)]
-                                   (trace/merge-trace! {:tags {:value subscription-output}})
-                                   subscription-output)
-                                 ;; Deal with less leniency on jvm for calling single-arity functions with 2 args
-                                 :clj (try
-                                        (let [subscription-output (computation-fn (deref-input-signals subscriptions query-id) args)]
-                                          (trace/merge-trace! {:tags {:value subscription-output}})
-                                          subscription-output)
-                                        (catch clojure.lang.ArityException _
-                                          (computation-fn (deref-input-signals subscriptions query-id))))))))]
+                                      #?(:cljs
+                                         (let [subscription-output (computation-fn (deref-input-signals subscriptions query-id) args)]
+                                           (trace/merge-trace! {:tags {:value subscription-output}})
+                                           subscription-output)
+                                         ;; Deal with less leniency on jvm for calling single-arity functions with 2 args
+                                         :clj (try
+                                                (let [subscription-output (computation-fn (deref-input-signals subscriptions query-id) args)]
+                                                  (trace/merge-trace! {:tags {:value subscription-output}})
+                                                  subscription-output)
+                                                (catch clojure.lang.ArityException _
+                                                  (computation-fn (deref-input-signals subscriptions query-id))))))))]
       (reset! reaction-id (ratom/reagent-id reaction))
       reaction)))
 
-(def memoize-fn memoize/memoize-fn)
+(def memoize-fn identity)
 (def args-merge-fn merge)
 
 (defn set-memoize-fn! [f] #?(:cljs (set! memoize-fn f)
@@ -245,6 +250,26 @@
                                       ([app args*]
                                        (map #(subscribe get-handler cache-lookup get-subscription-cache app (merge-update-args % args*))
                                          vecs)))))]
-    ;(js/console.log "registering subscription: " query-id)
-    ;(js/console.log "input args: " input-args)
     (register-handler! query-id (make-subs-handler-fn inputs-fn memoized-computation-fn query-id))))
+
+(defn reg-layer2-sub
+  [get-input-db-signal register-handler!
+   query-id path-vec-or-fn]
+  (println "register layer 2: " query-id path-vec-or-fn)
+
+  (register-handler! query-id
+    (fn layer2-handler-fn [app query-vec]
+      (println "in layer 2 sub handler")
+      (assert (vector? query-vec))
+      (println "2 in layer 2 sub handler")
+      (let [args     (second query-vec)
+            db-ratom (get-input-db-signal app)
+            path     (if (fn? path-vec-or-fn) (path-vec-or-fn args) path-vec-or-fn)]
+        (println "3 in layer 2 sub handler" path)
+        (ratom/cursor db-ratom path)))))
+
+(defn reg-sub-raw [register-handler! query-id handler-fn]
+  (register-handler! query-id
+    (fn
+      ([db_] (handler-fn db_))
+      ([db_ args] (handler-fn db_ (second args))))))

@@ -32,7 +32,7 @@
                     "\"></script>\n  </body></html>\n")))
               (defn write-example-html [module]
                 (fs/create-dirs (fs/file "public" module))
-                (write-html (fs/file "public" module "index.html") (str/join "/" [(str "/" module) "js" (str module ".js")]))))
+                (write-html (fs/file "public" module "index.html") (str/join "/" ["/js" (str module ".js")]))))
 
   :requires ([babashka.process :as p :refer [process]]
              [babashka.fs :as fs]

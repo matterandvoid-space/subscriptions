@@ -22,6 +22,7 @@
 (defn make-reaction [f] (reagent.ratom/make-reaction f))
 (defn run-in-reaction [f obj key run opts] (reagent.ratom/run-in-reaction f obj key run opts))
 (defn add-on-dispose! [a-ratom f] (reagent.ratom/add-on-dispose! a-ratom f))
+(defn reaction? [r] (instance? reagent.ratom/Reaction r))
 (defn dispose! [a-ratom] (reagent.ratom/dispose! a-ratom))
 (defn ^boolean reactive-context? [] (reagent.ratom/reactive?))
 (defn in-reactive-context [o f] (binding [reagent.ratom/*ratom-context* o] (f)))

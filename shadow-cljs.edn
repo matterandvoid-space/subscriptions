@@ -2,7 +2,7 @@
  {:aliases [:dev :test]}
 
  :dev-http
- {8099 "public"}
+ {8099 "public/hooks-example"}
 
  :builds
 

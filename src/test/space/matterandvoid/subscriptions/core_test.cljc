@@ -1,16 +1,10 @@
 (ns space.matterandvoid.subscriptions.core-test
   (:require
-    [kaocha.repl]
     [clojure.test :refer [deftest is testing use-fixtures]]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [datascript.core :as d]
     [taoensso.timbre :as log]
     [space.matterandvoid.subscriptions.core :as sut]))
-
-(comment (kaocha.repl/run
-           'space.matterandvoid.subscriptions.datalevin-eql-test
-           ;'space.matterandvoid.subscriptions.xtdb-eql-test
-           ))
 
 (sut/reg-sub :hello
   (fn [db] (:hello db)))

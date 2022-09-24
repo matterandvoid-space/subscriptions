@@ -138,7 +138,8 @@
   (map-signals deref signals))
 
 (defn make-subs-handler-fn
-  "This is where the inputs-fn is executed and the computation is put inside a reaction - ie a callback for later
+  "A subscription is just a function that returns a reagent.Reaction.
+  This is where the inputs-fn is executed and the computation is put inside a reaction - ie a callback for later
   invocation when subscribe is called and derefed.
   This is also where the args map is passed to both the inputs-function and the computation function instead of the complete query vector."
   [inputs-fn computation-fn query-id]

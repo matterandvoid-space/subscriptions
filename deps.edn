@@ -8,7 +8,7 @@
  ;; see https://github.com/clj-kondo/clj-kondo/blob/master/doc/config.md#exporting-and-importing-configuration
  ["src/main" "src/clj-kondo"]
 
- :aliases {:run-tests {:main-opts   ["-m" "kaocha.runner"]}
+ :aliases {:run-tests {:main-opts   ["-m" "kaocha.runner" "--reporter" "documentation"]}
            :test
            {:extra-paths ["src/test"]
             ;:exec-fn     cognitect.test-runner.api/test

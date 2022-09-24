@@ -404,7 +404,11 @@
                                                            (assoc query-key parent-query id-attr (-ref->id datasource join-ref)))])))
                                   refs-to-expand)
                             (when stop (mapv (fn [join-ref]
-                                               (-entity datasource app id-attr (assoc args id-attr (-ref->id datasource join-ref))))
+                                               (xform-fn (<sub app [entity-sub
+                                                                    (-> args
+                                                                      (update ::depth (fnil inc 0))
+                                                                      (update ::entity-history (fnil conj #{}) entity-db-id)
+                                                                      (assoc query-key nil id-attr (-ref->id datasource join-ref)))])))
                                              stop)))))))
 
                   ;; some dbs support arbitrary collections as keys

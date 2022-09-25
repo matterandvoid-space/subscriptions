@@ -20,7 +20,7 @@
 
 (defn cache-and-return!
   "cache the reaction r"
-  [get-subscription-cache get-cache-key app query-v ^clj reaction-or-cursor]
+  [get-subscription-cache get-cache-key app query-v #?(:cljs ^clj reaction-or-cursor :clj reaction-or-cursor)]
   ;; this prevents memory leaks (caching subscription -> reaction) but still allows
   ;; executing outside of a (reagent.reaction) form, like in event handlers.
   (when (ratom/reactive-context?)
@@ -58,9 +58,9 @@
   "Takes a datasource and query and returns a Reaction."
   [get-handler cache-lookup get-subscription-cache get-cache-key
    datasource query]
-  ;(log/info "\n\n--------------------------------------------")
-  ;(log/info "subscribe q id : " (first query))
-  ;(log/info "subscribe q: " query)
+  (log/info "\n\n--------------------------------------------")
+  (log/info "subscribe q id : " (first query))
+  (log/info "subscribe q: " query)
   (assert (vector? query) (str "Queries must be vectors, you passed: " query))
   (let [cnt       (count query),
         query-id  (first query)
@@ -85,7 +85,7 @@
               (do (trace/merge-trace! {:error true})
                   (console :error (str "No subscription handler registered for: " query-id "\n\nReturning a nil subscription.")))
               (do
-                (cache-and-return! get-subscription-cache get-cache-key datasource query (handler-fn datasource query))))))))))
+                (cache-and-return! get-subscription-cache get-cache-key datasource query (handler-fn datasource (second query)))))))))))
 
 ;; -- reg-sub -----------------------------------------------------------------
 

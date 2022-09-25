@@ -1,6 +1,6 @@
-(ns space.matterandvoid.subscriptions.fulcro-eql-test
+(ns space.matterandvoid.subscriptions.fulcro-eql2-test
   (:require
-    [space.matterandvoid.subscriptions.fulcro-eql :as sut]
+    [space.matterandvoid.subscriptions.fulcro-eql2 :as sut]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
     [space.matterandvoid.subscriptions.fulcro :as subs :refer [reg-sub reg-sub-raw subscribe <sub]]
     [com.fulcrologic.fulcro.application :as fulcro.app]
@@ -39,7 +39,8 @@
                                 {:list/items (rc/get-query list-member-comp)}
                                 {:list/members (rc/get-query list-member-comp)}]}))
 
-(run! sut/register-component-subs! [user-comp bot-comp comment-comp todo-comp list-comp human-comp])
+(def user-sub (sut/create-component-subs user-comp nil))
+;(run! sut/register-component-subs! [user-comp bot-comp comment-comp todo-comp list-comp human-comp])
 
 (def db_ (r/atom {:comment/id {:comment-1 {:comment/id           :comment-1 :comment/text "FIRST COMMENT"
                                            :comment/sub-comments [[:comment/id :comment-2]]}
@@ -68,10 +69,11 @@
 (def app (assoc (fulcro.app/fulcro-app {}) ::fulcro.app/state-atom db_))
 
 (comment
-  (<sub app [::user {:user/id :user-1 sut/query-key [:user/name]}])
-  (<sub app [::user {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends 1}]}])
-  (<sub app [::user {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends 0}]}])
-  (<sub app [::user {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends '...}]}])
+  ;; wow. it works....
+  (<sub app [user-sub {:user/id :user-1 sut/query-key [:user/name]}])
+  (<sub app [user-sub {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends 1}]}])
+  (<sub app [user-sub {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends 0}]}])
+  (<sub app [user-sub {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends '...}]}])
   )
 
 ;(<sub app [::user {:user/id 1 sut/query-key [:user/id {:user/friends `keep-walking?}]}])

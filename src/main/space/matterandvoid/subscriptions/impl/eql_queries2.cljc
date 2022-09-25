@@ -148,11 +148,7 @@
     (make-reaction
       (fn []
         (missing-id-check! id-attr prop args)
-        (-attr datasource db_ id-attr prop args))))
-  #_(reg-sub prop (fn [db args]
-                    (missing-id-check! id-attr prop args)
-                    ;(log/debug "lookup prop id-attr: " id-attr " prop " prop)
-                    (-attr datasource db id-attr prop args))))
+        (-attr datasource db_ id-attr prop args)))))
 
 (defn get-all-props-shallow
   "Return hashmap of data attribute keywords -> subscription output implementation for '* queries"
@@ -540,6 +536,9 @@
     ;; now from here we need to pass in any dependent subs as maps of keyword to subscription in order to support
     ;; subscriptions as functions. This makes sense as then everything is pure and there is no side-band dependency on global
     ;; state (i.e. the registry)
+    ;; todo - you can pass in sub-prop function
+    ;; which will either use make-reaction for non-hashmap datasources
+    ;; or cursors for hashmap datasources.
     (let [recur-join-fn_  (atom nil)
           prop-subs       (zipmap props (map (fn [p] (sub-prop datasource id-attr p)) props)) ; <- doesn't need any dependent subs
           ;; these should be fulfilled from the join-subs-map argumenta, the parsing output of eql-query-keys-by-type

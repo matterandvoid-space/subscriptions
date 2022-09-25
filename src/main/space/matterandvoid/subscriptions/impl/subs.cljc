@@ -20,27 +20,27 @@
 
 (defn cache-and-return!
   "cache the reaction r"
-  [get-subscription-cache get-cache-key app query-v reaction-or-cursor]
+  [get-subscription-cache get-cache-key app query-v ^clj reaction-or-cursor]
   ;; this prevents memory leaks (caching subscription -> reaction) but still allows
   ;; executing outside of a (reagent.reaction) form, like in event handlers.
   (when (ratom/reactive-context?)
     (let [cache-key          (get-cache-key app query-v)
-          subscription-cache (get-subscription-cache app)]
-      (log/info "CACHING REACTION with KEY: " cache-key)
-      ;(console :debug "cache-and-return!" (get-subscription-cache app))
+          subscription-cache (get-subscription-cache app)
+          on-dispose         (fn [] (trace/with-trace {:operation (first query-v)
+                                                       :op-type   :sub/dispose
+                                                       :tags      {:query-v  query-v
+                                                                   :reaction (ratom/reagent-id reaction-or-cursor)}}
+                                      ;(log/info "IN ON DISPOSE CLEANING UP reaction-or-cursor: " reaction-or-cursor)
+                                      (swap! subscription-cache
+                                        (fn [query-cache]
+                                          (if (and (contains? query-cache cache-key) (identical? reaction-or-cursor (get query-cache cache-key)))
+                                            (dissoc query-cache cache-key)
+                                            query-cache)))))]
+      ;(log/info "CACHING REACTION with KEY: " cache-key)
       ;; when this reaction is no longer being used, remove it from the cache
-      ;; todo ideally we want to evict the cursors as well, but we don't have watches for them.
 
-      (when (ratom/reaction? reaction-or-cursor)
-        (ratom/add-on-dispose! reaction-or-cursor #(trace/with-trace {:operation (first query-v)
-                                                                      :op-type   :sub/dispose
-                                                                      :tags      {:query-v  query-v
-                                                                                  :reaction (ratom/reagent-id reaction-or-cursor)}}
-                                                     (swap! subscription-cache
-                                                       (fn [query-cache]
-                                                         (if (and (contains? query-cache cache-key) (identical? reaction-or-cursor (get query-cache cache-key)))
-                                                           (dissoc query-cache cache-key)
-                                                           query-cache))))))
+      (when (ratom/reaction? reaction-or-cursor) (ratom/add-on-dispose! reaction-or-cursor on-dispose))
+      (when (ratom/cursor? reaction-or-cursor) (set! (.-on-dispose reaction-or-cursor) on-dispose))
       ;; cache this reaction, so it can be used to deduplicate other, later "=" subscriptions
       (swap! subscription-cache (fn [query-cache]
                                   (when ratom/debug-enabled?

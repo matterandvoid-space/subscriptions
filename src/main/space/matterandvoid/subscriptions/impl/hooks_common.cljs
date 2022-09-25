@@ -32,6 +32,7 @@
                   (set! (.-current render-scheduled?) false)))))
           {:no-cache true})
         (fn cleanup-subscription []
+          (println "CLEANUP subscription")
           (ratom/dispose! (gobj/get (.-current reaction-obj) reaction-key))))
       #js [reaction])))
 

@@ -3,7 +3,7 @@
     ["react-dom/client" :as react-dom]
     ["react" :as react]
     [space.matterandvoid.subscriptions.impl.core :as impl]
-    [reagent.ratom :as ratom :refer [make-reaction]]
+    [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom :refer [make-reaction cursor]]
     [space.matterandvoid.subscriptions.core :as subs :refer [subscribe reg-layer2-sub defsub reg-sub <sub]]
     [space.matterandvoid.subscriptions.react-hook :refer [use-sub use-sub-map use-reaction use-reaction-ref]]))
 
@@ -41,19 +41,16 @@
 (reg-sub :test-sub1 :<- [a-fn-sub]
   (fn [a-number] (println "IN TEST-sub1" a-number) (inc a-number)))
 
-;; todo when you get back - vendor in to this repo reagent.ratom namespace
-;; and update the cursor to take an on-dispose callback
-;; then use a cursor in a component and have it toggle being mounted/unmounted and see
-;; if the on-dispose callback is invoked.
-;; if so, then you can use that to evict it from the cache.
+(def a-cursor (cursor db_ [:level1]))
 
-(defn make-cursor
-  [ratom path on-dispose]
-  (ratom/->RCursor ratom path)
+(comment
+  (deref a-cursor)
+  (cursor db_ [:level1 :level2 :level3])
   )
+
 (defn a-layer-2-fn [db_ args]
   (println " CREATING CURSOR " a-layer-2-fn)
-  (ratom/cursor db_ [:level1 :level2 :level3]))
+  (cursor db_ [:level1 :level2 :level3]))
 
 (defn layer-3-sub-fn [db_]
   (make-reaction
@@ -150,7 +147,7 @@
       ($ cursor-hook)
       ;($ cursor-hook2)
       ($ "hr")
-      ($ "button" {:onClick (fn [] (swap! db_ update-in [:show-component?] not))} "Hide cusor component")
+      ($ "button" {:onClick (fn [] (swap! db_ update-in [:show-component?] not))} "Hide cursor component")
       (when show-comp? ($ cursor-hook))
       (when show-comp? ($ cursor-hook))
       (when show-comp? ($ cursor-hook))
@@ -163,13 +160,19 @@
       (str "my number is : " my-number))))
 
 (comment (subscribe db_ [`lvl2-cursor2 {:key :level2}]))
+(defn layer-3sub-component []
+  (let [layer3-sub' (use-sub db_ [layer-3-sub-fn])]
+    (println "DRAW layer 3 sub component")
+    ($ :div {:style {:padding 10 :border "1px dashed red"}}
+      ($ :h3 (str "layer3 function sub 3: " layer3-sub')))))
+
 (defn first-hook []
   (let [[the-count set-count] (react/useState 0)
         cursor-sub     (use-sub db_ [::lvl2-cursor2])
         cursor-sub2    (use-sub db_ [`lvl2-cursor2 {:key :level2}])
         level3-sub     (use-sub db_ [:plus-level3])
         layer3-regular (use-sub db_ [::layer3-regular])
-        layer3-sub'    (use-sub db_ [layer-3-sub-fn])
+        show-comp?     (use-sub db_ [:show-comp?])
         sub-val        (use-sub db_ [:a-number])]
     (react/useEffect (fn [] (println "IN EFFECT") js/undefined) #js[the-count])
     (println "DRAW FIRST HOOK")
@@ -179,7 +182,10 @@
       ($ :h3 (str "CUSROR sub2: " cursor-sub2))
       ($ :h3 (str "CUSROR sub 3: " level3-sub))
       ($ :h3 (str "layer 3 regular: " layer3-regular))
-      ($ :h3 (str "layer3 function sub 3: " layer3-sub'))
+      (when show-comp?
+        ($ layer-3sub-component)
+        ;($ :h3 (str "layer3 function sub 3: " layer3-sub'))
+        )
 
       ($ third-hook)
       ($ second-hook)

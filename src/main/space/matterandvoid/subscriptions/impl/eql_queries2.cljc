@@ -116,12 +116,16 @@
         union-joins       (set (map (fn [{:keys [dispatch-key children]}]
                                       (let [union-key->entity    (union-key->entity-sub (first children))
                                             union-id-keys        (set (keys union-key->entity))
+                                            union-key->sub       (join-prop->subscription dispatch-key)
                                             ;; todo here we need to return subscription functions instead of
                                             ;; keyword for the union subscription
+                                            _                    (println "union id keys" union-id-keys)
                                             union-key->component [dispatch-key (fn [entity]
                                                                                  (assert (map? entity))
-                                                                                 (let [id-attr (first (filter union-id-keys (keys entity)))]
-                                                                                   [id-attr (get entity id-attr) (id-attr union-key->entity)]))]]
+                                                                                 (let [id-attr   (first (filter union-id-keys (keys entity)))
+                                                                                       union-sub (get union-key->sub id-attr)]
+                                                                                   (println "IN UNION, id-attr: " id-attr " union sub: " union-sub)
+                                                                                   [id-attr (get entity id-attr) union-sub #_(id-attr union-key->entity)]))]]
                                         union-key->component))
                                  unions))
         missing-join-keys (filter (comp nil? second) plain-joins)]
@@ -181,7 +185,8 @@
                                 (log/debug "entity in 2nd else")
                                 (reduce (fn [acc prop]
                                           (let [prop-sub-fn (get attr-kw->sub-fn prop)
-                                                _           (println "prop sub fn: " prop-sub-fn)
+                                                _           (println "prop: " prop)
+                                                _           (println "  args: " args)
                                                 output
                                                             (<sub app [prop-sub-fn (assoc args
                                                                                      ;; to implement recursive queries
@@ -197,7 +202,9 @@
               output))))
       (do
         (log/debug "ENTITY SUB NO QUERY: selecting props " props)
-        (make-reaction (fn [] (reduce (fn [acc prop] (assoc acc prop (<sub app [prop args])))
+        (make-reaction (fn [] (reduce (fn [acc prop]
+                                        (let [prop-sub-fn (get attr-kw->sub-fn prop)]
+                                          (assoc acc prop (<sub app [prop-sub-fn args]))))
                                 {} props)))))))
 
 (defn sub-plain-join
@@ -274,7 +281,7 @@
                             ref-entity  (-entity datasource app ref-id-attr (assoc args ref-id-attr (-ref->id datasource ref)))
                             [id-attr id-val join-sub] (join-component-sub ref-entity)]
                         (<sub app [join-sub (assoc args id-attr id-val)])))
-                    refs))
+                refs))
 
             :else (throw (error "Union Invalid join: for join prop " join-prop, " value: " refs))))))))
 
@@ -418,14 +425,14 @@
                                                          (update ::depth (fnil inc 0))
                                                          (update ::entity-history (fnil conj #{}) entity-db-id)
                                                          (assoc query-key parent-query id-attr (-ref->id datasource join-ref)))])))
-                                refs-to-expand)
+                            refs-to-expand)
                           (when stop (mapv (fn [join-ref]
                                              (xform-fn (<sub app [entity-sub
                                                                   (-> args
                                                                     (update ::depth (fnil inc 0))
                                                                     (update ::entity-history (fnil conj #{}) entity-db-id)
                                                                     (assoc query-key nil id-attr (-ref->id datasource join-ref)))])))
-                                           stop)))))))
+                                       stop)))))))
 
                 ;; some dbs support arbitrary collections as keys
                 (coll? recur-output)
@@ -460,7 +467,7 @@
                                                      (update ::depth (fnil inc 0))
                                                      (update ::entity-history (fnil conj #{}) entity-db-id)
                                                      (assoc query-key parent-query id-attr (-ref->id datasource join-ref)))])))
-                            refs-to-recur))))
+                        refs-to-recur))))
 
                 (some? recur-output)
                 (let [join-ref (-entity datasource app id-attr (assoc args id-attr (-ref->id datasource refs)))
@@ -479,7 +486,7 @@
                                                    (-> args
                                                      (update ::entity-history (fnil conj #{}) entity-db-id)
                                                      (assoc query-key recur-query, id-attr (-ref->id datasource join-ref)))])))
-                            refs))))
+                        refs))))
 
                 ;; stop walking
                 :else refs))
@@ -503,13 +510,15 @@
                                            (-> args
                                              (update ::entity-history (fnil conj #{}) entity-db-id)
                                              (assoc query-key recur-query id-attr (-ref->id datasource join-ref)))])))
-                    refs))
+                refs))
 
             ;; do not recur
             refs (vec refs)
             :else missing-val))))))
 
 (defn component-id-prop [c] (first (get-ident c {})))
+
+(defn assert-join-present [join])
 
 (defn create-component-subs
   "Registers subscriptions that will fulfill the given fulcro component's query.
@@ -521,7 +530,12 @@
         ;entity-sub (class->registry-key c)
         id-attr (component-id-prop c)
         {:keys [props plain-joins union-joins recur-joins all-children]} (eql-query-keys-by-type query join-subs-map)]
+    (when (map? query) (throw (error "You do not have to register a union component: " c)))
     (when-not id-attr (throw (error "Component missing ident: " c)))
+    (assert (every? #(fn? (get join-subs-map %)) (map first plain-joins)) (str "All joins must have a provided subscription " (pr-str (map first plain-joins))))
+    (assert (every? (fn [[u]]
+                      (and (map? (get join-subs-map u)) (every? fn? (vals (get join-subs-map u)))))
+              union-joins) (str "All joins must have a provided subscription " (pr-str (map first union-joins))))
 
     ;; now from here we need to pass in any dependent subs as maps of keyword to subscription in order to support
     ;; subscriptions as functions. This makes sense as then everything is pure and there is no side-band dependency on global
@@ -538,11 +552,12 @@
           plain-join-subs (zipmap (map first plain-joins) (map (fn [[p component-sub]] (sub-plain-join <sub datasource id-attr p component-sub)) plain-joins))
           union-join-subs (zipmap (map first union-joins) (map (fn [[p component-sub]] (sub-union-join <sub datasource id-attr p component-sub)) union-joins))
           recur-join-subs (zipmap (map first recur-joins) (map (fn [[p]] (sub-recur-join <sub datasource id-attr p recur-join-fn_)) recur-joins))
-          kw->sub-fn      (merge prop-subs plain-join-subs union-join-subs recur-join-subs)]
+          kw->sub-fn      (merge prop-subs plain-join-subs union-join-subs recur-join-subs)
+          entity-sub      (sub-entity <sub datasource id-attr all-children kw->sub-fn)]
       ;; then here we need to pass the subscriptions as a map with shape: {prop sub-fn}
-      (let [entity-sub (sub-entity <sub datasource id-attr all-children kw->sub-fn)]
-        (reset! recur-join-fn_ entity-sub)
-        entity-sub))))
+      ;; todo here you can assert that `join-subs-map` contains all the keys for the joins
+      (reset! recur-join-fn_ entity-sub)
+      entity-sub)))
 
 (def user-comp (nc {:query [:user/id :user/name {:user/friends '...}] :name ::user :ident :user/id}))
 (def comment-comp (nc {:query [:comment/id :comment/text {:comment/author (get-query user-comp)}]

@@ -44,6 +44,11 @@
   Returns a fulcro component (or a mock version if fulcro is not installed) created by fulcro.raw.components/nc"
   [args] (impl/nc args))
 
+(def get-query impl/get-query)
+(def class->registry-key impl/class->registry-key)
+(def get-ident impl/get-ident)
+(def eql-query-keys-by-type  impl/eql-query-keys-by-type)
+
 (defn create-component-subs
   "Registers subscriptions that will fulfill the given fulcro component's query.
   The component and any components in its query must have a name (cannot be anonymous)."

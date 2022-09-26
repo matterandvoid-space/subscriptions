@@ -22,6 +22,12 @@
 
 (def datalevin-data-source
   (reify impl/IDataSource
+    (-attribute-subscription-fn [this id-attr attr]
+      (fn [db_ args]
+        (r/make-reaction
+          (fn []
+            (impl/missing-id-check! id-attr attr args)
+            (impl/-attr this db_ id-attr attr args)))))
     (-ref->attribute [_ _ref] :db/id)
     (-ref->id [_ ref]
       ;(log/info "ref->id ref: " ref)

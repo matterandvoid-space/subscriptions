@@ -30,9 +30,9 @@
                         :query [:list/id :list/name
                                 {:list/items (sut/get-query list-member-comp)}
                                 {:list/members (sut/get-query list-member-comp)}]}))
-(def comment-comp2 (sut/nc {:query [:comment/id :comment/text {:comment/author (sut/get-query user-comp)}] :name  ::comment :ident :comment/id}))
+;(def comment-comp2 (sut/nc {:query [:comment/id :comment/text {:comment/author (sut/get-query user-comp)}] :name  ::comment :ident :comment/id}))
 (def user-sub (sut/create-component-subs user-comp nil))
-(def comment2-sub (sut/create-component-subs comment-comp2 {:comment/author user-sub}))
+;(def comment2-sub (sut/create-component-subs comment-comp2 {:comment/author user-sub}))
 (def bot-sub (sut/create-component-subs bot-comp nil))
 (def human-sub (sut/create-component-subs human-comp nil))
 (def comment-sub (sut/create-component-subs comment-comp nil))
@@ -85,12 +85,6 @@
   (<sub app [user-sub {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends 1}]}])
   (<sub app [user-sub {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends 0}]}])
   (<sub app [user-sub {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends '...}]}])
-
-  (sut/eql-query-keys-by-type (sut/get-query comment-comp2) {:comment/author user-sub})
-  ;; plain join
-  (<sub app [comment-sub {:comment/id :comment-1 sut/query-key [:comment/id :comment/text :comment/author]}])
-  (<sub app [comment-sub {:comment/id :comment-1 sut/query-key [:comment/id :comment/text {:comment/author [:user/id :user/name]}]}])
-  (<sub app [comment-sub {:comment/id :comment-1 sut/query-key [:comment/id :comment/text {:comment/author [:user/friends]}]}])
   )
 
 ;(<sub app [user-sub {:user/id 1 sut/query-key [:user/id {:user/friends `keep-walking?}]}])
@@ -228,16 +222,16 @@
 
   (testing "entity subscription with no query returns all attributes"
     (is (=
-          {:list/items   [{:todo/comments :space.matterandvoid.subscriptions.impl.eql-queries/missing,
+          {:list/items   [{:todo/comments sut/missing-val
                            :todo/author   {:user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3]], :user/name "user 2", :user/id :user-2},
-                           :todo/comment  :space.matterandvoid.subscriptions.impl.eql-queries/missing,
+                           :todo/comment  sut/missing-val
                            :todo/text     "todo 2",
                            :todo/id       :todo-2}
                           {:comment/sub-comments [[:comment/id :comment-2]], :comment/id :comment-1, :comment/text "FIRST COMMENT"}],
            :list/members [{:comment/sub-comments [[:comment/id :comment-2]], :comment/id :comment-1, :comment/text "FIRST COMMENT"}
-                          {:todo/comments :space.matterandvoid.subscriptions.impl.eql-queries/missing,
+                          {:todo/comments sut/missing-val
                            :todo/author   {:user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3]], :user/name "user 2", :user/id :user-2},
-                           :todo/comment  :space.matterandvoid.subscriptions.impl.eql-queries/missing,
+                           :todo/comment  sut/missing-val
                            :todo/text     "todo 2",
                            :todo/id       :todo-2}],
            :list/name    "first list",

@@ -2,6 +2,7 @@
   (:require
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [edn-query-language.core :as eql]
+    [space.matterandvoid.subscriptions.impl.reagent-ratom :refer [cursor]]
     [space.matterandvoid.subscriptions.fulcro :refer [reg-sub-raw reg-sub <sub]]
     [space.matterandvoid.subscriptions.impl.eql-queries2 :as impl]
     [taoensso.timbre :as log]))
@@ -18,6 +19,9 @@
 
 (def fulcro-data-source
   (reify impl/IDataSource
+    (-attribute-subscription-fn [_ id-attr attr]
+      (fn [fulcro-app args]
+        (cursor (::fulcro.app/state-atom fulcro-app) [id-attr (get args id-attr) attr])))
     (-ref->attribute [_ ref] (first ref))
     (-ref->id [_ ref]
       ;(log/debug "-ref->id ref" ref)

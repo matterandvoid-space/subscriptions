@@ -77,6 +77,8 @@
 (defn ast-by-key->query [k->ast] (vec (mapcat eql/ast->query (vals k->ast))))
 
 (defprotocol IDataSource
+  (-attribute-subscription-fn [this id-attr attribute]
+    "Returns a function that returns a Reactive (RCursor or Reaction) type for extracting a single attribute of an entity.")
   (-ref->attribute [this ref] "Given a ref type or a full entity return the attribute used for the entity's ref. ex: :user/id for the ref [:user/id 1]")
   (-ref->id [this ref] "Given a ref type for storing normalized relationships, or a full entity, return the ID of the pointed to entity.")
   (-entity-id [this db id-attr args-query-map])
@@ -140,16 +142,6 @@
      :union-joins       union-joins
      :plain-joins       plain-joins}))
 
-(defn sub-prop
-  "Takes two keywords: id attribute and property attribute, registers a layer 2 subscription using the id to lookup the
-  entity and extract the property."
-  [datasource id-attr prop]
-  (fn [db_ args]
-    (make-reaction
-      (fn []
-        (missing-id-check! id-attr prop args)
-        (-attr datasource db_ id-attr prop args)))))
-
 (defn get-all-props-shallow
   "Return hashmap of data attribute keywords -> subscription output implementation for '* queries"
   [datasource app id-attr props args]
@@ -178,11 +170,9 @@
                                 (log/debug "entity in first else")
                                 (-entity datasource app id-attr args))
                               (do
-                                (log/debug "entity in 2nd else")
+                                ;(log/debug "entity in 2nd else")
                                 (reduce (fn [acc prop]
                                           (let [prop-sub-fn (get attr-kw->sub-fn prop)
-                                                _           (println "prop: " prop)
-                                                _           (println "  args: " args)
                                                 output
                                                             (<sub app [prop-sub-fn (assoc args
                                                                                      ;; to implement recursive queries
@@ -536,25 +526,15 @@
     ;; now from here we need to pass in any dependent subs as maps of keyword to subscription in order to support
     ;; subscriptions as functions. This makes sense as then everything is pure and there is no side-band dependency on global
     ;; state (i.e. the registry)
-    ;; todo - you can pass in sub-prop function
     ;; which will either use make-reaction for non-hashmap datasources
     ;; or cursors for hashmap datasources.
     (let [recur-join-fn_  (atom nil)
-          prop-subs       (zipmap props (map (fn [p] (sub-prop datasource id-attr p)) props)) ; <- doesn't need any dependent subs
-          ;; these should be fulfilled from the join-subs-map argumenta, the parsing output of eql-query-keys-by-type
-          ;; will provide component-sub correctly.
-
-          ;; have each of these return 2-tuple [kw sub-fn] then (into {}) them and merge all of these together.
-          ;; then you will have a map of kw to sub-fn which you can pass to sub-entity
-          ;; which will form a closure over them and then the returned subscription fn should work.
-
+          prop-subs       (zipmap props (map (fn [p] (-attribute-subscription-fn datasource id-attr p)) props))
           plain-join-subs (zipmap (map first plain-joins) (map (fn [[p component-sub]] (sub-plain-join <sub datasource id-attr p component-sub)) plain-joins))
           union-join-subs (zipmap (map first union-joins) (map (fn [[p component-sub]] (sub-union-join <sub datasource id-attr p component-sub)) union-joins))
           recur-join-subs (zipmap (map first recur-joins) (map (fn [[p]] (sub-recur-join <sub datasource id-attr p recur-join-fn_)) recur-joins))
           kw->sub-fn      (merge prop-subs plain-join-subs union-join-subs recur-join-subs)
           entity-sub      (sub-entity <sub datasource id-attr all-children kw->sub-fn)]
-      ;; then here we need to pass the subscriptions as a map with shape: {prop sub-fn}
-      ;; todo here you can assert that `join-subs-map` contains all the keys for the joins
       (reset! recur-join-fn_ entity-sub)
       entity-sub)))
 

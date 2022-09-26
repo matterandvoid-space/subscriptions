@@ -68,6 +68,7 @@
 (def app (assoc (fulcro.app/fulcro-app {}) ::fulcro.app/state-atom db_))
 
 (comment
+  (subs/get-handlr)
   (<sub app [::user {:user/id :user-1 sut/query-key [:user/name]}])
   (<sub app [::user {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends 1}]}])
   (<sub app [::user {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends 0}]}])

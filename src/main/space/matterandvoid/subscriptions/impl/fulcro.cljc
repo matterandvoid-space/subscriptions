@@ -108,6 +108,7 @@
 (defn <sub
   "Subscribe and deref a subscription, returning its value, not a reaction."
   [app query]
+  (log/debug "fulcro <sub query: " query)
   (let [value (subscribe app query)]
     (when value @value)))
 

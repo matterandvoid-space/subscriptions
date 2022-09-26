@@ -1,6 +1,7 @@
 (ns space.matterandvoid.subscriptions.impl.subs
   (:require
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
+    [sc.api]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
     [space.matterandvoid.subscriptions.impl.trace :as trace :include-macros true]
     [taoensso.timbre :as log]))
@@ -58,9 +59,10 @@
   "Takes a datasource and query and returns a Reaction."
   [get-handler cache-lookup get-subscription-cache get-cache-key
    datasource query]
-  (log/info "\n\n--------------------------------------------")
-  (log/info "subscribe q id : " (first query))
-  (log/info "subscribe q: " query)
+  (log/info "\n\nSUBSCRIBE IMPL--------------------------------------------")
+  (log/info "subscribe query: " query)
+  (def d' datasource)
+  (def q' query)
   (assert (vector? query) (str "Queries must be vectors, you passed: " query))
   (let [cnt       (count query),
         query-id  (first query)
@@ -84,8 +86,12 @@
             (if (nil? handler-fn)
               (do (trace/merge-trace! {:error true})
                   (console :error (str "No subscription handler registered for: " query-id "\n\nReturning a nil subscription.")))
-              (do
-                (cache-and-return! get-subscription-cache get-cache-key datasource query (handler-fn datasource query))))))))))
+              (let [handler-args (second query)]
+                (assert (or (nil? handler-args) (map? handler-args)))
+                (log/debug "invoking handler with args: " handler-args)
+                (let [reaction (handler-fn datasource handler-args)]
+                  (log/debug "handler output: " reaction)
+                  (cache-and-return! get-subscription-cache get-cache-key datasource query reaction))))))))))
 
 ;; -- reg-sub -----------------------------------------------------------------
 
@@ -121,13 +127,12 @@
   "A subscription is just a function that returns a reagent.Reaction.
 
   This is where the inputs-fn is executed and the computation is put inside a reaction - ie a callback for later
-  invocation when subscribe is called and derefed.
-  This is also where the args map is passed to both the inputs-function and the computation function instead of the complete query vector."
+  invocation when subscribe is called and derefed."
   [inputs-fn computation-fn query-id]
   (fn subs-handler-fn
-    [app query-vec]
-    (assert (vector? query-vec) (str "Queries must be vectors, you passed: " query-vec))
-    (let [args                  (second query-vec)
+    [app args]
+    (assert (map? args) (str "Args must be a map" args))
+    (let [ ; args                  (second query-vec)
           subscriptions #?(:cljs (inputs-fn app args)
                            :clj (try (inputs-fn app args) (catch clojure.lang.ArityException _ (inputs-fn app))))
           reaction-id           (atom nil)
@@ -248,4 +253,4 @@
   (register-handler! query-id
     (fn
       ([db_] (handler-fn db_))
-      ([db_ args] (handler-fn db_ (second args))))))
+      ([db_ args] (handler-fn db_ args)))))

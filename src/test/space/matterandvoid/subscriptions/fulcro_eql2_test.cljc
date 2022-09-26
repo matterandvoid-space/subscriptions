@@ -1,6 +1,6 @@
 (ns space.matterandvoid.subscriptions.fulcro-eql2-test
   (:require
-    [space.matterandvoid.subscriptions.fulcro-eql2 :as sut]
+    [space.matterandvoid.subscriptions.fulcro-eql-fn-vars :as sut]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
     [space.matterandvoid.subscriptions.fulcro :as subs :refer [reg-sub reg-sub-raw subscribe <sub]]
     [com.fulcrologic.fulcro.application :as fulcro.app]

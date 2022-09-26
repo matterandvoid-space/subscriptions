@@ -85,7 +85,7 @@
               (do (trace/merge-trace! {:error true})
                   (console :error (str "No subscription handler registered for: " query-id "\n\nReturning a nil subscription.")))
               (do
-                (cache-and-return! get-subscription-cache get-cache-key datasource query (handler-fn datasource (second query)))))))))))
+                (cache-and-return! get-subscription-cache get-cache-key datasource query (handler-fn datasource query))))))))))
 
 ;; -- reg-sub -----------------------------------------------------------------
 

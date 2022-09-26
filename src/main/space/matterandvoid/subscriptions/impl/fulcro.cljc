@@ -102,6 +102,7 @@
 
   To obtain the current value from the Signal, it must be dereferenced"
   [?app query]
+  (log/debug "fulcro subscribe query: " query)
   (subs/subscribe get-handler cache-lookup get-subscription-cache get-cache-key (c/any->app ?app) query))
 
 (defn <sub

@@ -1,10 +1,11 @@
-(ns space.matterandvoid.subscriptions.fulcro-eql2
+(ns space.matterandvoid.subscriptions.fulcro-eql-fn-vars
   (:require
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [edn-query-language.core :as eql]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :refer [cursor]]
     [space.matterandvoid.subscriptions.fulcro :refer [reg-sub-raw reg-sub <sub]]
-    [space.matterandvoid.subscriptions.impl.eql-queries2 :as impl]
+    [space.matterandvoid.subscriptions.impl.eql-queries-fn-vars :as impl]
+    [space.matterandvoid.subscriptions.impl.eql-protocols :as proto]
     [taoensso.timbre :as log]))
 
 (def query-key impl/query-key)
@@ -18,7 +19,7 @@
     (fulcro.app/current-state)))
 
 (def fulcro-data-source
-  (reify impl/IDataSource
+  (reify proto/IDataSource
     (-attribute-subscription-fn [_ id-attr attr]
       (fn [fulcro-app args]
         (cursor (::fulcro.app/state-atom fulcro-app) [id-attr (get args id-attr) attr])))
@@ -57,3 +58,13 @@
   "Registers subscriptions that will fulfill the given fulcro component's query.
   The component and any components in its query must have a name (cannot be anonymous)."
   [c sub-joins-map] (impl/create-component-subs <sub fulcro-data-source c sub-joins-map))
+
+;(defn register-component-subs!
+;  "Registers subscriptions that will fulfill the given fulcro component's query.
+;  The component and any components in its query must have a name (cannot be anonymous)."
+;  [c sub-joins-map] (impl/register-component-subs! <sub fulcro-data-source c sub-joins-map))
+
+(defn register-component-subs!
+  "Registers subscriptions that will fulfill the given fulcro component's query.
+  The component and any components in its query must have a name (cannot be anonymous)."
+  [c] (impl/register-component-subs! reg-sub-raw reg-sub <sub fulcro-data-source c))

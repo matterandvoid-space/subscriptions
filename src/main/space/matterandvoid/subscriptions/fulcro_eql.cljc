@@ -4,6 +4,7 @@
     [edn-query-language.core :as eql]
     [space.matterandvoid.subscriptions.fulcro :refer [reg-sub-raw reg-sub <sub]]
     [space.matterandvoid.subscriptions.impl.eql-queries :as impl]
+    [space.matterandvoid.subscriptions.impl.eql-protocols :as proto]
     [taoensso.timbre :as log]))
 
 (def query-key impl/query-key)
@@ -17,7 +18,7 @@
     (fulcro.app/current-state)))
 
 (def fulcro-data-source
-  (reify impl/IDataSource
+  (reify proto/IDataSource
     (-ref->attribute [_ ref] (first ref))
     (-ref->id [_ ref]
       ;(log/debug "-ref->id ref" ref)

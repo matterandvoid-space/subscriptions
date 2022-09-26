@@ -514,3 +514,10 @@
     (run! (fn [[p]] (reg-sub-recur-join reg-sub-raw <sub datasource id-attr p entity-sub)) recur-joins)
     (reg-sub-entity reg-sub-raw <sub datasource id-attr entity-sub all-children)
     nil))
+
+"
+I'm thinking we can just combine the creation style EQL subscriptions with the registry one. The code paths are
+almost exactly the same so just have register-component-subs! and create-component-subs in the same namespace.
+Then you don't need to duplicate any code.
+
+"

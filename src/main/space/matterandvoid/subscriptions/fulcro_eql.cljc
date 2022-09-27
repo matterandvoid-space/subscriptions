@@ -54,8 +54,11 @@
 (def get-ident impl/get-ident)
 
 (defn create-component-subs
-  "Registers subscriptions that will fulfill the given fulcro component's query.
-  The component and any components in its query must have a name (cannot be anonymous)."
+  "Creates a subscription function that will fulfill the given fulcro component's query.
+  The component and any components in its query must have a name (cannot be anonymous).
+  the `sub-joins-map` argument is a hashmap whose keys are the join properties of the component and whose value is a
+  subscription function for normal joins, and a nested hashmap for unions of the union key to subscription.
+  You do not need to provide a subscription function for recursive joins."
   [c sub-joins-map] (impl/create-component-subs <sub fulcro-data-source c sub-joins-map))
 
 (defn register-component-subs!

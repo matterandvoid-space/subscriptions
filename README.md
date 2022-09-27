@@ -5,10 +5,13 @@ it also makes a few adjustments, the key one being that the data source is an ex
 
 This unlocks the utility of subscriptions for some creative integrations allowing both ends of the subscriptions chain to be free variables.
 
-- you can use any backing source of data - like a datascript db
-- the UI layer - there is one simple integration point for rendering with any react cljs rendering library.
+The main features of this library are:
 
-- clojure support - there is no reactivity but the computation chain works.
+- Allow the use of any backing source of data - like a datascript db
+- Attach arbitrary reactive logic to your subscriptions, meaning you can use any UI layer. There is one simple integration point for rendering with any react cljs rendering library.
+- You can use functions that return reactions or cursors as subscriptions instead of just keywords (thanks to Danny Freeman for showing how simple this is to support: https://git.sr.ht/~dannyfreeman/repose)
+- Clojure support - there is no reactivity but the computation chain works.
+- Subscriptions that fulfill EQL queries for fulco-style components
 
 The original motivation was to use subscriptions with fulcro, but the library can be used with any data source that is 
 wrapped in a `reagent.ratom/atom`.
@@ -23,10 +26,6 @@ the state of pixels on a display attached to a computer.
 
 The difference from just using function composition is that the layers are cached, and that you can execute code 
 in response to any of these values changing over time.
-
-One other introductory note: The API in this codebase may have breaking changes in the future if new patterns emerge from actual usage.
-This seems unlikely, but I'm putting this warning here to allow for mutative/non-accretive changes to the codebase if they
-are warranted during the early stages of use while avoiding perma-alpha/perma-beta status.
 
 # Usage / Integrations
 
@@ -46,13 +45,13 @@ This library also requires the following packages be installed from npm:
 npm install -D react react-dom use-sync-external-store
 ```
 
-There are two API entry namespaces (for now) - one for use with fulcro `space.matterandvoid.subscriptions.fulcro` 
+There are two API entry namespaces (for now) - one for use with Fulcro `space.matterandvoid.subscriptions.fulcro` 
 and one for general use with any datasource, `space.matterandvoid.subscriptions.core`
 
-To avoid dependency conflicts this library does not declare a dependency on fulcro or on reagent. Please add the version
+To avoid dependency conflicts this library does not declare a dependency on Fulcro or on Reagent. Please add the version
 of these libraries you would like to your own project.
 
-See docs/fulcro.md for details on usage with fulcro.
+See docs/fulcro.md for details on usage with Fulcro.
 
 The reg-sub API is the same as in re-frame 
 _aside_: the subscription handlers are stored in a global var, but this can be easily changed if you desire, and then the API becomes:
@@ -64,6 +63,21 @@ The difference from upstream re-frame is when you invoke `(subscribe)` you pass 
 ```clojure
 (subscribe (reagent.ratom/atom {:hello 200}) [:hello])
 ```
+
+# EQL queries support
+
+Starting with version `2022.09.27` this library includes support creating subscriptions that will fulfill queries based 
+on Fulcro components. 
+
+EQL is a specification for a query language that provides no semantics. In this way applications and libraries can use it by adding their 
+own semantics. See the EQL git repository for more info: https://github.com/edn-query-language/eql
+
+In addition to standard Datomic pull style EQL queries there is also support for handling to-many relationships 
+- determining which nodes to pull dynamically, as well as using a recursive transformation function on the returned nodes.
+This allows for declarative recursive query syntax which works for CLJS data sources as well as any Clojure database that
+supports an `entity` API. Currently there is support for Datalevin, XTDB, and Fulcro hashmaps.
+
+See the document docs/eql_queries.md for more information and examples.
 
 # Examples
 

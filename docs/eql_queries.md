@@ -60,14 +60,14 @@ Now we transact some data to query:
   [{:user/id :user-7 :user/name "user 7"}
    {:user/id :user-6 :user/name "user 6" :user/friends [[:user/id :user-7]]}
    {:user/id :user-5 :user/name "user 5" :user/friends [[:user/id :user-6] [:user/id :user-7]]}
-   {:user/id :user-2 :user/name "user 2" :user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3] [:user/id :user-5]]}
-   {:user/id :user-1 :user/name "user 1" :user/friends [[:user/id :user-2]]}
-   {:user/id :user-4 :user/name "user 4" :user/friends [[:user/id :user-3] [:user/id :user-4]]}
-   {:user/id :user-3 :user/name "user 3" :user/friends [[:user/id :user-2] [:user/id :user-4]]}
+   {:user/id :user-2 :user/name "user 2" :user/friends [[:user/id :user-2] -1 -3 [:user/id :user-5]]}
+   {:db/id -1 :user/id :user-1 :user/name "user 1" :user/friends [[:user/id :user-2]]}
+   {:user/id :user-4 :user/name "user 4" :user/friends [-3  [:user/id :user-4]]}
+   {:db/id -3 :user/id :user-3 :user/name "user 3" :user/friends [[:user/id :user-2] [:user/id :user-4]]}
    {:bot/id :bot-1 :bot/name "bot 1"}
-   {:db/id "user-10" :user/id :user-10 :user/name "user 10" :user/friends [[:user/id :user-10] [:user/id :user-9] "user-11"]}
-   {:db/id "user-11" :user/id :user-11 :user/name "user 11" :user/friends [[:user/id :user-10] "user-12"]}
-   {:db/id "user-12" :user/id :user-12 :user/name "user 12" :user/friends [[:user/id :user-11] [:user/id :user-12]]}])
+   {:db/id -10 :user/id :user-10 :user/name "user 10" :user/friends [-10  -11]}
+   {:db/id -11 :user/id :user-11 :user/name "user 11" :user/friends [-10 -12]}
+   {:db/id -12 :user/id :user-12 :user/name "user 12" :user/friends [-11 -12]}])
 ```
 In order to have a uniform API for all subscription data sources, your db must be wrapped in an atom, although there 
 is currently no reactivitiy for JVM Clojure subscriptions.
@@ -88,30 +88,92 @@ imported in the above namespace `:require` form.
 Here we ask for the user with `:user/id` :user-1, pulling three attributes. 
 The `0` in the recursive position means do not resolve any nested references, just return them as pointers.
 
-;; todo fill in the examples
 ```clojure
 (<sub db_ [::user {:user/id :user-1 query-key [:user/name :user/id {:user/friends 0}]}])
 ; =>
-
+{:user/name "user 1", :user/id :user-1, :user/friends [{:db/id 4}]}
 ```
 
-Currently supported operations are transformation functions and recursive expansion logic:
+```clojure
+;; expand one more level:
+(<sub db_ [::user {:user/id :user-1 query-key [:user/name :user/id {:user/friends 1}]}])
+; =>
+{:user/name "user 1",
+ :user/id   :user-1,
+ :user/friends [{:user/name "user 2", :user/id :user-2, :user/friends [{:db/id 4} {:db/id 6} {:db/id 3} {:db/id 5}]}]}
+```
+
+A common query desire is pulling only some of the nodes in a nested fashion based on your application logic as well as 
+transforming those nodes in some way, recursively.
+The library has support for both of these use cases.
+
+Here we pull 4 levels of friends and also perform a transformation on each friend, at each level.
+The transformation function can return anything (which means that if you, for example, replace the `:user/friends` key
+in the transform function, will stop the recursion).
+
+The EQL query is provided under the `query-key`, which must be data, so we use EQL params support on the recursion node
+(a list containing the key, `:user/friends` in this example, and a hashmap of parameters.) Then provide the implementation
+in the arguments map that the subscription will use.
 
 ```clojure
 (<sub db_ [::user {`upper-case-name (fn [e] (update e :user/name clojure.string/upper-case))
                      :user/id         :user-1
                      query-key    [:user/name :user/id {(list :user/friends {xform-fn-key `upper-case-name}) 4}]}])
 
-(<sub db_ [::user {`upper-case-name (fn [e] (update e :user/name str/upper-case))
-                   `keep-walking?   (fn [e] (#{"user 1" "user 2"} (:user/name e)))
-                   :user/id         :user-1
-                   query-key    [:user/name :user/id {(list :user/friends {xform-fn-key `upper-case-name
-                                                                           walk-fn-key  `keep-walking?}) '...}]}])
+;; =>
+{:user/name "user 1",
+ :user/id :user-1,
+ :user/friends [{:user/name "USER 2",
+                 :user/id :user-2,
+                 :user/friends [{:user/name "USER 2",
+                                 :user/id :user-2,
+                                 :user/friends #{{:db/id 4} {:db/id 6} {:db/id 3} {:db/id 5}}}
+                                {:user/name "USER 3",
+                                 :user/id :user-3,
+                                 :user/friends [{:user/name "USER 4",
+                                                 :user/id :user-4,
+                                                 :user/friends [{:user/name "USER 4",
+                                                                 :user/id :user-4,
+                                                                 :user/friends [{:db/id 7} {:db/id 6}]}
+                                                                {:user/name "USER 3",
+                                                                 :user/id :user-3,
+                                                                 :user/friends [{:db/id 7} {:db/id 4}]}]}
+                                                {:user/name "USER 2",
+                                                 :user/id :user-2,
+                                                 :user/friends #{{:db/id 4} {:db/id 6} {:db/id 3} {:db/id 5}}}]}
+                                {:user/name "USER 5",
+                                 :user/id :user-5,
+                                 :user/friends [{:user/name "USER 7", :user/id :user-7}
+                                                {:user/name "USER 6",
+                                                 :user/id :user-6,
+                                                 :user/friends [{:user/name "USER 7", :user/id :user-7}]}]}
+                                {:user/name "USER 1", :user/id :user-1, :user/friends #{{:db/id 4}}}]}]}
 ```
 
 The transformation function takes an entity returned from an entity subscription and can return any value, in the above
 example we upper-case the `:user/name` attribute - This transform happens in a recursive fashion for any entities found
 under the `:user/friends` key.
+
+If you want to control which nodes are recursively walked, pass the `walk-fn-key` and convert the recursion to unbounded (using: `'...`).
+
+```clojure
+(<sub db_ [::user {`upper-case-name (fn [e] (update e :user/name str/upper-case))
+                   `keep-walking?   (fn [e] (#{"user 1" "user 2"} (:user/name e)))
+                   :user/id         :user-1
+                   query-key    [:user/name :user/id {(list :user/friends {xform-fn-key `upper-case-name
+                                                                           walk-fn-key  `keep-walking?}) '...}]}])
+
+{:user/name "user 1",
+ :user/id :user-1, ; expanded
+ :user/friends [{:user/name "USER 2",
+                 :user/id :user-2,
+                 :user/friends [{:user/name "USER 3", :user/id :user-3, :user/friends #{{:db/id 13} {:db/id 10}}} ; not exanded
+                                {:user/name "USER 1", :user/id :user-1, :user/friends #{{:db/id 10}}} ; expanded, but cycle so stop
+                                {:user/name "USER 5", :user/id :user-5, :user/friends #{{:db/id 7} {:db/id 8}}} ; not expanded
+                                {:user/name "USER 2",
+                                 :user/id :user-2, ; already expanded, cycle so stop walking
+                                 :user/friends #{{:db/id 12} {:db/id 11} {:db/id 9} {:db/id 10}}}]}]}
+```
 
 For the walking function, when the subscription sees unbounded recursion (the `...`) it checks for a symbol under the `walk-fn-key` key,
 and uses that symbol to lookup the corresponding function in the paramaters hashmap provided to the subscription and then invokes it

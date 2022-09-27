@@ -61,8 +61,6 @@
    datasource query]
   (log/info "\n\nSUBSCRIBE IMPL--------------------------------------------")
   (log/info "subscribe query: " query)
-  (def d' datasource)
-  (def q' query)
   (assert (vector? query) (str "Queries must be vectors, you passed: " query))
   (let [cnt       (count query),
         query-id  (first query)
@@ -88,9 +86,7 @@
                   (console :error (str "No subscription handler registered for: " query-id "\n\nReturning a nil subscription.")))
               (let [handler-args (second query)]
                 (assert (or (nil? handler-args) (map? handler-args)))
-                (log/debug "invoking handler with args: " handler-args)
                 (let [reaction (handler-fn datasource handler-args)]
-                  (log/debug "handler output: " reaction)
                   (cache-and-return! get-subscription-cache get-cache-key datasource query reaction))))))))))
 
 ;; -- reg-sub -----------------------------------------------------------------

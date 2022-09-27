@@ -30,7 +30,6 @@
                                                        :op-type   :sub/dispose
                                                        :tags      {:query-v  query-v
                                                                    :reaction (ratom/reagent-id reaction-or-cursor)}}
-                                      ;(log/info "IN ON DISPOSE CLEANING UP reaction-or-cursor: " reaction-or-cursor)
                                       (swap! subscription-cache
                                         (fn [query-cache]
                                           (if (and (contains? query-cache cache-key) (identical? reaction-or-cursor (get query-cache cache-key)))
@@ -41,13 +40,10 @@
 
       (when (ratom/reaction? reaction-or-cursor) (ratom/add-on-dispose! reaction-or-cursor on-dispose))
       (when (ratom/cursor? reaction-or-cursor) (set! (.-on-dispose reaction-or-cursor) on-dispose))
-      ;; cache this reaction, so it can be used to deduplicate other, later "=" subscriptions
       (swap! subscription-cache (fn [query-cache]
                                   (when ratom/debug-enabled?
                                     (when (contains? query-cache cache-key)
                                       (console :warn "subscriptions: Adding a new subscription to the cache while there is an existing subscription in the cache" cache-key)))
-                                  ;(console :info "ABOUT TO ASSOC , cache key: " cache-key)
-                                  ;(console :info "ABOUT TO ASSOC , cache is : " query-cache)
                                   (assoc query-cache cache-key reaction-or-cursor)))
       (trace/merge-trace! {:tags {:reaction (ratom/reagent-id reaction-or-cursor)}})))
   reaction-or-cursor)
@@ -75,9 +71,6 @@
           (do (trace/merge-trace! {:tags {:cached? true :reaction (ratom/reagent-id cached-reaction)}})
               cached-reaction)
           (let [handler-fn (get-handler query-id)]
-            ;(log/info "ABOUT TO ASSOC , cache is : " @(get-subscription-cache datasource))
-            ;(console :info (str "subs. computing subscription"))
-            ;(log/info "HANDLER fn : " handler-fn)
             (assert (fn? handler-fn) (str "Subscription handler for the following query is missing\n\n" (pr-str query-id) "\n"))
             (trace/merge-trace! {:tags {:cached? false}})
             (if (nil? handler-fn)
@@ -128,7 +121,7 @@
     [app args]
     (assert (or (nil? args) (map? args)) (str "Args must be a map" args))
     (let [subscriptions #?(:cljs (inputs-fn app args)
-                          :clj (try (inputs-fn app args) (catch clojure.lang.ArityException _ (inputs-fn app))))
+                           :clj (try (inputs-fn app args) (catch clojure.lang.ArityException _ (inputs-fn app))))
           reaction-id           (atom nil)
           reaction              (ratom/make-reaction
                                   (fn []
@@ -214,9 +207,7 @@
                                         (console :error err-header "expected :<-, got:" marker))
                                       (fn inputs-fn-
                                         ([app] (subscribe get-handler cache-lookup get-subscription-cache get-cache-key app signal-vec))
-                                        ([app args*]
-                                         ;(log/info "one pair: args " (merge-update-args signal-vec args*))
-                                         (subscribe get-handler cache-lookup get-subscription-cache get-cache-key app (merge-update-args signal-vec args*)))))
+                                        ([app args*] (subscribe get-handler cache-lookup get-subscription-cache get-cache-key app (merge-update-args signal-vec args*)))))
 
                                   ;; multiple :<- pairs
                                   (let [pairs   (partition 2 input-args)

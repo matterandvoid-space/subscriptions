@@ -58,8 +58,8 @@
   "Takes a datasource and query and returns a Reaction."
   [get-handler cache-lookup get-subscription-cache get-cache-key
    datasource query]
-  (log/info "\n\nSUBSCRIBE IMPL--------------------------------------------")
-  (log/info "subscribe query: " query)
+  ;(log/debug "\n\nSUBSCRIBE IMPL--------------------------------------------")
+  ;(log/debug "subscribe query: " query)
   (assert (vector? query) (str "Queries must be vectors, you passed: " query))
   (let [cnt       (count query),
         query-id  (first query)
@@ -126,7 +126,7 @@
   [inputs-fn computation-fn query-id]
   (fn subs-handler-fn
     [app args]
-    (assert (map? args) (str "Args must be a map" args))
+    (assert (or (nil? args) (map? args)) (str "Args must be a map" args))
     (let [subscriptions #?(:cljs (inputs-fn app args)
                           :clj (try (inputs-fn app args) (catch clojure.lang.ArityException _ (inputs-fn app))))
           reaction-id           (atom nil)

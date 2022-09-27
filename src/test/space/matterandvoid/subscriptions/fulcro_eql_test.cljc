@@ -41,6 +41,13 @@
 
 (run! sut/register-component-subs! [user-comp bot-comp comment-comp todo-comp list-comp human-comp])
 (comment
+  (<sub app [::list {:list/id :list-1 sut/query-key [ {:list/items list-member-q } ]}])
+
+  (<sub app [::list {:list/id :list-1 sut/query-key [{:list/items
+                                                      {:comment/id [:comment/id :comment/text {:comment/sub-comments '...}]
+                                                       :todo/id [:todo/id :todo/text]}
+                                                      }
+                                                     ]}])
   (<sub app [::todo {:todo/id :todo-1 sut/query-key [:todo/author]}])
   (sut/eql-query-keys-by-type (sut/get-query todo-comp)
     (fn [join-ast] (-> join-ast :component sut/class->registry-key))))
@@ -104,8 +111,6 @@
   (<sub app [::todo {:todo/id :todo-1 sut/query-key [:todo/id :todo/author]}])
   (<sub app [::list {:list/id :list-1 sut/query-key [{:list/items list-member-q}
                                                      {:list/members {:comment/id [:comment/id :comment/text] :todo/id [:todo/id :todo/text]}}]}])
-  (<sub app [::list {:list/id :list-1 sut/query-key [{:list/items list-member-q}
-                                                     ]}])
   )
 (deftest union-queries-test
   (testing "to-one union queries"
@@ -134,7 +139,7 @@
                            #:comment{:id :comment-1, :text "FIRST COMMENT", :sub-comments [#:comment{:id :comment-2, :text "SECOND COMMENT"}]}],
                  :members [#:comment{:id :comment-1, :text "FIRST COMMENT"} #:todo{:id :todo-2, :text "todo 2"}]}
           (<sub app [::list {:list/id :list-1 sut/query-key [{:list/items list-member-q}
-                                                             ;{:list/members {:comment/id [:comment/id :comment/text] :todo/id [:todo/id :todo/text]}}
+                                                             {:list/members {:comment/id [:comment/id :comment/text] :todo/id [:todo/id :todo/text]}}
                                                              ]}])))
 
     (testing "unions should only return queried-for branches"
@@ -216,16 +221,16 @@
 
   (testing "entity subscription with no query returns all attributes"
     (is (=
-          {:list/items   [{:todo/comments :space.matterandvoid.subscriptions.impl.eql-queries/missing,
+          {:list/items   [{:todo/comments sut/missing-val
                            :todo/author   {:user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3]], :user/name "user 2", :user/id :user-2},
-                           :todo/comment  :space.matterandvoid.subscriptions.impl.eql-queries/missing,
+                           :todo/comment  sut/missing-val
                            :todo/text     "todo 2",
                            :todo/id       :todo-2}
                           {:comment/sub-comments [[:comment/id :comment-2]], :comment/id :comment-1, :comment/text "FIRST COMMENT"}],
            :list/members [{:comment/sub-comments [[:comment/id :comment-2]], :comment/id :comment-1, :comment/text "FIRST COMMENT"}
-                          {:todo/comments :space.matterandvoid.subscriptions.impl.eql-queries/missing,
+                          {:todo/comments sut/missing-val
                            :todo/author   {:user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3]], :user/name "user 2", :user/id :user-2},
-                           :todo/comment  :space.matterandvoid.subscriptions.impl.eql-queries/missing,
+                           :todo/comment  sut/missing-val
                            :todo/text     "todo 2",
                            :todo/id       :todo-2}],
            :list/name    "first list",

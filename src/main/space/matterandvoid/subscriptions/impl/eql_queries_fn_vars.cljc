@@ -92,29 +92,26 @@
 
 (defn eql-query-keys-by-type
   "Takes an EQL query parses it and returns a map of the members of the query for easier downstream consumption."
-  [query join-ast->subscription]
+  [query join-ast->subscription join-ast->union-sub]
   (let [set-keys          #(->> % (map :dispatch-key) set)
         query-nodes       (-> query (eql/query->ast) :children)
         {props :prop joins :join} (group-by :type query-nodes)
         unions            (filter eql/union-children? joins)
         union-keys        (set-keys unions)
         [recur-joins plain-joins] (split-with (comp recur? :query) joins)
-        plain-joins       (remove #(contains? union-keys (:dispatch-key %)) plain-joins)
-        plain-joins       (set (map (juxt :dispatch-key join-ast->subscription) plain-joins))
-        ;plain-joins       (set (map (fn [j] [(:dispatch-key j) (-> j :component class->registry-key)]) plain-joins))
+        plain-joins       (->> plain-joins
+                            (remove #(contains? union-keys (:dispatch-key %)))
+                            (map (juxt :dispatch-key join-ast->subscription))
+                            (set))
         union-joins       (set (map (fn [{:keys [dispatch-key children] :as join-ast}]
                                       (let [union-key->entity    (union-key->entity-sub (first children))
                                             union-id-keys        (set (keys union-key->entity))
-                                            union-key->sub       (join-ast->subscription join-ast)
-                                            _                    (println "union id keys" union-id-keys)
-                                            _                    (println "union key-> sub" union-id-keys)
                                             union-key->component [dispatch-key (fn [entity]
                                                                                  (assert (map? entity))
                                                                                  (let [id-attr   (first (filter union-id-keys (keys entity)))
-                                                                                       union-sub (or (get union-key->sub id-attr)
-                                                                                                   (id-attr union-key->entity))]
+                                                                                       union-sub (join-ast->union-sub join-ast id-attr)]
                                                                                    (println "IN UNION, id-attr: " id-attr " union sub: " union-sub)
-                                                                                   [id-attr (get entity id-attr) union-sub ]))]]
+                                                                                   [id-attr (get entity id-attr) union-sub]))]]
                                         union-key->component))
                                  unions))
         missing-join-keys (filter (comp nil? second) plain-joins)]
@@ -249,9 +246,41 @@
                                         (let [ref-id-attr (proto/-ref->attribute datasource ref)]
                                           (proto/-entity datasource app ref-id-attr (assoc args ref-id-attr (proto/-ref->id datasource ref)))))
                                    refs)]
-                (comment (sc.api/defsc 216)
+                (comment (sc.api/defsc 16)
                   (union-branch-map :comment/id)
-                  (join-component-sub  {:comment/id :comment-1, :comment/text "FIRST COMMENT", :comment/sub-comments [[:comment/id :comment-2]]}))
+                  (mapv (fn [ref-entity]
+                          (let [[id-attr id-val join-sub :as a] (join-component-sub ref-entity)]
+                            (conj a (union-branch-map id-attr))
+
+
+                            ;(<sub app [join-sub (assoc args id-attr id-val query-key (union-branch-map id-attr))])
+                            ))
+                        (list {:todo/id :todo-2, :todo/text "todo 2", :todo/author [:user/id :user-2]}
+                          {:comment/id :comment-1, :comment/text "FIRST COMMENT", :comment/sub-comments [[:comment/id :comment-2]]})
+
+                        )
+                  ;(<sub app [:space.matterandvoid.subscriptions.fulcro-eql-test/comment (assoc args :comment/id :comment-1 query-key (union-branch-map :comment/id))])
+                  ;; this causes the error
+                  (<sub app [:space.matterandvoid.subscriptions.fulcro-eql-test/todo (assoc args :todo/id :todo-2 query-key (union-branch-map :todo/id))])
+
+                  (<sub app [:space.matterandvoid.subscriptions.fulcro-eql-test/todo (assoc args :todo/id :todo-2 query-key
+                                                                                                 [:todo/id
+                                                                                                  :todo/text
+                                                                                                  {:todo/comment [:comment/id :comment/text {:comment/sub-comments ...}]}
+                                                                                                  {:todo/comments [:comment/id :comment/text {:comment/sub-comments ...}]}
+                                                                                                  {:todo/author {:bot/id [:bot/id :bot/name], :user/id [:user/id :user/name {:user/friends ...}]}}]
+                                                                                                 )])
+
+                  (<sub app [:space.matterandvoid.subscriptions.fulcro-eql-test/todo (assoc args :todo/id :todo-2 query-key
+                                                                                                 [;:todo/id
+                                                                                                  ;:todo/text
+                                                                                                  {:todo/comments [{:comment/sub-comments '...}]}
+                                                                                                  ]
+                                                                                                 )])
+
+
+
+                  (join-component-sub {:comment/id :comment-1, :comment/text "FIRST COMMENT", :comment/sub-comments [[:comment/id :comment-2]]}))
                 (sc.api/spy
                   (->> ref-entities
                     (filter (fn [ref-entity] (let [[id-attr] (join-component-sub ref-entity)]
@@ -264,7 +293,7 @@
                             ref-entity  (proto/-entity datasource app ref-id-attr (assoc args ref-id-attr (proto/-ref->id datasource ref)))
                             [id-attr id-val join-sub] (join-component-sub ref-entity)]
                         (<sub app [join-sub (assoc args id-attr id-val)])))
-                refs))
+                    refs))
 
             :else (throw (error "Union Invalid join: for join prop " join-prop, " value: " refs))))))))
 
@@ -408,14 +437,14 @@
                                                          (update ::depth (fnil inc 0))
                                                          (update ::entity-history (fnil conj #{}) entity-db-id)
                                                          (assoc query-key parent-query id-attr (proto/-ref->id datasource join-ref)))])))
-                            refs-to-expand)
+                                refs-to-expand)
                           (when stop (mapv (fn [join-ref]
                                              (xform-fn (<sub app [entity-sub
                                                                   (-> args
                                                                     (update ::depth (fnil inc 0))
                                                                     (update ::entity-history (fnil conj #{}) entity-db-id)
                                                                     (assoc query-key nil id-attr (proto/-ref->id datasource join-ref)))])))
-                                       stop)))))))
+                                           stop)))))))
 
                 ;; some dbs support arbitrary collections as keys
                 (coll? recur-output)
@@ -450,7 +479,7 @@
                                                      (update ::depth (fnil inc 0))
                                                      (update ::entity-history (fnil conj #{}) entity-db-id)
                                                      (assoc query-key parent-query id-attr (proto/-ref->id datasource join-ref)))])))
-                        refs-to-recur))))
+                            refs-to-recur))))
 
                 (some? recur-output)
                 (let [join-ref (proto/-entity datasource app id-attr (assoc args id-attr (proto/-ref->id datasource refs)))
@@ -469,7 +498,7 @@
                                                    (-> args
                                                      (update ::entity-history (fnil conj #{}) entity-db-id)
                                                      (assoc query-key recur-query, id-attr (proto/-ref->id datasource join-ref)))])))
-                        refs))))
+                            refs))))
 
                 ;; stop walking
                 :else refs))
@@ -493,7 +522,7 @@
                                            (-> args
                                              (update ::entity-history (fnil conj #{}) entity-db-id)
                                              (assoc query-key recur-query id-attr (proto/-ref->id datasource join-ref)))])))
-                refs))
+                    refs))
 
             ;; do not recur
             refs (vec refs)
@@ -509,7 +538,9 @@
   (when-not (class->registry-key c) (throw (error "Component name missing on component: " c)))
   (let [query   (get-query c)
         id-attr (component-id-prop c)
-        {:keys [props plain-joins union-joins recur-joins all-children]} (eql-query-keys-by-type query (fn [join-ast] (join-subs-map (:dispatch-key join-ast))))]
+        {:keys [props plain-joins union-joins recur-joins all-children]} (eql-query-keys-by-type query
+                                                                           (fn [join-ast] (join-subs-map (:dispatch-key join-ast)))
+                                                                           (fn [join-ast id-attr] (get (join-subs-map (:dispatch-key join-ast)) id-attr)))]
 
     (when (map? query) (throw (error "You do not have to register a union component: " c)))
     (when-not id-attr (throw (error "Component missing ident: " c)))
@@ -538,10 +569,14 @@
         id-attr         (component-id-prop c)
         {:keys [props plain-joins union-joins recur-joins all-children]} (eql-query-keys-by-type query
                                                                            (fn [join-ast]
-                                                                             (-> join-ast :component class->registry-key)))
+                                                                             (-> join-ast :component class->registry-key))
+                                                                           (fn [{:keys [children] :as _join-ast} id-attr]
+                                                                             (let [union-key->entity (union-key->entity-sub (first children))]
+                                                                               (id-attr union-key->entity))))
         join-props->sub (merge
                           (into {} (for [p props] [p p]))
-                          (into {} plain-joins)
+                          ;(into {} plain-joins)
+                          (into {} (for [[p] plain-joins] [p p]))
                           (into {} (for [[p] union-joins] [p p]))
                           (into {} (for [[p] recur-joins] [p p])))]
     (when-not id-attr (throw (error "Component missing ident: " c)))

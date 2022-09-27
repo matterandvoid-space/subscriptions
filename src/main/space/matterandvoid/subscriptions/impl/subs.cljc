@@ -1,7 +1,6 @@
 (ns space.matterandvoid.subscriptions.impl.subs
   (:require
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
-    [sc.api]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
     [space.matterandvoid.subscriptions.impl.trace :as trace :include-macros true]
     [taoensso.timbre :as log]))
@@ -128,8 +127,7 @@
   (fn subs-handler-fn
     [app args]
     (assert (map? args) (str "Args must be a map" args))
-    (let [ ; args                  (second query-vec)
-          subscriptions #?(:cljs (inputs-fn app args)
+    (let [subscriptions #?(:cljs (inputs-fn app args)
                            :clj (try (inputs-fn app args) (catch clojure.lang.ArityException _ (inputs-fn app))))
           reaction-id           (atom nil)
           reaction              (ratom/make-reaction

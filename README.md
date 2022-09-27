@@ -87,7 +87,7 @@ You can clone the repo and run them locally.
 ## Use with a hashmap
 
 ```clojure 
-(require [space.matterandvoid.subscriptions.core :refer [defsub reg-sub <sub subscribe]])
+(require [space.matterandvoid.subscriptions.core :refer [reg-sub <sub subscribe]])
 
 (defonce db_ (ratom/atom {}))
 
@@ -96,15 +96,15 @@ You can clone the repo and run them locally.
 (def todo2 (make-todo #uuid"b13319dd-3200-40ec-b8ba-559e404f9aa5" "todo2"))
 (swap! db_ assoc :todos [todo1 todo2])
 
-(defsub all-todos :-> :todos)
-(defsub sorted-todos :<- [::all-todos] :-> (partial sort-by :todo/text))
-(defsub rev-sorted-todos :<- [::sorted-todos] :-> reverse)
-(defsub sum-lists :<- [::all-todos] :<- [::rev-sorted-todos] :-> (partial mapv count))
+(reg-sub ::all-todos :-> :todos)
+(reg-sub ::sorted-todos :<- [::all-todos] :-> (partial sort-by :todo/text))
+(reg-sub ::rev-sorted-todos :<- [::sorted-todos] :-> reverse)
+(reg-sub ::sum-lists :<- [::all-todos] :<- [::rev-sorted-todos] :-> (partial mapv count))
 
 ;; if you were to use these inside a reagent view the view will re-render when the data changes.
-(all-todos db_)
-(sorted-todos db_)
-(rev-sorted-todos db_)
+(<sub db_ [::all-todos])
+(<sub db_ [::sorted-todos])
+(<sub db_ [::rev-sorted-todos])
 
 (swap! db_ update :todos conj (make-todo (random-uuid) "another todo"))
 ```
@@ -112,7 +112,7 @@ You can clone the repo and run them locally.
 ## Use with Datascript
 
 ```clojure 
-(require [space.matterandvoid.subscriptions.core :refer [defsub reg-sub <sub subscribe]])
+(require [space.matterandvoid.subscriptions.core :refer [reg-sub <sub subscribe]])
 (def schema {:todo/id {:db/unique :db.unique/identity}})
 (defonce conn (d/create-conn schema))
 (defonce dscript-db_ (ratom/atom (d/db conn)))
@@ -130,17 +130,17 @@ You can clone the repo and run them locally.
   
 (transact! conn [todo1 todo2])
 
-(defsub all-todos 
+(reg-sub ::all-todos 
   :-> (fn [db] (d/q '[:find [(pull ?e [*]) ...] :where [?e :todo/id]] db)))
 
-(defsub sorted-todos :<- [::all-todos] :-> (partial sort-by :todo/text))
-(defsub rev-sorted-todos :<- [::sorted-todos] :-> reverse)
-(defsub sum-lists :<- [::all-todos] :<- [::rev-sorted-todos] :-> (partial mapv count))
+(reg-sub ::sorted-todos :<- [::all-todos] :-> (partial sort-by :todo/text))
+(reg-sub ::rev-sorted-todos :<- [::sorted-todos] :-> reverse)
+(reg-sub ::sum-lists :<- [::all-todos] :<- [::rev-sorted-todos] :-> (partial mapv count))
 
 ;; if you were to use these inside a reagent view the view will re-render when the data changes.
-(all-todos dscript-db_)
-(sorted-todos dscript-db_)
-(rev-sorted-todos dscript-db_)
+(<sub dscript-db_ [::all-todos])
+(<sub dscript-db_ [::sorted-todos])
+(<sub dscript-db_ [::rev-sorted-todos])
 
 ;; use the transact helper to ensure the ratom is updated as well as the db
 
@@ -169,7 +169,7 @@ them to be used in React's concurrent rendering mode.
 See the examples directory in the source for working code.
 
 ```clojure 
-(require [space.matterandvoid.subscriptions.react-hook :refer [use-sub use-sub-map use-reaction]])
+(require [space.matterandvoid.subscriptions.react-hook :refer [reg-sub use-sub use-sub-map use-reaction]])
 (defonce db_ (ratom/atom {}))
 
 (defn make-todo [id text] {:todo/id id :todo/text text})
@@ -177,8 +177,8 @@ See the examples directory in the source for working code.
 (def todo2 (make-todo #uuid"b13319dd-3200-40ec-b8ba-559e404f9aa5" "todo2"))
 (swap! db_ assoc :todos [todo1 todo2])
 
-(defsub all-todos :-> :todos)
-(defsub sorted-todos :<- [::all-todos] :-> (partial sort-by :todo/text))
+(reg-sub ::all-todos :-> :todos)
+(reg-sub ::sorted-todos :<- [::all-todos] :-> (partial sort-by :todo/text))
 
 ;; lifted from helix.core
 (defn $ [type & args]
@@ -212,6 +212,7 @@ Details below, but the three big differences are:
    Neither gets passed the vector which was passed to `subscribe`.
 2. `subscribe` calls must be invoked with the base data source and optionally one argument which must be a hashmap.
 3. The reagent Reaction that backs a subscription computation function is only cached in a reactive context, making subscriptions safe to use in any context.
+4. Support for not using any global registry of subscriptions, instead you can subscribe directly to a function that returns a reagent Reaction/Ratom/Cursor 
 
 ## Only one map for all queries
 
@@ -263,12 +264,12 @@ the `:<-` input syntax, for example:
 
 ```clojure
 (defonce base-db (reagent.ratom/atom {:num-one 500 :num-two 5}))
-(defsub first-sub (fn [db {:keys [kw]}] (kw db)))
-(defsub second-sub :<- [::first-sub] :-> #(+ 100 %))
-(defsub third-sub :<- [::first-sub] :<- [::second-sub] :-> #(reduce + %))
+(reg-sub ::first-sub (fn [db {:keys [kw]}] (kw db)))
+(reg-sub ::second-sub :<- [::first-sub] :-> #(+ 100 %))
+(reg-sub ::third-sub :<- [::first-sub] :<- [::second-sub] :-> #(reduce + %))
 
-(third-sub base-db {:kw :num-one}) ; => 1100
-(third-sub base-db {:kw :num-two}) ; => 110
+(<sub base-db [::third-sub {:kw :num-one}]) ; => 1100
+(<sub base-db [::third-sub {:kw :num-two}]) ; => 110
 ```
 
 If static arguments are declared on the input signals and args are also passed to the subscription at runtime the static 
@@ -276,15 +277,15 @@ args are merged with the user specified one - as in: `(merge static-args user-ar
 
 ```clojure
 (defonce base-db (reagent.ratom/atom {:num-one 500 :num-two 5}))
-(defsub first-sub (fn [db {:keys [kw]}] (kw db)))
-(defsub second-sub :<- [::first-sub] :-> #(+ 100 %))
-(defsub third-sub :<- [::first-sub {:kw :num-two}] :<- [::second-sub {:kw :num-two}] :-> #(reduce + %))
+(reg-sub ::first-sub (fn [db {:keys [kw]}] (kw db)))
+(reg-sub ::second-sub :<- [::first-sub] :-> #(+ 100 %))
+(reg-sub ::third-sub :<- [::first-sub {:kw :num-two}] :<- [::second-sub {:kw :num-two}] :-> #(reduce + %))
 
-(third-sub base-db {:kw :num-one}) ; => 1100
-(third-sub base-db {:kw :num-two}) ; => 110
-(third-sub base-db) ; => 110
+(<sub base-db [::third-sub {:kw :num-one}]) ; => 1100
+(<sub base-db [::third-sub {:kw :num-two}]) ; => 110
+(<sub base-db [::third-sub]) ; => 110
 ;; but invoking a subscription with no "default" parameters will throw in this case (kw will be null in first-sub):
-(second-sub base-db) ; =>  Cannot read properties of null (reading 'call')
+(<sub base-db [::second-sub]) ; =>  Cannot read properties of null (reading 'call')
 ```
 
 Right now `merge` is used, but this function can be swapped out if you wish:
@@ -317,7 +318,7 @@ Here's an example where we query for a list of todos, where the data is normaliz
 (reg-sub ::item-ids #(get %1 (:list-id %2))) ;; <- here the second arg is a hashmap
 (reg-sub ::todo-table :-> :todo/id)
 
-(defsub todos-list :<- [::item-ids] :<- [::todo-table]
+(reg-sub ::todos-list :<- [::item-ids] :<- [::todo-table]
   (fn [[ids table]]
     (mapv #(get table %) ids)))
 
@@ -353,35 +354,74 @@ the subscription's reaction will be cached but never disposed, consuming memory 
 This library does not use the subscription cache if a subscription is called outside a reactive context (reagent indicates a reactive context by binding a dynamic variable)
  and thus you can invoke your subscriptions in any context.
 
-## `defsub` macro
+## Using functions as subscriptions
 
-There is a tiny macro in this library which in addition to registering a subscription also outputs a `defn` with the provided name.
-When this function is invoked it subscribes and derefs the subscription while passing along any arguments.
+**This idea was inspired/taken from Danny Freeman's `repose` library: https://git.sr.ht/~dannyfreeman/repose**
 
-Here is an example:
+Subscriptions are just chains of functions that return reagent Reactions/Ratoms/RCursors. In re-frame when you `reg-sub`
+you are just associating a keyword (the subscription name) with one of these functions.
+
+re-frame has a bit of parsing code to deal with the signals input syntax, but ultimately a subscription handler is a function
+with this shape:
 
 ```clojure
-(defsub sorted-todos :<- [::all-todos] :-> (partial sort-by :todo/text))
-;; expands to:
-(do
-  (reg-sub ::sorted-todos  :<- [::all-todos] :-> (partial sort-by :todo/text))
-  
-  (defn sorted-todos 
-    ([ratom] (deref (subs/subscribe ratom [::sorted-todos])))
-    ([ratom args] (deref (subs/subscribe ratom [::sorted-todos args])))))
+(fn [data-source arguments]
+  (reagent.ratom/make-reaction (fn []
+                                 ; deref any dependent subscriptions (like your input signals)
+                                 ; and return some computed value.
+                                 )))
+```
+When you call `subscribe` the keyword in the subscription vector is used to lookup this "handler" function. So we can skip
+that keyword step and just pass the handler itself, and have the `subscribe` function invoke that directly.
+
+That's what this library allows.
+
+```clojure
+(defonce db_ (ratom/atom {:a-number        5
+                          :a-string        "hello"
+                          :show-component? true
+                          :level1          {:level2 {:level3 500}}
+                          :another-num     100}))
 ```
 
-This allows for better editor integration such as jump-to-definition support as well as searching for the use of the
-subscription across a codebase.
+Here is a "layer 2" subscription
 
-Also, because the subscriptions are memory-safe to use in a non-reactive context they are really just functions, how they're implemented
-is just a detail.
+```clojure 
+(defn a-fn-sub [db_]
+  (make-reaction (fn [] (:a-number @db_))))
+```
 
-You could also use your own defsub macro to, for example, instrument the calls to subscriptions or manipulate the args map 
-for all subscriptions.
+You can also use cursors for "layer 2" subscriptions which will be more efficient than using 
+Reactions, as Cursors compare equality using [`identical?`](https://github.com/reagent-project/reagent/blob/059b26d07ab6dd0145739a6d22bb334ca4f05c1a/src/reagent/ratom.cljs#L265)
+versus Reactions which are first invoked and then compared using `=` on the output.
 
-You probably don't want to use `defsub` for all subscriptions - possibly just those that are used in components,
-and if you really don't care for it you can just use reg-sub and subscribe.
+You have to use the provided `cursor` function in this library though, which adds support for cleaning it up from the subscription cache 
+when it is not used in any components:
+```clojure
+(require '[space.matterandvoid.subscriptions.reagent-ratom :refer [cursor]])
+(defn a-layer-2-fn [db_]
+  (cursor db_ [:level1 :level2 :level3]))
+```
+
+And a "layer 3" subscription function is one that only `deref`s "layer 2" subcriptions:
+
+```clojure
+(defn layer-3-sub-fn [db_]
+  (make-reaction
+    (fn []
+      (+ 10 (inc (<sub db_ [a-fn-sub])) (<sub db_ [a-layer-2-fn])))))
+```
+
+Now you can subscribe directly to any of these:
+```clojure
+(<sub db_ [layer-3-sub-fn])
+```
+
+The main benefits of using functions directly (as explained in the `repose` documentation) are proper module placement for code splitting
+and much better editor and IDE integration.
+The functions will be analyzed correctly and can be moved to the modules that they are used in, versus using a registry
+where all subscriptions will have to be in a common module.
+IDE features like jump to definition work as expected instead of having to have special re-frame aware tooling.
 
 # Implementation details
 
@@ -390,12 +430,12 @@ reagent Reactions or Ratoms before it can be hard to follow. I found that playin
 about what is going on.
 
 Subscriptions are implemented as reagent Reaction javascript objects (`deftype` in cljs) and using one helper function `run-in-reaction`.
-Reactions have a current value like a clojurescript atom, but they also have an attached function (the `f` member on the type)
+Reactions have a current value like a ClojureScript atom, but they also have an attached function (the `f` member on the type)
 which has the characteristic that when this function body executes if it deref's any ratoms or reactions then the reaction will
-remember these in a list of watches. This list of watches is what run-in-reaction uses to fire another callback in response
-to any depedent reactions/ratoms updating. - See the reagent.ratom namespace, especially `deref-capture`, `in-context`, and `notify-deref-watcher!`.
+remember these in a list of watches. This list of watches is what `run-in-reaction` uses to fire another callback in response
+to any depedent `reactions/atom`s updating. - See the `reagent.ratom` namespace, especially `deref-capture`, `in-context`, and `notify-deref-watcher!`.
 
-The implementation of this in reagent is quite elegant - the communication is done via a javascript object as shared memory
+The implementation of this in reagent is quite elegant - the communication is done via a JavaScript object as shared memory
 (the reaction or ratom) between the call stack using a dynamic variable.
 
 ```clojure

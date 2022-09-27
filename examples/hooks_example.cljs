@@ -3,7 +3,7 @@
     ["react-dom/client" :as react-dom]
     ["react" :as react]
     [space.matterandvoid.subscriptions.impl.core :as impl]
-    [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom :refer [make-reaction cursor]]
+    [space.matterandvoid.subscriptions.reagent-ratom :as ratom :refer [make-reaction cursor]]
     [space.matterandvoid.subscriptions.core :as subs :refer [subscribe reg-layer2-sub defsub reg-sub <sub]]
     [space.matterandvoid.subscriptions.react-hook :refer [use-sub use-sub-map use-reaction use-reaction-ref]]))
 

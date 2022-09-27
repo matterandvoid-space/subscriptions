@@ -9,4 +9,3 @@
 (defn make-reaction
   "Creates a Reagent Reaction using the supplied function."
   [f] (ratom/make-reaction f))
-

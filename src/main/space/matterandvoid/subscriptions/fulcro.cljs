@@ -205,4 +205,3 @@
          ;(log/info "Drop component!" (c/component-name this))
          (cleanup! this)
          (fulcro.index/drop-component! this ident))))))
-

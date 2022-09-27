@@ -1,6 +1,6 @@
 (ns reagent-datascript
   (:require
-    [space.matterandvoid.subscriptions.core :refer [defsub]]
+    [space.matterandvoid.subscriptions.core :refer [reg-sub <sub]]
     [datascript.core :as d]
     [reagent.dom :as rd]
     [reagent.ratom :as ra]))
@@ -25,18 +25,18 @@
 (defonce transact-data
   (transact! conn [todo1 todo2 todo3 todo4]))
 
-(defsub all-todos
+(reg-sub ::all-todos
   :-> (fn [db] (d/q '[:find [(pull ?e [*]) ...] :where [?e :todo/id]] db)))
 
-(defsub sorted-todos :<- [::all-todos] :-> (partial sort-by :todo/text))
-(defsub rev-sorted-todos :<- [::sorted-todos] :-> reverse)
-(defsub sum-lists :<- [::all-todos] :<- [::rev-sorted-todos] :-> (partial mapv count))
+(reg-sub ::sorted-todos :<- [::all-todos] :-> (partial sort-by :todo/text))
+(reg-sub ::rev-sorted-todos :<- [::sorted-todos] :-> reverse)
+(reg-sub ::sum-lists :<- [::all-todos] :<- [::rev-sorted-todos] :-> (partial mapv count))
 
 ;; if you were to use these inside a reagent view the view will render when the data changes.
 (comment
-  (all-todos dscript-db_)
-  (sorted-todos dscript-db_)
-  (rev-sorted-todos dscript-db_))
+  (<sub dscript-db_ [::all-todos])
+  (<sub dscript-db_ [::sorted-todos])
+  (<sub dscript-db_ [::rev-sorted-todos]))
 
 ;; use the transact helper to ensure the ratom is updated as well as the db
 
@@ -44,7 +44,7 @@
   (transact! conn [(make-todo (random-uuid) (str "another todo" (rand-int 1000)))]))
 
 (defn sorted-todos-ui []
-  (let [ts (sorted-todos dscript-db_)]
+  (let [ts (<sub dscript-db_ [::sorted-todos])]
    [:div {:style {:width "49%"}}
     [:h2 "Sorted by text"]
     (for [t ts]
@@ -55,7 +55,7 @@
        [:pre (:todo/id t)]])]))
 
 (defn main []
-  (let [ts (all-todos dscript-db_)]
+  (let [ts (<sub dscript-db_ [::all-todos])]
     [:div
      [:button {:on-click create-todo!} "create todo"]
      [:p "I am a component!"]

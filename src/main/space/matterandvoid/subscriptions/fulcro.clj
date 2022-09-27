@@ -212,15 +212,15 @@
          (cleanup! this)
          (fulcro.index/drop-component! this ident))))))
 
-;(defmacro defsub
-;  "Has the same function signature as `reg-sub`.
-;  Registers a subscription and creates a function which is invokes subscribe and deref on the registered subscription
-;  with the args map passed in."
-;  [sub-name & args]
-;  (let [sub-kw (keyword (str *ns*) (str sub-name))]
-;    `(do
-;       (reg-sub ~sub-kw ~@args)
-;
-;       (defn ~sub-name
-;         ([app#] (deref (subscribe app# [~sub-kw])))
-;         ([app# args#] (deref (subscribe app# [~sub-kw args#])))))))
+(defmacro defregsub
+  "Has the same function signature as `reg-sub`.
+  Registers a subscription and creates a function which is invokes subscribe and deref on the registered subscription
+  with the args map passed in."
+  [sub-name & args]
+  (let [sub-kw (keyword (str *ns*) (str sub-name))]
+    `(do
+       (reg-sub ~sub-kw ~@args)
+
+       (defn ~sub-name
+         ([app#] (deref (subscribe app# [~sub-kw])))
+         ([app# args#] (deref (subscribe app# [~sub-kw args#])))))))

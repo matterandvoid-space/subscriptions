@@ -9,7 +9,7 @@
 (sut/reg-sub :hello
   (fn [db] (:hello db)))
 
-(sut/defsub sub2 :-> :sub2)
+(sut/defregsub sub2 :-> :sub2)
 
 (def schema {:todo/id {:db/unique :db.unique/identity}})
 (defonce conn_ (atom (d/create-conn schema)))
@@ -49,14 +49,14 @@
    (deftest invalid-start-signal
      (is (thrown-with-msg? js/Error #"Your input signal must be a reagent.ratom" (sub2 (atom {}))))))
 
-(sut/defsub all-todos
+(sut/defregsub all-todos
   :-> (fn [db]
         (log/info "compute all todos")
         (d/q '[:find [(pull ?e [*]) ...] :where [?e :todo/id]] db)))
 
-(sut/defsub sorted-todos :<- [::all-todos] :-> (partial sort-by :todo/text))
-(sut/defsub rev-sorted-todos :<- [::sorted-todos] :-> reverse)
-(sut/defsub sum-lists :<- [::all-todos] :<- [::rev-sorted-todos] :-> (partial mapv count))
+(sut/defregsub sorted-todos :<- [::all-todos] :-> (partial sort-by :todo/text))
+(sut/defregsub rev-sorted-todos :<- [::sorted-todos] :-> reverse)
+(sut/defregsub sum-lists :<- [::all-todos] :<- [::rev-sorted-todos] :-> (partial mapv count))
 
 (comment
   (d/q '[:find [(pull ?e [*]) ...] :where [?e :todo/id]] (d/db @conn_))
@@ -235,7 +235,7 @@
               :root/todos   [[:todo/id #uuid"7dea2e3a-9b3d-4d35-a120-d65db43868cb"]
                              [:todo/id #uuid"31a54f54-a701-4e92-af91-78447f5294e6"]]}))
 
-(sut/defsub list-idents (fn [db {:keys [list-id]}] (get db list-id)))
+(sut/defregsub list-idents (fn [db {:keys [list-id]}] (get db list-id)))
 (sut/reg-sub :todo/id (fn [_ {:todo/keys [id]}] id))
 (sut/reg-sub :todo/text (fn [db {:todo/keys [id]}]
                           (get-in db [:todo/id id :todo/text])))
@@ -294,14 +294,14 @@
 (defonce base-db (ratom/atom {:num-one 500 :num-two 5 :num-three 99}))
 
 (sut/reg-sub ::first-sub (fn [db {:keys [kw]}] (kw db)))
-(sut/defsub second-sub :<- [::first-sub] :-> #(+ 100 %))
-(sut/defsub third-sub :<- [::first-sub] :<- [::second-sub] :-> #(reduce + %))
+(sut/defregsub second-sub :<- [::first-sub] :-> #(+ 100 %))
+(sut/defregsub third-sub :<- [::first-sub] :<- [::second-sub] :-> #(reduce + %))
 
 (sut/reg-sub ::first-sub-a (fn [db {:keys [kw]}] (kw db)))
-(sut/defsub second-sub-a :<- [::first-sub-a {:kw :num-three}] :-> #(+ 100 %))
-(sut/defsub third-sub-a :<- [::first-sub-a {:kw :num-three}] :<- [::second-sub-a] :-> #(reduce + %))
+(sut/defregsub second-sub-a :<- [::first-sub-a {:kw :num-three}] :-> #(+ 100 %))
+(sut/defregsub third-sub-a :<- [::first-sub-a {:kw :num-three}] :<- [::second-sub-a] :-> #(reduce + %))
 
-(sut/defsub fourth-sub-a :<- [::first-sub-a] :<- [::second-sub-a] (fn [[a b]] (* a b)))
+(sut/defregsub fourth-sub-a :<- [::first-sub-a] :<- [::second-sub-a] (fn [[a b]] (* a b)))
 
 (deftest sugar-input-with-args
   (testing ":<- inputs are passed the args map"

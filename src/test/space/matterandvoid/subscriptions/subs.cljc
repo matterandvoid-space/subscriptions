@@ -4,27 +4,27 @@
 
 (defonce counter_ (volatile! 0))
 
-(sut/defsub first-sub
+(sut/defregsub first-sub
   (fn [db] (:first-sub db)))
 
-(sut/defsub second-sub :<- [::first-sub]
+(sut/defregsub second-sub :<- [::first-sub]
   (fn [args]
     (vswap! counter_ inc)
     (+ 10 args)))
 
-(sut/defsub third-sub :<- [::second-sub] #(+ 10 %))
+(sut/defregsub third-sub :<- [::second-sub] #(+ 10 %))
 
-(sut/defsub fourth-sub
+(sut/defregsub fourth-sub
   (fn [app] (sut/subscribe app [::first-sub]))
   (fn [first-val] (str first-val)))
 
-(sut/defsub fifth-sub
+(sut/defregsub fifth-sub
   (fn [app] {:a (sut/subscribe app [::first-sub])})
   (fn [{:keys [a]}] (+ 20 a)))
 
-(sut/defsub a-sub (fn [db] (db :a)))
+(sut/defregsub a-sub (fn [db] (db :a)))
 
-(sut/defsub sixth-sub
+(sut/defregsub sixth-sub
   (fn [app args] {:a (sut/subscribe app [::fifth-sub])})
   (fn [{:keys [a]}] (+ 20 a)))
 

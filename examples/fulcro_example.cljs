@@ -9,7 +9,7 @@
     [com.fulcrologic.fulcro.components :as c :refer [defsc]]
     [com.fulcrologic.fulcro.mutations :as mut :refer [defmutation]]
     [com.fulcrologic.fulcro.dom :as dom]
-    [space.matterandvoid.subscriptions.fulcro :as subs :refer [defsub reg-sub]]
+    [space.matterandvoid.subscriptions.fulcro :as subs :refer [defregsub reg-sub]]
     [goog.object :as g]
     [taoensso.timbre :as log]))
 
@@ -17,14 +17,14 @@
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 (subs/set-memoize-fn! identity)
-(defsub all-todos :-> #(-> % :todo/id vals))
-(defsub complete-todos :<- [::all-todos] :-> #(filter (comp #{:complete} :todo/state) %))
-(defsub incomplete-todos :<- [::all-todos] :-> #(filter (comp #{:incomplete} :todo/state) %))
+(defregsub all-todos :-> #(-> % :todo/id vals))
+(defregsub complete-todos :<- [::all-todos] :-> #(filter (comp #{:complete} :todo/state) %))
+(defregsub incomplete-todos :<- [::all-todos] :-> #(filter (comp #{:incomplete} :todo/state) %))
 
 (reg-sub :todo/id (comp :todo/id second))
 (reg-sub :todo/text (fn [db {:todo/keys [id]}] (get-in db [:todo/id id :todo/text])))
 
-(defsub todo
+(defregsub todo
   (fn [app args]
     (log/info "IN ::todo sub inputs fn")
     {:todo/text (subs/subscribe app [:todo/text args])
@@ -33,7 +33,7 @@
     (log/info "IN ::todo sub computation fn")
     (when id input)))
 
-(defsub list-idents (fn [db {:keys [list-id]}] (get db list-id)))
+(defregsub list-idents (fn [db {:keys [list-id]}] (get db list-id)))
 
 ;; anytime you have a list of idents in fulcro the subscription pattern is to
 ;; have input signals that subscribe to layer 2 subscriptions
@@ -42,11 +42,11 @@
 
 ;; now any subscriptions that use ::todo-table as an input signal will only update if todo-table's output changes.
 
-(defsub todos-list :<- [::list-idents] :<- [::todo-table]
+(defregsub todos-list :<- [::list-idents] :<- [::todo-table]
   (fn [[idents table]]
     (mapv #(get table (second %)) idents)))
 
-(defsub todos-total :<- [::todos-list] :-> count)
+(defregsub todos-total :<- [::todos-list] :-> count)
 
 ;; Mutations
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-

@@ -423,6 +423,40 @@ The functions will be analyzed correctly and can be moved to the modules that th
 where all subscriptions will have to be in a common module.
 IDE features like jump to definition work as expected instead of having to have special re-frame aware tooling.
 
+## `defregsub` macro
+
+There is a tiny macro in this library which in addition to registering a subscription also outputs a `defn` with the provided name.
+When this function is invoked it subscribes and derefs the subscription while passing along any arguments.
+
+Here is an example:
+
+```clojure
+(defregsub sorted-todos :<- [::all-todos] :-> (partial sort-by :todo/text))
+;; expands to:
+(do
+  (reg-sub ::sorted-todos  :<- [::all-todos] :-> (partial sort-by :todo/text))
+  
+  (defn sorted-todos 
+    ([ratom] (deref (subs/subscribe ratom [::sorted-todos])))
+    ([ratom args] (deref (subs/subscribe ratom [::sorted-todos args])))))
+```
+
+This allows for better editor integration such as jump-to-definition support as well as searching for the use of the
+subscription across a codebase.
+
+Also, because the subscriptions are memory-safe to use in a non-reactive context they are really just functions, how they're implemented
+is just a detail.
+
+You could also use your own `defregsub` macro to, for example, instrument the calls to subscriptions or manipulate the args map
+for all subscriptions.
+
+You probably don't want to use `defregsub` for all subscriptions - possibly just those that are used in components,
+and if you really don't care for it you can just use reg-sub and subscribe.
+
+## `defsub` macro
+
+todo fill in once completed.
+
 # Implementation details
 
 The codebase is quite tiny (the impl.subs namespace, pretty much the same as in re-frame), but if you haven't played with 

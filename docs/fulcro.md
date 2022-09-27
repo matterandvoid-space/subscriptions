@@ -66,7 +66,7 @@ Example:
 ```clojure 
 (defonce fulcro-app (subs/with-reactive-subscriptions (fulcro.app/fulcro-app {})))
 
-(defsub list-idents (fn [db {:keys [list-id]}] (get db list-id)))
+(defregsub list-idents (fn [db {:keys [list-id]}] (get db list-id)))
 
 ;; anytime you have a list of idents in fulcro the subscription pattern is to
 ;; have input signals that subscribe to layer 2 subscriptions
@@ -75,11 +75,11 @@ Example:
 
 ;; now any subscriptions that use ::todo-table as an input signal will only update if todo-table's output changes.
 
-(defsub todos-list :<- [::list-idents] :<- [::todo-table]
+(defregsub todos-list :<- [::list-idents] :<- [::todo-table]
   (fn [[idents table]]
     (mapv #(get table (second %)) idents)))
 
-(defsub todos-total :<- [::todos-list] :-> count)
+(defregsub todos-total :<- [::todos-list] :-> count)
 
 (defsc Todo [this {:todo/keys [text state]}]
   {:query         [:todo/id :todo/text :todo/state]
@@ -168,6 +168,6 @@ via the reaction firing, but the leaf/child will not because fulcro is rendering
 
 # Future ideas
 
-Integrating with fulcro-inspect - probably by adding instrumentation inside of defsub that happens based on a compiler
+Integrating with fulcro-inspect - probably by adding instrumentation inside of defregsub that happens based on a compiler
 flag, as well as during re-render - to allow inspecting how long subscriptions took to compute as well as which components
 they caused to be re-rendered.

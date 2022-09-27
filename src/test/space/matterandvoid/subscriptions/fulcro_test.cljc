@@ -103,7 +103,7 @@
   (sut/reg-sub :d-first-sub :<- [:d-sub] :-> first)
 
   ;; variant of :d-first-sub without an input parameter
-  (sut/defsub e-first-sub :-> (comp first :e))
+  (sut/defregsub e-first-sub :-> (comp first :e))
   ;; test for equality
   (sut/reg-sub :c-foo?-sub :<- [:c-sub] :-> #{:foo})
 

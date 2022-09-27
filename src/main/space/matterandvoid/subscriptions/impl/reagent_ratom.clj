@@ -24,12 +24,7 @@
 (defn on-load [listener])
 (defonce ^:private executor (Executors/newSingleThreadExecutor))
 (defonce ^:private on-dispose-callbacks (atom {}))
-(defn cursor [src path] (reify clojure.lang.IDeref (deref [_]
-                                                     (def s' src)
-                                                     (def p' path)
-                                                     (println "CURSOR src: " src)
-                                                     (println "CURSOR path: " path)
-                                                     (get-in @src path))))
+(defn cursor [src path] (reify clojure.lang.IDeref (deref [_] (get-in @src path))))
 (defn reaction? [r] (deref? r))
 (defn cursor? [r] (deref? r))
 (defn make-reaction

@@ -1,8 +1,8 @@
 (ns space.matterandvoid.subscriptions.fulcro-eql-test
   (:require
-    [space.matterandvoid.subscriptions.fulcro-eql-fn-vars :as sut]
+    [space.matterandvoid.subscriptions.fulcro-eql :as sut]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
-    [space.matterandvoid.subscriptions.fulcro :as subs :refer [reg-sub reg-sub-raw subscribe <sub]]
+    [space.matterandvoid.subscriptions.fulcro :as subs :refer [<sub]]
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [edn-query-language.core :as eql]
     [com.fulcrologic.fulcro.algorithms.merge :as merge]
@@ -10,14 +10,7 @@
     [taoensso.timbre :as log]
     [clojure.test :refer [deftest is testing]]))
 
-;; idea to use a predicate to determine recursion - this is not part of eql currently
-;(eql/query->ast [:comment/id :comment/text {:comment/sub-comments `traverse?}])
-
-;; todo  - change register-component-subs
-;; to create-component-subs or something. that returns function subscriptions
-;; this will also solve the tests for each db breaking each other.
-
-(log/set-level! :debug)
+(log/set-level! :warn)
 #?(:cljs (enable-console-print!))
 (set! *print-namespace-maps* false)
 

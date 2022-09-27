@@ -73,7 +73,7 @@
 
 (defn reg-sub [query-id & args]
   (apply sut/reg-sub
-    get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
+    get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup get-cache-key
     query-id args))
 
 (defn subscribe

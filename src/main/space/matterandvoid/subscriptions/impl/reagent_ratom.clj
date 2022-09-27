@@ -24,7 +24,9 @@
 (defn on-load [listener])
 (defonce ^:private executor (Executors/newSingleThreadExecutor))
 (defonce ^:private on-dispose-callbacks (atom {}))
-(defn cursor [src path] (atom (fn [] (get-in src path))))
+(defn cursor [src path] (reify clojure.lang.IDeref (deref [_] (get-in @src path))))
+(defn reaction? [r] (deref? r))
+(defn cursor? [r] (deref? r))
 (defn make-reaction
   "On JVM Clojure, return a `deref`-able thing which invokes the given function
   on every `deref`. That is, `make-reaction` here provides precisely none of the

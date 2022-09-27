@@ -30,5 +30,5 @@
 
 (defn console
   [level & args]
-  (assert (contains? @loggers level) (str "re-frame: log called with unknown level: " level))
+  (assert (contains? @loggers level) (str "subscriptions: log called with unknown level: " level))
   (apply (level @loggers) args))

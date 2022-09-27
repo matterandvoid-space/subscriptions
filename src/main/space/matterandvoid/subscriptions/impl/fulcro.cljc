@@ -41,8 +41,9 @@
 ;; so there isn't an explosion in the top level keyspace
 ;; it's a tradeoff, it may make more sense to just add integration with fulcro inspect via the
 ;; existing tracing calls.
+(defn get-cache-key [app query-v] (if (keyword? (first query-v)) query-v (into [(hash app)] query-v)))
 (defn get-subscription-cache [app] subs-cache_ #_(atom {}))
-(defn cache-lookup [app query-v] (when app (get @(get-subscription-cache app) query-v)))
+(defn cache-lookup [app cache-key] (when app (get @(get-subscription-cache app) cache-key)))
 
 (def app-state-key ::state)
 (def subs-key ::subs)
@@ -60,7 +61,9 @@
   Fulcro app and 'query-id' -> subscription handler function.
   Lookup in the place where the query-id -> handler functions are stored."
   [id]
-  (get-in @handler-registry_ (subs-state-path subs-key id)))
+  (if (fn? id)
+    id
+    (get-in @handler-registry_ (subs-state-path subs-key id))))
 
 (defn register-handler!
   "Returns `handler-fn` after associng it in the map."
@@ -90,7 +93,7 @@
 (defn reg-sub
   [query-id & args]
   (apply subs/reg-sub
-    get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
+    get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup get-cache-key
     query-id args))
 
 (defn subscribe
@@ -99,7 +102,7 @@
 
   To obtain the current value from the Signal, it must be dereferenced"
   [?app query]
-  (subs/subscribe get-handler cache-lookup get-subscription-cache (c/any->app ?app) query))
+  (subs/subscribe get-handler cache-lookup get-subscription-cache get-cache-key (c/any->app ?app) query))
 
 (defn <sub
   "Subscribe and deref a subscription, returning its value, not a reaction."

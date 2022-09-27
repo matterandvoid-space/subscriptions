@@ -2,8 +2,9 @@
   (:require
     [edn-query-language.core :as eql]
     [space.matterandvoid.subscriptions.core :refer [reg-sub-raw reg-sub <sub]]
+    [space.matterandvoid.subscriptions.impl.eql-protocols :as proto]
     [space.matterandvoid.subscriptions.impl.eql-queries :as impl]
-    [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
+    [space.matterandvoid.subscriptions.impl.reagent-ratom :as r :refer [make-reaction]]
     [taoensso.timbre :as log]
     [xtdb.api :as xt]))
 
@@ -23,7 +24,13 @@
       :else (throw (Exception. (str "Unsupported value passed to ->db: " (pr-str node-or-db)))))))
 
 (def xtdb-data-source
-  (reify impl/IDataSource
+  (reify proto/IDataSource
+    (-attribute-subscription-fn [this id-attr attr]
+      (fn [db_ args]
+        (make-reaction
+          (fn []
+            (impl/missing-id-check! id-attr attr args)
+            (proto/-attr this db_ id-attr attr args)))))
     (-ref->attribute [_ ref] :xt/id)
     (-ref->id [_ ref]
       (cond (eql/ident? ref)

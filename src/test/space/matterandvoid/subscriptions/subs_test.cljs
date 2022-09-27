@@ -14,8 +14,8 @@
 (defn get-input-db-signal [app] (::fulcro.app/state-atom app))
 (defonce subs-cache (atom {}))
 (defn get-subscription-cache [app] subs-cache)
-(defn cache-lookup [app query-v]
-  (when app (get @(get-subscription-cache app) query-v)))
+(defn get-cache-key [app query-v] (if (keyword? (first query-v)) query-v (into [(hash app)] query-v)))
+(defn cache-lookup [app cache-key] (when app (get @(get-subscription-cache app) cache-key)))
 (def app-state-key ::state)
 (def subs-key ::subs)
 (defn subs-state-path [k v] [app-state-key subs-key v])
@@ -73,12 +73,12 @@
 
 (defn reg-sub [query-id & args]
   (apply sut/reg-sub
-    get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
+    get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup get-cache-key
     query-id args))
 
 (defn subscribe
   [?app query]
-  (sut/subscribe get-handler cache-lookup get-subscription-cache (c/any->app ?app) query))
+  (sut/subscribe get-handler cache-lookup get-subscription-cache get-cache-key (c/any->app ?app) query))
 
 (reg-sub :hello
   (fn [db] (:hello db)))

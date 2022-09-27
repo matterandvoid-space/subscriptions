@@ -1,12 +1,14 @@
 (ns space.matterandvoid.subscriptions.impl.core
   (:require
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
+    [taoensso.timbre :as log]
     [space.matterandvoid.subscriptions.impl.subs :as subs]))
 
 (defn get-input-db-signal [ratom] ratom)
 (defonce subs-cache_ (atom {}))
 (defn get-subscription-cache [_app] subs-cache_)
-(defn cache-lookup [app query-v] (when app (get @(get-subscription-cache app) query-v)))
+(defn get-cache-key [app query-v] (if (keyword? (first query-v)) query-v (into [(hash app)] query-v)))
+(defn cache-lookup [app cache-key] (when app (get @(get-subscription-cache app) cache-key)))
 (defn subs-state-path [k] [k])
 (defonce handler-registry_ (atom {}))
 
@@ -16,7 +18,7 @@
   (swap! handler-registry_ assoc-in (subs-state-path id) (fn [& args] (apply handler-fn args)))
   handler-fn)
 
-(defn get-handler [id] (get-in @handler-registry_ (subs-state-path id)))
+(defn get-handler [id] (if (fn? id) id (get-in @handler-registry_ (subs-state-path id))))
 
 (defn clear-handlers
   ;; clear all handlers
@@ -36,7 +38,7 @@
 (defn reg-sub
   [query-id & args]
   (apply subs/reg-sub
-    get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup
+    get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup get-cache-key
     query-id args))
 
 (defn reg-layer2-sub
@@ -51,7 +53,8 @@
 
   To obtain the current value from the Signal, it must be dereferenced"
   [app query]
-  (subs/subscribe get-handler cache-lookup get-subscription-cache app query))
+  (subs/subscribe get-handler cache-lookup get-subscription-cache get-cache-key
+    app query))
 
 (defn <sub
   "Subscribe and deref a subscription, returning its value, not a reaction."
@@ -70,4 +73,3 @@
   "Removes all subscriptions from the cache."
   [registry]
   (subs/clear-subscription-cache! get-subscription-cache registry))
-

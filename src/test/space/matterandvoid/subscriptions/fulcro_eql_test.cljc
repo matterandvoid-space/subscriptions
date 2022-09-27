@@ -40,6 +40,10 @@
                                 {:list/members (rc/get-query list-member-comp)}]}))
 
 (run! sut/register-component-subs! [user-comp bot-comp comment-comp todo-comp list-comp human-comp])
+(comment
+  (<sub app [::todo {:todo/id :todo-1 sut/query-key [:todo/author]}])
+  (sut/eql-query-keys-by-type (sut/get-query todo-comp)
+    (fn [join-ast] (-> join-ast :component sut/class->registry-key))))
 
 (def db_ (r/atom {:comment/id {:comment-1 {:comment/id           :comment-1 :comment/text "FIRST COMMENT"
                                            :comment/sub-comments [[:comment/id :comment-2]]}
@@ -68,7 +72,6 @@
 (def app (assoc (fulcro.app/fulcro-app {}) ::fulcro.app/state-atom db_))
 
 (comment
-  (subs/get-handlr)
   (<sub app [::user {:user/id :user-1 sut/query-key [:user/name]}])
   (<sub app [::user {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends 1}]}])
   (<sub app [::user {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends 0}]}])
@@ -101,6 +104,8 @@
   (<sub app [::todo {:todo/id :todo-1 sut/query-key [:todo/id :todo/author]}])
   (<sub app [::list {:list/id :list-1 sut/query-key [{:list/items list-member-q}
                                                      {:list/members {:comment/id [:comment/id :comment/text] :todo/id [:todo/id :todo/text]}}]}])
+  (<sub app [::list {:list/id :list-1 sut/query-key [{:list/items list-member-q}
+                                                     ]}])
   )
 (deftest union-queries-test
   (testing "to-one union queries"
@@ -129,7 +134,8 @@
                            #:comment{:id :comment-1, :text "FIRST COMMENT", :sub-comments [#:comment{:id :comment-2, :text "SECOND COMMENT"}]}],
                  :members [#:comment{:id :comment-1, :text "FIRST COMMENT"} #:todo{:id :todo-2, :text "todo 2"}]}
           (<sub app [::list {:list/id :list-1 sut/query-key [{:list/items list-member-q}
-                                                             {:list/members {:comment/id [:comment/id :comment/text] :todo/id [:todo/id :todo/text]}}]}])))
+                                                             ;{:list/members {:comment/id [:comment/id :comment/text] :todo/id [:todo/id :todo/text]}}
+                                                             ]}])))
 
     (testing "unions should only return queried-for branches"
       (is (= {:list/items []} (<sub app [::list {:list/id :list-1 sut/query-key [{:list/items {:todo2/id [:todo/id :todo/text]}}]}])))

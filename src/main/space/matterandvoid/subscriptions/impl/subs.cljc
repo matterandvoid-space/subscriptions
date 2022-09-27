@@ -128,7 +128,7 @@
     [app args]
     (assert (map? args) (str "Args must be a map" args))
     (let [subscriptions #?(:cljs (inputs-fn app args)
-                           :clj (try (inputs-fn app args) (catch clojure.lang.ArityException _ (inputs-fn app))))
+                          :clj (try (inputs-fn app args) (catch clojure.lang.ArityException _ (inputs-fn app))))
           reaction-id           (atom nil)
           reaction              (ratom/make-reaction
                                   (fn []

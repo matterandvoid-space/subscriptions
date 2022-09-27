@@ -28,7 +28,7 @@
         (r/make-reaction
           (fn []
             (impl/missing-id-check! id-attr attr args)
-            (impl/-attr this db_ id-attr attr args)))))
+            (proto/-attr this db_ id-attr attr args)))))
     (-ref->attribute [_ _ref] :db/id)
     (-ref->id [_ ref]
       ;(log/info "ref->id ref: " ref)
@@ -59,7 +59,7 @@
         (catch ClassCastException e)))
     (-attr [this conn-or-db id-attr attr args]
       ;(log/info "-attr: " id-attr " attr " attr " id: " (get args id-attr))
-      (get (impl/-entity this conn-or-db id-attr args) attr))))
+      (get (proto/-entity this conn-or-db id-attr args) attr))))
 
 (defn nc
   "Wraps fulcro.raw.components/nc to take one hashmap of fulcro component options, supports :ident being a keyword.

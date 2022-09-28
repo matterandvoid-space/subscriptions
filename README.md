@@ -467,6 +467,10 @@ example:
 
 ```clojure
 (defsub sorted-todos :<- [all-todos] :-> (partial sort-by :todo/text))
+
+;; use it:
+@(sorted-todos db_)
+(<sub db_ [sorted-todos])
 ```
 
 # Implementation details

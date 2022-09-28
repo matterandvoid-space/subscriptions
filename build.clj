@@ -8,6 +8,10 @@
 (def lib 'space.matterandvoid/subscriptions)
 (def version (str/replace (str (LocalDate/now)) "-" "."))
 
+;; run these to deploy a new version of the app
+;; clojure -T:build jar
+;; clojure -T:build deploy
+
 (defn jar [opts]
   (-> opts
     (bb/clean)

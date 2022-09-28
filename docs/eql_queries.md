@@ -10,6 +10,17 @@ The goals of implementing this were:
 There are two pieces to have this work for your applicaiton.
 
 1. Pick a data source target, like a fulcro app db, XTDB, or Datalevin database.
+  There are currently three data sources supported, require the appropriate namespace:
+```clojure
+;; Datalevin
+space.matterandvoid.subscriptions.datalevin-eql
+
+;; XTDB
+space.matterandvoid.subscriptions.xtdb-eql
+
+;; Fulcro
+space.matterandvoid.subscriptions.fulcro-eql
+ ```
 2. Define your data model using fulcro "naked" components - headless components that are only used for query and
    normalization - and register them, which creates the necessary subscriptions.
 
@@ -260,6 +271,19 @@ Here was ask for the appropriate name, based on the type of the author found for
                                                             :user/id [:user/name]}}]}])
 ```
 which would return `{:todo/author {:bot/name "bot"}}` if a bot ref is found and `{:todo/author {:user/name "user"}}` if a user ref is found.
+
+# Adding a new datasource
+
+If you would like to add support for another datasource like doxa, or datascript for example, you simply need to fill in the
+IDataSource [protocol](https://github.com/matterandvoid-space/subscriptions/blob/mainline/src/main/space/matterandvoid/subscriptions/impl/eql_protocols.cljc)
+
+See the sources for examples:
+
+https://github.com/matterandvoid-space/subscriptions/blob/mainline/src/main/space/matterandvoid/subscriptions/datalevin_eql.clj
+
+https://github.com/matterandvoid-space/subscriptions/blob/mainline/src/main/space/matterandvoid/subscriptions/xtdb_eql.clj
+
+https://github.com/matterandvoid-space/subscriptions/blob/mainline/src/main/space/matterandvoid/subscriptions/fulcro_eql.cljc
 
 # Notes and gotchas
 

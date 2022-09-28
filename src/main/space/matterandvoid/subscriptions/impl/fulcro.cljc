@@ -62,7 +62,7 @@
   Lookup in the place where the query-id -> handler functions are stored."
   [id]
   (if (fn? id)
-    id
+    (-> id meta :subscription)
     (get-in @handler-registry_ (subs-state-path subs-key id))))
 
 (defn register-handler!

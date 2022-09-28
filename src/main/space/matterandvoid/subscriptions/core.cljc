@@ -117,36 +117,40 @@
      (let [compute-fn' (gensym "compute-fn")
            inputs'     (gensym "inputs")
            sub-args'   (gensym "sub-args")]
-       `(let [[inputs-fn# ~compute-fn'] (impl/parse-reg-sub-args ~(vec args))]
-          (defn ~fn-name
+       `(let [[inputs-fn# ~compute-fn'] (impl/parse-reg-sub-args ~(vec args))
+              subscription-fn#
+              (fn ~fn-name
 
-            ([datasource#]
-             (let [input-subscriptions# (inputs-fn# datasource#)]
-               (ratom/make-reaction
-                 (fn [] (~compute-fn' (impl/deref-input-signals input-subscriptions# (str *ns* "/" '~fn-name)))))))
+                ([datasource#]
+                 (let [input-subscriptions# (inputs-fn# datasource#)]
+                   (ratom/make-reaction
+                     (fn [] (~compute-fn' (impl/deref-input-signals input-subscriptions# (str *ns* "/" '~fn-name)))))))
 
-            ([datasource# ~sub-args']
-             (let [input-subscriptions# (inputs-fn# datasource# ~sub-args')]
-               (ratom/make-reaction
-                 (fn [] (let [~inputs' (impl/deref-input-signals input-subscriptions# (str *ns* "/" '~fn-name))]
-                          ~(if (:ns &env)
-                             `(~compute-fn' ~inputs' ~sub-args')
-                             `(try (~compute-fn' ~inputs' ~sub-args')
-                                   (catch clojure.lang.ArityException ~'_
-                                     (~compute-fn' ~inputs'))))))))))))))
-
+                ([datasource# ~sub-args']
+                 (let [input-subscriptions# (inputs-fn# datasource# ~sub-args')]
+                   (ratom/make-reaction
+                     (fn [] (let [~inputs' (impl/deref-input-signals input-subscriptions# (str *ns* "/" '~fn-name))]
+                              ~(if (:ns &env)
+                                 `(~compute-fn' ~inputs' ~sub-args')
+                                 `(try (~compute-fn' ~inputs' ~sub-args')
+                                       (catch clojure.lang.ArityException ~'_
+                                         (~compute-fn' ~inputs'))))))))))]
+          (def ~fn-name
+            (with-meta
+              (fn ~fn-name
+                ([datasource#] (deref (subscription-fn# datasource#)))
+                ([datasource# args#] (deref (subscription-fn# datasource# args#))))
+              {:subscription subscription-fn#}))))))
 
 ;; todo idea is to return a function that has a "subscription" property
 ;; but the function itself will deref that subscription
 
 ;; something like this:
-(let [sub-fn (fn [datasource args]
-               (ratom/make-reaction (fn [] (get-in @datasource (:a args)))))]
-  (defn my-sub [datasource args]
-    (deref (sub-fn datasource args)))
-  #?(:cljs
-     (do (set! (.-subscription my-sub) sub-fn) my-sub)
-     (:clj (with-meta my-sub {:subscription sub-fn}))))
+;(let [sub-fn (fn [datasource args]
+;               (ratom/make-reaction (fn [] (get-in @datasource (:a args)))))]
+;  (defn my-sub [datasource args]
+;    (deref (sub-fn datasource args)))
+;  (with-meta my-sub {:subscription sub-fn}))
 
 "
 so that (.subscription my-sub db args) returns a reaction

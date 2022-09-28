@@ -26,7 +26,7 @@
 
 (sut/reg-sub ::second :<- [::first]
   (fn [args]
-    (println "secodn args: " args)
+    ;(println "secodn args: " args)
     (vswap! counter_ inc)
     (+ 10 args)))
 

@@ -169,6 +169,11 @@
        (log/info "Disposing current reaction: " reaction)
        (ratom/dispose! reaction))))
 
+(defn parse-reg-sub-args [args]
+  (subs/parse-reg-sub-args get-input-db-signal subscribe "space.matterandvoid.subscriptions: " args))
+
+(def deref-input-signals subs/deref-input-signals)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; public api for components
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

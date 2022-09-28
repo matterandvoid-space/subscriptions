@@ -2,7 +2,7 @@
   (:require
     [space.matterandvoid.subscriptions.fulcro-eql :as sut]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
-    [space.matterandvoid.subscriptions.fulcro :as subs :refer [<sub]]
+    [space.matterandvoid.subscriptions.fulcro :as subs :refer [<sub defsub]]
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [edn-query-language.core :as eql]
     [com.fulcrologic.fulcro.algorithms.merge :as merge]
@@ -13,6 +13,7 @@
 (log/set-level! :warn)
 #?(:cljs (enable-console-print!))
 (set! *print-namespace-maps* false)
+
 
 (def user-comp (sut/nc {:query [:user/id :user/name {:user/friends '...}] :name ::user :ident :user/id}))
 (def bot-comp (sut/nc {:query [:bot/id :bot/name] :name ::bot :ident :bot/id}))
@@ -71,7 +72,16 @@
 
 (def app (assoc (fulcro.app/fulcro-app {}) ::fulcro.app/state-atom db_))
 
+(defsub hello-world :-> :user/id)
+(defsub hello-world2 (fn [db] (:user/id db)))
+
+(macroexpand '(defsub hello-world2 (fn [db] (:user/id db))))
+
+
+
 (comment
+  (<sub app [hello-world])
+  (<sub app [hello-world2])
   (<sub app [::user {:user/id :user-1 sut/query-key [:user/name]}])
   (<sub app [::user {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends 1}]}])
   (<sub app [::user {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends 0}]}])

@@ -1,8 +1,8 @@
 (ns space.matterandvoid.subscriptions.impl.core
   (:require
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
-    [taoensso.timbre :as log]
-    [space.matterandvoid.subscriptions.impl.subs :as subs]))
+    [space.matterandvoid.subscriptions.impl.subs :as subs]
+    [taoensso.timbre :as log]))
 
 (defn get-input-db-signal [ratom] ratom)
 (defonce subs-cache_ (atom {}))
@@ -73,3 +73,8 @@
   "Removes all subscriptions from the cache."
   [registry]
   (subs/clear-subscription-cache! get-subscription-cache registry))
+
+(defn parse-reg-sub-args [args]
+  (subs/parse-reg-sub-args get-input-db-signal subscribe "space.matterandvoid.subscriptions: " args))
+
+(def deref-input-signals subs/deref-input-signals)

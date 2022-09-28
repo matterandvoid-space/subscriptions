@@ -66,7 +66,7 @@ The difference from upstream re-frame is when you invoke `(subscribe)` you pass 
 
 # EQL queries support
 
-Starting with version `2022.09.27` this library includes support creating subscriptions that will fulfill queries based 
+Starting with version `2022.09.28` this library includes support creating subscriptions that will fulfill queries based 
 on Fulcro components. 
 
 EQL is a specification for a query language that provides no semantics. In this way applications and libraries can use it by adding their 
@@ -376,6 +376,8 @@ that keyword step and just pass the handler itself, and have the `subscribe` fun
 
 That's what this library allows.
 
+Here is a brief example:
+
 ```clojure
 (defonce db_ (ratom/atom {:a-number        5
                           :a-string        "hello"
@@ -423,6 +425,8 @@ The functions will be analyzed correctly and can be moved to the modules that th
 where all subscriptions will have to be in a common module.
 IDE features like jump to definition work as expected instead of having to have special re-frame aware tooling.
 
+You are free to mix and match using the registry and not, as the code is agnostic to using the registry or not.
+
 ## `defregsub` macro
 
 There is a tiny macro in this library which in addition to registering a subscription also outputs a `defn` with the provided name.
@@ -455,7 +459,15 @@ and if you really don't care for it you can just use reg-sub and subscribe.
 
 ## `defsub` macro
 
-todo fill in once completed.
+If you are using the library without a registry there is a macro that provides the same syntax as `reg-sub` but expands
+to a `defn` which returns a Reagent Reaction when invoked. This means you can either invoke and deref the function directly with 
+the data source and optional args map, or pass it to `subscribe` (or use it as an input signal to another subscription).
+
+example:
+
+```clojure
+(defsub sorted-todos :<- [all-todos] :-> (partial sort-by :todo/text))
+```
 
 # Implementation details
 

@@ -10,6 +10,16 @@
   (fn [db] (:hello db)))
 
 (sut/defregsub sub2 :-> :sub2)
+(sut/defsub sub2' :-> :sub2)
+(comment
+
+  (macroexpand '(sut/defsub sub2' :-> :sub2))
+  ((first (space.matterandvoid.subscriptions.impl.core/parse-reg-sub-args [:-> :sub2])) db )
+  ((second (space.matterandvoid.subscriptions.impl.core/parse-reg-sub-args [:-> :sub2])) {:sub2 500 :hello "hello"} )
+  )
+
+(comment
+  @(sub2' db))
 
 (def schema {:todo/id {:db/unique :db.unique/identity}})
 (defonce conn_ (atom (d/create-conn schema)))
@@ -38,6 +48,8 @@
 
 (deftest basic-test
   (is (= 500 (sub2 db)))
+  (is (= 500 @(sub2' db)))
+  (is (= 500 @(sub2' db {})))
   (is (= 500 (sub2 db {})))
   (is (thrown-with-msg? #?(:cljs js/Error :clj Exception) #"Args to the query vector must be one map" (= 500 (sub2 db 13))))
   (is (= 500 (sut/<sub db [::sub2])))
@@ -265,9 +277,7 @@
 (sut/reg-sub-raw ::lookup
   (fn [db_ args]
     (ratom/make-reaction
-      (fn []
-        (println 'args args)
-        (get @db_ (:kw args))))))
+      (fn [] (get @db_ (:kw args))))))
 
 (deftest args-to-inputs-fn-test
   (let [out (vec (sut/<sub db-r_ [::todos-list {:list-id :root/todos}]))]

@@ -47,7 +47,6 @@
             (when id-val
               (do
                 (try
-                  ;(println "in first try" id-val)
                   (if (eql/ident? id-val)
                     (d/touch (d/entity (->db conn-or-db) id-val))
                     ;; todo can check if id-val is a primitive type (allowed in value position, this way we don't have to use

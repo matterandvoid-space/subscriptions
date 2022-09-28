@@ -1,8 +1,8 @@
 (ns space.matterandvoid.subscriptions.core
   #?(:cljs (:require-macros [space.matterandvoid.subscriptions.core]))
   (:require
-    [space.matterandvoid.subscriptions :as-alias subs-keys]
-    [space.matterandvoid.subscriptions.impl.core :as impl]))
+    [space.matterandvoid.subscriptions.impl.core :as impl]
+    [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]))
 
 (defn set-memoize-fn! [f] (impl/set-memoize-fn! f))
 (defn set-args-merge-fn! [f] (impl/set-args-merge-fn! f))
@@ -107,3 +107,30 @@
           (defn ~sub-name
             ([app#] (deref (subscribe app# [~sub-kw])))
             ([app# args#] (deref (subscribe app# [~sub-kw args#]))))))))
+
+#?(:clj
+   (defmacro defsub
+     "Has the same function signature as `reg-sub`.
+     Returns a subscription function and creates a function which invokes subscribe and deref on the registered subscription
+     with the args map passed in."
+     [fn-name & args]
+     (let [compute-fn' (gensym "compute-fn")
+           inputs'     (gensym "inputs")
+           sub-args'   (gensym "sub-args")]
+       `(let [[inputs-fn# ~compute-fn'] (impl/parse-reg-sub-args ~(vec args))]
+          (defn ~fn-name
+
+            ([datasource#]
+             (let [input-subscriptions# (inputs-fn# datasource#)]
+               (ratom/make-reaction
+                 (fn [] (~compute-fn' (impl/deref-input-signals input-subscriptions# (str *ns* "/" '~fn-name)))))))
+
+            ([datasource# ~sub-args']
+             (let [input-subscriptions# (inputs-fn# datasource# ~sub-args')]
+               (ratom/make-reaction
+                 (fn [] (let [~inputs' (impl/deref-input-signals input-subscriptions# (str *ns* "/" '~fn-name))]
+                          ~(if (:ns &env)
+                             `(~compute-fn' ~inputs' ~sub-args')
+                             `(try (~compute-fn' ~inputs' ~sub-args')
+                                   (catch clojure.lang.ArityException ~'_
+                                     (~compute-fn' ~inputs'))))))))))))))

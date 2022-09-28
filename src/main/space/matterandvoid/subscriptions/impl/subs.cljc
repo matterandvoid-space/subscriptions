@@ -78,7 +78,9 @@
                   (console :error (str "No subscription handler registered for: " query-id "\n\nReturning a nil subscription.")))
               (let [handler-args (second query)]
                 (assert (or (nil? handler-args) (map? handler-args)))
-                (let [reaction (handler-fn datasource handler-args)]
+                (let [reaction
+                      #?(:cljs (handler-fn datasource handler-args)
+                         :clj (try (handler-fn datasource handler-args) (catch clojure.lang.ArityException _ (handler-fn datasource))))]
                   (cache-and-return! get-subscription-cache get-cache-key datasource query reaction))))))))))
 
 ;; -- reg-sub -----------------------------------------------------------------
@@ -102,7 +104,7 @@
 
 (def valid-signals (some-fn sequential? map? ratom/deref?))
 
-(defn- deref-input-signals
+(defn deref-input-signals
   [signals query-id]
   (when-not (valid-signals signals)
     (let [to-seq #(cond-> % (not (sequential? %)) list)]
@@ -152,13 +154,57 @@
 (defn set-args-merge-fn! [f] #?(:cljs (set! args-merge-fn f)
                                 :clj  (alter-var-root #'args-merge-fn (fn [_] f))))
 
-(defn reg-sub
-  "db, fully qualified keyword for the query id
-  optional positional args."
-  [get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup get-cache-key
-   query-id & args]
-  (let [err-header              (str "space.matterandvoid.subscriptions: reg-sub for " query-id ", ")
-        [input-args ;; may be empty, or one signal fn, or pairs of  :<- / vector
+(defn merge-update-args [subs-vec args*] (cond-> subs-vec (map? args*) (update 1 args-merge-fn args*)))
+
+(defn args->inputs-fn [get-input-db-signal subscribe err-header
+                       args]
+  (case (count args)
+    ;; no `inputs` function provided - give the default
+    0
+    (do
+      (fn
+        ([app]
+         (let [start-signal (get-input-db-signal app)]
+           #?(:cljs (when goog/DEBUG
+                      (when-not (ratom/ratom? start-signal)
+                        (throw (error "Your input signal must be a reagent.ratom. You provided: " (pr-str start-signal))))))
+           start-signal))
+        ([app _]
+         (let [start-signal (get-input-db-signal app)]
+           #?(:cljs (when goog/DEBUG
+                      (when-not (ratom/ratom? start-signal)
+                        (throw (error "Your input signal must be a reagent.ratom. You provided: " (pr-str start-signal))))))
+           start-signal))))
+
+    ;; a single `inputs` fn
+    1 (let [f (first args)]
+        (when-not (fn? f)
+          (console :error err-header "2nd argument expected to be an inputs function, got:" f))
+        f)
+
+    ;; one :<- pair
+    2 (let [[marker signal-vec] args]
+        (when-not (= :<- marker)
+          (console :error err-header "expected :<-, got:" marker))
+        (fn inputs-fn-
+          ([app] (subscribe app signal-vec))
+          ([app args*] (subscribe app (merge-update-args signal-vec args*)))))
+
+    ;; multiple :<- pairs
+    (let [pairs   (partition 2 args)
+          markers (map first pairs)
+          vecs    (map second pairs)]
+      (when-not (and (every? #{:<-} markers) (every? vector? vecs))
+        (console :error err-header "expected pairs of :<- and vectors, got:" pairs))
+
+      (fn inputs-fn
+        ([app] (map #(subscribe app %) vecs))
+        ([app args*]
+         (map #(subscribe app (merge-update-args % args*))
+           vecs))))))
+
+(defn parse-reg-sub-args [get-input-db-signal subscribe err-header args]
+  (let [[input-args ;; may be empty, or one signal fn, or pairs of  :<- / vector
          computation-fn] (let [[op f :as comp-f] (take-last 2 args)]
                            (if (or (= 1 (count comp-f))
                                  (fn? op)
@@ -168,60 +214,22 @@
                                (case op
                                  ;; return a function that calls the computation fn
                                  ;;  on the input signal, removing the query vector
-                                 :-> [args (fn [db _] (f db))]
+                                 :-> [args (fn compute-fn ([db] (f db)) ([db args] (f db args)))]
 
                                  ;; an incorrect keyword was passed
-                                 (console :error err-header "expected :-> as second to last argument, got:" op)))))
-        _                       (assert (ifn? computation-fn) "Last arg should be a function (your computation function).")
-        memoized-computation-fn (memoize-fn computation-fn)
+                                 (console :error err-header "expected :-> as second to last argument, got:" op)))))]
+    [(args->inputs-fn get-input-db-signal subscribe err-header input-args) computation-fn]))
 
-        err-header              (str "space.matterandvoid.subscriptions: reg-sub for " query-id ", ")
-        merge-update-args       (fn [subs-vec args*] (cond-> subs-vec (map? args*) (update 1 args-merge-fn args*)))
-        inputs-fn               (case (count input-args)
-                                  ;; no `inputs` function provided - give the default
-                                  0
-                                  (do
-                                    (fn
-                                      ([app]
-                                       (let [start-signal (get-input-db-signal app)]
-                                         #?(:cljs (when goog/DEBUG
-                                                    (when-not (ratom/ratom? start-signal)
-                                                      (throw (error "Your input signal must be a reagent.ratom. You provided: " (pr-str start-signal))))))
-                                         start-signal))
-                                      ([app _]
-                                       (let [start-signal (get-input-db-signal app)]
-                                         #?(:cljs (when goog/DEBUG
-                                                    (when-not (ratom/ratom? start-signal)
-                                                      (throw (error "Your input signal must be a reagent.ratom. You provided: " (pr-str start-signal))))))
-                                         start-signal))))
-
-                                  ;; a single `inputs` fn
-                                  1 (let [f (first input-args)]
-                                      (when-not (fn? f)
-                                        (console :error err-header "2nd argument expected to be an inputs function, got:" f))
-                                      f)
-
-                                  ;; one :<- pair
-                                  2 (let [[marker signal-vec] input-args]
-                                      (when-not (= :<- marker)
-                                        (console :error err-header "expected :<-, got:" marker))
-                                      (fn inputs-fn-
-                                        ([app] (subscribe get-handler cache-lookup get-subscription-cache get-cache-key app signal-vec))
-                                        ([app args*] (subscribe get-handler cache-lookup get-subscription-cache get-cache-key app (merge-update-args signal-vec args*)))))
-
-                                  ;; multiple :<- pairs
-                                  (let [pairs   (partition 2 input-args)
-                                        markers (map first pairs)
-                                        vecs    (map second pairs)]
-                                    (when-not (and (every? #{:<-} markers) (every? vector? vecs))
-                                      (console :error err-header "expected pairs of :<- and vectors, got:" pairs))
-
-                                    (fn inp-fn
-                                      ([app] (map #(subscribe get-handler cache-lookup get-subscription-cache get-cache-key app %) vecs))
-                                      ([app args*]
-                                       (map #(subscribe get-handler cache-lookup get-subscription-cache get-cache-key app (merge-update-args % args*))
-                                         vecs)))))]
-    (register-handler! query-id (make-subs-handler-fn inputs-fn memoized-computation-fn query-id))))
+(defn reg-sub
+  "db, fully qualified keyword for the query id
+  optional positional args."
+  [get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup get-cache-key
+   query-id & args]
+  (let [err-header (str "space.matterandvoid.subscriptions: reg-sub for " query-id ", ")
+        subscribe' (partial subscribe get-handler cache-lookup get-subscription-cache get-cache-key)
+        [inputs-fn compute-fn] (parse-reg-sub-args get-input-db-signal subscribe' err-header args)
+        _          (assert (ifn? compute-fn) "Last arg should be a function (your computation function).")]
+    (register-handler! query-id (make-subs-handler-fn inputs-fn compute-fn query-id))))
 
 (defn reg-layer2-sub
   [get-input-db-signal register-handler!

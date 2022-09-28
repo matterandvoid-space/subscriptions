@@ -12,50 +12,6 @@
 (set! *print-namespace-maps* false)
 
 (def schema
-  {:user/id      {:db/valueType :db.type/keyword :db/unique      :db.unique/identity}
-   :user/friends {:db/valueType :db.type/ref     :db/cardinality :db.cardinality/many}
-   :user/name    {:db/valueType :db.type/string  :db/unique      :db.unique/identity}
-
-   :bot/id       {:db/valueType :db.type/keyword :db/unique :db.unique/identity}
-   :bot/name     {:db/valueType :db.type/string  :db/unique :db.unique/identity}})
-
-(def conn' (d/get-conn "/tmp/datalevin/mydb" schema))
-
-(def user-comp (sut/nc {:name  ::user ;; the component's name
-                    :query [:user/id :user/name {:user/friends '...}] ;; the component's query
-                    :ident :user/id})) ;; the component's ident - the unique identifier property for this domain entity.
-
-(def bot-comp (sut/nc {:name  ::bot
-                   :query [:bot/id :bot/name]
-                   :ident :bot/id}))
-(run! sut/register-component-subs! [user-comp bot-comp ])
-(d/transact! conn'
-  [{:user/id :user-7 :user/name "user 7"}
-   {:user/id :user-6 :user/name "user 6" :user/friends [[:user/id :user-7]]}
-   {:user/id :user-5 :user/name "user 5" :user/friends [[:user/id :user-6] [:user/id :user-7]]}
-   {:user/id :user-2 :user/name "user 2" :user/friends [[:user/id :user-2] -1 -3 [:user/id :user-5]]}
-   {:db/id -1 :user/id :user-1 :user/name "user 1" :user/friends [[:user/id :user-2]]}
-   {:user/id :user-4 :user/name "user 4" :user/friends [-3  [:user/id :user-4]]}
-   {:db/id -3 :user/id :user-3 :user/name "user 3" :user/friends [[:user/id :user-2] [:user/id :user-4]]}
-   {:bot/id :bot-1 :bot/name "bot 1"}
-   {:db/id -10 :user/id :user-10 :user/name "user 10" :user/friends [-10  -11]}
-   {:db/id -11 :user/id :user-11 :user/name "user 11" :user/friends [-10 -12]}
-   {:db/id -12 :user/id :user-12 :user/name "user 12" :user/friends [-11 -12]}])
-
-(def db_' (r/atom (d/db conn')))
-(<sub db_' [::user {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends 1}]}])
-
-(<sub db_' [::user {`upper-case-name (fn [e] (update e :user/name clojure.string/upper-case))
-                   :user/id         :user-1
-                   sut/query-key    [:user/name :user/id {(list :user/friends {sut/xform-fn-key `upper-case-name}) 4}]}])
-
-(<sub db_ [::user {`upper-case-name (fn [e] (update e :user/name str/upper-case))
-                   `keep-walking?   (fn [e] (#{"user 1" "user 2"} (:user/name e)))
-                   :user/id         :user-1
-                   sut/query-key    [:user/name :user/id {(list :user/friends {sut/xform-fn-key `upper-case-name
-                                                                           sut/walk-fn-key  `keep-walking?}) '...}]}])
-
-(def schema
   {:user/id              {:db/valueType :db.type/keyword :db/unique :db.unique/identity}
    :user/friends         {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
    :user/name            {:db/valueType :db.type/string :db/unique :db.unique/identity}

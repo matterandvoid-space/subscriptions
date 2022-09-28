@@ -1,25 +1,28 @@
 (ns space.matterandvoid.subscriptions.xtdb-eql
   (:require
+    [borkdude.dynaload :refer [dynaload]]
     [edn-query-language.core :as eql]
     [space.matterandvoid.subscriptions.core :refer [reg-sub-raw reg-sub <sub]]
     [space.matterandvoid.subscriptions.impl.eql-protocols :as proto]
     [space.matterandvoid.subscriptions.impl.eql-queries :as impl]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r :refer [make-reaction]]
-    [taoensso.timbre :as log]
-    [xtdb.api :as xt]))
+    [taoensso.timbre :as log]))
 
 (def query-key impl/query-key)
 (def missing-val impl/missing-val)
 (def walk-fn-key impl/walk-fn-key)
 (def xform-fn-key impl/xform-fn-key)
 
-(defn xt-node? [n] (satisfies? xt/DBProvider n))
-(defn db? [x] (satisfies? xt/PXtdbDatasource x))
+(def xt-entity (dynaload 'xtdb.api/entity))
+(def xt-db (dynaload 'xtdb.api/db))
+
+(defn xt-node? [n] (satisfies? @(resolve 'xtdb.api/DBProvider) n))
+(defn db? [x] (satisfies? @(resolve 'xtdb.api/PXtdbDatasource) x))
 
 (defn ->db [node-or-db]
   (let [v (if (r/ratom? node-or-db) @node-or-db node-or-db)]
     (cond
-      (xt-node? v) (xt/db v)
+      (xt-node? v) (xt-db v)
       (db? v) v
       :else (throw (Exception. (str "Unsupported value passed to ->db: " (pr-str node-or-db)))))))
 
@@ -42,11 +45,11 @@
     (-entity [_ xt-node-or-db id-attr args]
       ;(log/debug "xtdb lookup -entity, id-attr: " id-attr " value: " (get args id-attr))
       (try
-        (xt/entity (->db xt-node-or-db) (get args id-attr))
+        (xt-entity (->db xt-node-or-db) (get args id-attr))
         (catch IllegalArgumentException _e)))
     (-attr [_ xt-node-or-db id-attr attr args]
       ;(log/debug "-attr: " id-attr " attr " attr)
-      (get (xt/entity (->db xt-node-or-db) (get args id-attr)) attr))))
+      (get (xt-entity (->db xt-node-or-db) (get args id-attr)) attr))))
 
 (defn nc
   "Wraps fulcro.raw.components/nc to take one hashmap of fulcro component options, supports :ident being a keyword.

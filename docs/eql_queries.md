@@ -43,7 +43,7 @@ Here is an example using datalevin as the data source.
                    :ident :bot/id}))
 ```
 
-`nc` is a naked fulcro component, it is exported from the EQL namespaces for convenience. It is a wrapper of the
+`nc` is a naked fulcro component (no UI, just for normalizing and querying data), it is exported from the EQL namespaces for convenience. It is a wrapper of the
 fulcro `nc` function with a more uniform interface (taking only a hashmap). If fulcro is not on your classpath a stub
 version
 is used so that if you don't want to use fulcro you don't have to and the EQL queries feature will still work.

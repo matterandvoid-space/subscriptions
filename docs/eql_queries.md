@@ -1,8 +1,8 @@
-This library features support for fulfilling EQL queries via subscriptions.
+This library features support for fulfilling [EQL](https://github.com/edn-query-language/eql) queries via subscriptions.
 
 The goals of implementing this were:
 
-1. Use fulcro for client-side applications where fulcro is only used as a data management library and not a UI rendering
+1. Use [Fulcro](https://github.com/fulcrologic/fulcro) for client-side applications where Fulcro is only used as a data management library and not a UI rendering
    library. The goal was to never rely on `db->tree` and instead fulfill all queries with subscriptions.
 2. Extend datomic pull syntax to support declarative graph walking logic, entity resolution, and transformation in a
    recursive/hierarchical fashion
@@ -43,12 +43,12 @@ Here is an example using datalevin as the data source.
                    :ident :bot/id}))
 ```
 
-`nc` is a naked fulcro component, it is exported from the EQL namespaces for convenience. It is a wrapper of the
+`nc` is a naked fulcro component (no UI, just for normalizing and querying data), it is exported from the EQL namespaces for convenience. It is a wrapper of the
 fulcro `nc` function with a more uniform interface (taking only a hashmap). If fulcro is not on your classpath a stub
 version
 is used so that if you don't want to use fulcro you don't have to and the EQL queries feature will still work.
 
-After you have your components declared you register them, creating subscriptions for them that can fulfill EQL queries
+After you have your components declared, you register them, creating subscriptions for them that can fulfill EQL queries
 for them.
 
 ```clojure

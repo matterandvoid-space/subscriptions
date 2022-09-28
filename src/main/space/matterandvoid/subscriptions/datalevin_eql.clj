@@ -1,7 +1,6 @@
 (ns space.matterandvoid.subscriptions.datalevin-eql
   (:require
-    [datascript.impl.entity :as d.entity]
-    [datalevin.core :as d]
+    [borkdude.dynaload :refer [dynaload]]
     [edn-query-language.core :as eql]
     [space.matterandvoid.subscriptions.core :refer [reg-sub-raw reg-sub <sub]]
     [space.matterandvoid.subscriptions.impl.eql-queries :as impl]
@@ -14,11 +13,18 @@
 (def walk-fn-key impl/walk-fn-key)
 (def xform-fn-key impl/xform-fn-key)
 
+(def d-conn (dynaload 'datalevin.core/conn))
+(def d-conn? (dynaload 'datalevin.core/conn?))
+(def d-db (dynaload 'datalevin.core/db))
+(def d-db? (dynaload 'datalevin.core/db?))
+(def d-touch (dynaload 'datalevin.core/touch))
+(def d-entity (dynaload 'datalevin.core/entity))
+
 (defn ->db [conn-or-db]
   (let [v (if (r/ratom? conn-or-db) @conn-or-db conn-or-db)]
     (cond
-      (d/conn? v) (d/db v)
-      (d/db? v) v
+      (d-conn? v) (d-db v)
+      (d-db? v) v
       :else (throw (Exception. (str "Unsupported value passed to ->db: " (pr-str conn-or-db)))))))
 
 (def datalevin-data-source
@@ -43,17 +49,17 @@
       (try
         (let [id-val (get args id-attr)]
           (if (number? id-val)
-            (d/touch (d/entity (->db conn-or-db) id-val))
+            (d-touch (d-entity (->db conn-or-db) id-val))
             (when id-val
               (do
                 (try
                   (if (eql/ident? id-val)
-                    (d/touch (d/entity (->db conn-or-db) id-val))
+                    (d-touch (d-entity (->db conn-or-db) id-val))
                     ;; todo can check if id-val is a primitive type (allowed in value position, this way we don't have to use
                     ;; the catch, can just return nil, should be slightly faster.
-                    (d/touch (d/entity (->db conn-or-db) [id-attr id-val])))
+                    (d-touch (d-entity (->db conn-or-db) [id-attr id-val])))
                   (catch AssertionError e
-                    (d/touch (d/entity (->db conn-or-db) [id-attr id-val])))
+                    (d-touch (d-entity (->db conn-or-db) [id-attr id-val])))
                   (catch clojure.lang.ExceptionInfo e))))))
         (catch ClassCastException e)))
     (-attr [this conn-or-db id-attr attr args]

@@ -6,11 +6,15 @@
   (:import [java.time LocalDate]))
 
 (def lib 'space.matterandvoid/subscriptions)
-(def version (str/replace (str (LocalDate/now)) "-" "."))
+(def version (str (str/replace (str (LocalDate/now)) "-" ".") "-2"))
 
 ;; run these to deploy a new version of the app
 ;; clojure -T:build jar
-;; clojure -T:build deploy
+;; CLOJARS_USERNAME=... clojure -T:build deploy
+;; git tag -a <version>
+;; git push github --tags
+
+(defn clean [opts] (bb/clean opts))
 
 (defn jar [opts]
   (-> opts

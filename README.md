@@ -66,7 +66,7 @@ The difference from upstream re-frame is when you invoke `(subscribe)` you pass 
 
 # EQL queries support
 
-Starting with version `2022.09.28` this library includes support creating subscriptions that will fulfill queries based 
+Starting with version `2022.09.28` this library includes support for creating subscriptions that will fulfill queries based 
 on Fulcro components. 
 
 EQL is a specification for a query language that provides no semantics. In this way applications and libraries can use it by adding their 

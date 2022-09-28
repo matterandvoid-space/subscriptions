@@ -232,7 +232,8 @@ For a made up example, say a user has many notes:
 
 For union joins we need to provide another level of nesting.
 
-Here's an example where a todo component has an author which 
+Here's an example where a todo component has an author which can be either a `bot` or a `user`.
+
 ```clojure
 (def user-comp (nc {:query [:user/id :user/name {:user/friends '...}] :name ::user :ident :user/id}))
 (def bot-comp (nc {:query [:bot/id :bot/name] :name ::bot :ident :bot/id}))
@@ -258,7 +259,7 @@ Here was ask for the appropriate name, based on the type of the author found for
 (<sub [todo-sub {:todo/id :todo-1 query-key [{:todo/author {:bot/id [:bot/name]
                                                             :user/id [:user/name]}}]}])
 ```
-which would return {:todo/author {:bot/name "bot"}} if a bot ref is found and {:todo/author {:user/name "user"}} if a user ref is found.
+which would return `{:todo/author {:bot/name "bot"}}` if a bot ref is found and `{:todo/author {:user/name "user"}}` if a user ref is found.
 
 # Notes and gotchas
 

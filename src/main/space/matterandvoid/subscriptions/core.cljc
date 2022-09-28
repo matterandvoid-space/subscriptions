@@ -134,3 +134,26 @@
                              `(try (~compute-fn' ~inputs' ~sub-args')
                                    (catch clojure.lang.ArityException ~'_
                                      (~compute-fn' ~inputs'))))))))))))))
+
+
+;; todo idea is to return a function that has a "subscription" property
+;; but the function itself will deref that subscription
+
+;; something like this:
+(let [sub-fn (fn [datasource args]
+               (ratom/make-reaction (fn [] (get-in @datasource (:a args)))))]
+  (defn my-sub [datasource args]
+    (deref (sub-fn datasource args)))
+  #?(:cljs
+     (do (set! (.-subscription my-sub) sub-fn) my-sub)
+     (:clj (with-meta my-sub {:subscription sub-fn}))))
+
+"
+so that (.subscription my-sub db args) returns a reaction
+and (my-sub db args) returns a value
+and then in get-handler you can return (.-subscription my-sub)
+this would not work in clojure though would it?
+
+in clojure we can use metadata?
+I think that makes sense
+"

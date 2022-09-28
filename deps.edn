@@ -15,7 +15,6 @@
             ;:exec-args   {:dirs ["src/test"]}
             :extra-deps  {lambdaisland/kaocha {:mvn/version "1.70.1086"}}}
 
-
            :build     {:deps       {io.github.seancorfield/build-clj {:git/tag "v0.8.0" :git/sha "9bd8b8a"}}
                        :ns-default build}
 

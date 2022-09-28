@@ -214,7 +214,7 @@
                                (case op
                                  ;; return a function that calls the computation fn
                                  ;;  on the input signal, removing the query vector
-                                 :-> [args (fn compute-fn ([db] (f db)) ([db args] (f db args)))]
+                                 :-> [args (fn compute-fn [db] (f db))]
 
                                  ;; an incorrect keyword was passed
                                  (console :error err-header "expected :-> as second to last argument, got:" op)))))]
@@ -235,12 +235,17 @@
   [get-input-db-signal register-handler!
    query-id path-vec-or-fn]
   (register-handler! query-id
-    (fn layer2-handler-fn [app query-vec]
-      (assert (vector? query-vec))
-      (let [args     (second query-vec)
-            db-ratom (get-input-db-signal app)
-            path     (if (fn? path-vec-or-fn) (path-vec-or-fn args) path-vec-or-fn)]
-        (ratom/cursor db-ratom path)))))
+    (fn layer2-handler-fn
+      ([app]
+       (let [db-ratom (get-input-db-signal app)
+             path     (if (fn? path-vec-or-fn) (path-vec-or-fn) path-vec-or-fn)]
+         (ratom/cursor db-ratom path)))
+      ([app query-vec]
+       (assert (or (nil? query-vec) (vector? query-vec)))
+       (let [args     (second query-vec)
+             db-ratom (get-input-db-signal app)
+             path     (if (fn? path-vec-or-fn) (path-vec-or-fn args) path-vec-or-fn)]
+         (ratom/cursor db-ratom path))))))
 
 (defn reg-sub-raw [register-handler! query-id handler-fn]
   (register-handler! query-id

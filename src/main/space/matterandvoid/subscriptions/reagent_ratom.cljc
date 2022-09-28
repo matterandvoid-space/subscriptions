@@ -1,6 +1,10 @@
 (ns space.matterandvoid.subscriptions.reagent-ratom
   (:require [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]))
 
+(defn atom
+  "Returns an Atom on Clojure and a Reagent RAtom on ClojureScript."
+  [value] (ratom/atom value))
+
 (defn cursor
   "Creates a Reagent RCursor type given a RAtom source (containing a hashmap) and a path into that hashmap."
   [#?(:cljs ^clj ratom :clj ratom) path]

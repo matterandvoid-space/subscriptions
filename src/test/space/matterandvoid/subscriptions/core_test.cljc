@@ -1,25 +1,32 @@
 (ns space.matterandvoid.subscriptions.core-test
   (:require
     [clojure.test :refer [deftest is testing use-fixtures]]
-    [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
+    [space.matterandvoid.subscriptions.reagent-ratom :as ratom]
     [datascript.core :as d]
     [taoensso.timbre :as log]
     [space.matterandvoid.subscriptions.core :as sut]))
 
-(sut/reg-sub :hello
-  (fn [db] (:hello db)))
+(log/set-level! :debug)
+(sut/reg-sub :hello (fn [db] (:hello db)))
 
+(def layer-2-sub-w-args (fn [db {:keys [path]}] (ratom/cursor db path)))
 (sut/defregsub sub2 :-> :sub2)
 (sut/defsub sub2' :-> :sub2)
-(comment
+(sut/defsub layer3-def1 :<- [sub2'] (fn [num] (* 10 num)))
+(sut/defsub layer3-def2 :<- [sub2'] :-> #(* 10 %))
 
-  (macroexpand '(sut/defsub sub2' :-> :sub2))
-  ((first (space.matterandvoid.subscriptions.impl.core/parse-reg-sub-args [:-> :sub2])) db )
-  ((second (space.matterandvoid.subscriptions.impl.core/parse-reg-sub-args [:-> :sub2])) {:sub2 500 :hello "hello"} )
-  )
+(sut/reg-layer2-sub ::sub-2-accessor [:sub2])
+(sut/defsub layer3-def3 :<- [layer3-def2] :<- [layer3-def1] :-> #(apply + %))
+(sut/defsub layer3-def4 :<- [layer3-def2] :<- [layer3-def1] :-> (fn [a] (apply + a)))
+(sut/defsub layer3-def5 :<- [layer3-def2] :<- [layer3-def1] (fn [a] (apply + a)))
+(sut/defsub layer2-fn (fn [db] (* -1 (:sub2 db))))
+(sut/defsub layer2-fn2 :-> (comp (partial * -1) :sub2))
+(sut/defsub layer2-fn3 :sub3)
+(sut/defsub layer2-fn4 :-> :sub3)
 
 (comment
-  @(sub2' db))
+  (macroexpand '(sut/defsub layer2-fn4 :-> :sub3)))
+;; also need to test using arguments from the hashmap, that they flow through.
 
 (def schema {:todo/id {:db/unique :db.unique/identity}})
 (defonce conn_ (atom (d/create-conn schema)))
@@ -46,10 +53,41 @@
 
 (defonce db (ratom/atom {:sub2 500 :hello "hello"}))
 
+(def layer-2-sub2 (fn [& args] (ratom/cursor db [:sub2])))
+
 (deftest basic-test
+  (is (= 500 (sut/<sub db [::sub-2-accessor])))
+  (is (= 500 (sut/<sub db [layer-2-sub2])))
+  (is (= -500 (sut/<sub db [layer2-fn])))
+  (is (= -500 (sut/<sub db [layer2-fn2])))
+  (is (= -500 (sut/<sub db [layer2-fn2 {:abcd 5}])))
+  (is (= {:abcd 5} (sut/<sub db [layer2-fn3 {:abcd 5}])))
+  (is (= nil (sut/<sub db [layer2-fn3])))
+  (is (= nil (sut/<sub db [layer2-fn4])))
+  (is (= nil (sut/<sub db [layer2-fn4 {:abcd 5}])))
+  (is (= 500 @(layer-2-sub2)))
+  (is (= 500 @(layer-2-sub-w-args db {:path [:sub2]})))
+  (is (= 500 (sut/<sub db [layer-2-sub-w-args {:path [:sub2]}])))
   (is (= 500 (sub2 db)))
   (is (= 500 @(sub2' db)))
   (is (= 500 @(sub2' db {})))
+  (is (= 5000 @(layer3-def1 db {})))
+  (is (= 5000 @(layer3-def1 db)))
+  (is (= 5000 @(layer3-def2 db {})))
+  (is (= 5000 @(layer3-def2 db)))
+  (is (= 5000 (sut/<sub db [layer3-def1])))
+  (is (= 5000 (sut/<sub db [layer3-def1 {}])))
+  (is (= 5000 (sut/<sub db [layer3-def2])))
+  (is (= 5000 (sut/<sub db [layer3-def2 {}])))
+  (is (= 10000 (sut/<sub db [layer3-def3 {}])))
+  (is (= 10000 @(layer3-def3 db {})))
+  (is (= 10000 @(layer3-def3 db)))
+  (is (= 10000 (sut/<sub db [layer3-def4])))
+  (is (= 10000 (sut/<sub db [layer3-def4 {}])))
+  (is (= 10000 (sut/<sub db [layer3-def5])))
+  (is (= 10000 (sut/<sub db [layer3-def5 {}])))
+
+
   (is (= 500 (sub2 db {})))
   (is (thrown-with-msg? #?(:cljs js/Error :clj Exception) #"Args to the query vector must be one map" (= 500 (sub2 db 13))))
   (is (= 500 (sut/<sub db [::sub2])))

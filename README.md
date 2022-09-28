@@ -51,7 +51,7 @@ and one for general use with any datasource, `space.matterandvoid.subscriptions.
 To avoid dependency conflicts this library does not declare a dependency on Fulcro or on Reagent. Please add the version
 of these libraries you would like to your own project.
 
-See docs/fulcro.md for details on usage with Fulcro.
+See [docs/fulcro.md](docs/fulcro.md) for details on usage with Fulcro.
 
 The reg-sub API is the same as in re-frame 
 _aside_: the subscription handlers are stored in a global var, but this can be easily changed if you desire, and then the API becomes:
@@ -77,7 +77,7 @@ In addition to standard Datomic pull style EQL queries there is also support for
 This allows for declarative recursive query syntax which works for CLJS data sources as well as any Clojure database that
 supports an `entity` API. Currently there is support for Datalevin, XTDB, and Fulcro hashmaps.
 
-See the document docs/eql_queries.md for more information and examples.
+See the document [docs/eql_queries.md](docs/eql_queries.md) for more information and examples.
 
 # Examples
 

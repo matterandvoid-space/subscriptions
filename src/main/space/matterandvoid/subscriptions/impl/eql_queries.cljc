@@ -130,49 +130,51 @@
 (defn sub-entity
   "Registers a subscription that returns a domain entity as a hashmap.
   id-attr for the entity, the entity subscription name (fq kw) a seq of dependent subscription props"
-  [<sub datasource id-attr props attr-kw->sub-fn]
-  (fn [app args]
-    (log/debug "in sub-entity. id attr" id-attr)
-    (if (some? (get args query-key))
-      (let [props->ast  (eql-by-key (get args query-key args))
-            props'      (keys (dissoc props->ast '*))
-            query       (get args query-key)
-            star-query? (some? (get props->ast '*))]
-        (log/debug "\n\n------ENTITY sub have query" (pr-str query))
-        (make-reaction
-          (fn []
-            (let [all-props (if star-query? (get-all-props-shallow datasource app id-attr props args) nil)
-                  output
-                            (if (or (nil? query) (= query '[*]))
-                              (do
-                                (log/debug "entity in first else")
-                                (proto/-entity datasource app id-attr args))
-                              (do
-                                (log/debug "entity in 2nd else")
+  [<sub sub-fn datasource id-attr props attr-kw->sub-fn]
+  (let [f
+        (fn [app args]
+          (log/debug "in sub-entity. id attr" id-attr)
+          (if (some? (get args query-key))
+            (let [props->ast  (eql-by-key (get args query-key args))
+                  props'      (keys (dissoc props->ast '*))
+                  query       (get args query-key)
+                  star-query? (some? (get props->ast '*))]
+              (log/debug "\n\n------ENTITY sub have query" (pr-str query))
+              (make-reaction
+                (fn []
+                  (let [all-props (if star-query? (get-all-props-shallow datasource app id-attr props args) nil)
+                        output
+                                  (if (or (nil? query) (= query '[*]))
+                                    (do
+                                      (log/debug "entity in first else")
+                                      (proto/-entity datasource app id-attr args))
+                                    (do
+                                      (log/debug "entity in 2nd else")
 
-                                (reduce (fn [acc prop]
-                                          (log/debug "look up prop: " prop " in map: " attr-kw->sub-fn)
-                                          (when-not (get attr-kw->sub-fn prop)
-                                            (throw (error "Missing subscription for entity prop: " prop)))
-                                          (let [prop-sub-fn (get attr-kw->sub-fn prop)
-                                                output      (<sub app [prop-sub-fn (assoc args
-                                                                                     ;; to implement recursive queries
-                                                                                     ::parent-query query
-                                                                                     query-key (:query (props->ast prop)))])]
-                                            (cond-> acc
-                                              (not= missing-val output)
-                                              (assoc prop output))))
-                                  {} props')))
-                  _         (log/debug "entity output1: " output)
-                  output    (merge all-props output)]
-              _ (log/debug "entity output2: " output)
-              output))))
-      (do
-        (log/debug "ENTITY SUB NO QUERY: selecting props " props)
-        (make-reaction (fn [] (reduce (fn [acc prop]
-                                        (let [prop-sub-fn (get attr-kw->sub-fn prop)]
-                                          (assoc acc prop (<sub app [prop-sub-fn args]))))
-                                {} props)))))))
+                                      (reduce (fn [acc prop]
+                                                (log/debug "look up prop: " prop " in map: " attr-kw->sub-fn)
+                                                (when-not (get attr-kw->sub-fn prop)
+                                                  (throw (error "Missing subscription for entity prop: " prop)))
+                                                (let [prop-sub-fn (get attr-kw->sub-fn prop)
+                                                      output      (<sub app [prop-sub-fn (assoc args
+                                                                                           ;; to implement recursive queries
+                                                                                           ::parent-query query
+                                                                                           query-key (:query (props->ast prop)))])]
+                                                  (cond-> acc
+                                                    (not= missing-val output)
+                                                    (assoc prop output))))
+                                        {} props')))
+                        _         (log/debug "entity output1: " output)
+                        output    (merge all-props output)]
+                    _ (log/debug "entity output2: " output)
+                    output))))
+            (do
+              (log/debug "ENTITY SUB NO QUERY: selecting props " props)
+              (make-reaction (fn [] (reduce (fn [acc prop]
+                                              (let [prop-sub-fn (get attr-kw->sub-fn prop)]
+                                                (assoc acc prop (<sub app [prop-sub-fn args]))))
+                                      {} props))))))]
+    (if sub-fn (sub-fn f) f)))
 
 (defn sub-plain-join
   "Takes two keywords: id attribute and property attribute, registers a layer 2 subscription using the id to lookup the
@@ -489,7 +491,7 @@
   "Creates a subscription function (and dependent subscription functions) that will fulfill the given fulcro component's query.
   The subscription name will by the fully qualified keyword or symbol returned from class->registry-key of the component.
   The component must have a name and so must any components in its query."
-  [<sub datasource c join-subs-map]
+  [<sub sub-fn datasource c join-subs-map]
   (when-not (class->registry-key c) (throw (error "Component name missing on component: " c)))
   (let [query   (get-query c)
         id-attr (component-id-prop c)
@@ -508,7 +510,7 @@
           union-join-subs (zipmap (map first union-joins) (map (fn [[p component-sub]] (sub-union-join <sub datasource id-attr p component-sub)) union-joins))
           recur-join-subs (zipmap (map first recur-joins) (map (fn [[p]] (sub-recur-join <sub datasource id-attr p recur-join-fn_)) recur-joins))
           kw->sub-fn      (merge prop-subs plain-join-subs union-join-subs recur-join-subs)
-          entity-sub      (sub-entity <sub datasource id-attr all-children kw->sub-fn)]
+          entity-sub      (sub-entity <sub sub-fn datasource id-attr all-children kw->sub-fn)]
       (reset! recur-join-fn_ entity-sub)
       entity-sub)))
 
@@ -516,7 +518,7 @@
   "Registers subscriptions that will fulfill the given fulcro component's query.
   The subscription name will by the fully qualified keyword or symbol returned from class->registry-key of the component.
   The component must have a name and so must any components in its query."
-  [reg-sub-raw reg-sub <sub datasource c]
+  [reg-sub-raw <sub datasource c]
   (when-not (class->registry-key c) (throw (error "Component name missing on component: " c)))
   (let [query           (get-query c)
         entity-sub      (class->registry-key c)
@@ -537,5 +539,5 @@
     (run! (fn [[p component-sub]] (reg-sub-raw p (sub-plain-join <sub datasource id-attr p component-sub))) plain-joins)
     (run! (fn [[p component-sub]] (reg-sub-raw p (sub-union-join <sub datasource id-attr p component-sub))) union-joins)
     (run! (fn [[p]] (reg-sub-raw p (sub-recur-join <sub datasource id-attr p (atom entity-sub)))) recur-joins)
-    (reg-sub-raw entity-sub (sub-entity <sub datasource id-attr all-children join-props->sub))
+    (reg-sub-raw entity-sub (sub-entity <sub nil datasource id-attr all-children join-props->sub))
     nil))

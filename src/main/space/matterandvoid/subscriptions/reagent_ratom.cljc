@@ -1,4 +1,5 @@
 (ns space.matterandvoid.subscriptions.reagent-ratom
+  (:refer-clojure :exclude [atom])
   (:require [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]))
 
 (defn atom

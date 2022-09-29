@@ -61,8 +61,8 @@
         query-id  (first query)
         cache-key (get-cache-key datasource query)]
     (assert (or (= 1 cnt) (= 2 cnt)) (str "Query must contain only one map for subscription " query-id))
-    (when (and (= 2 cnt) (not (map? (get query 1))))
-      (throw (error "Args to the query vector must be one map for subscription " query-id "\n" "Received: " (pr-str (get query 1)))))
+    (when (and (= 2 cnt) (not (or (nil? (get query 1)) (map? (get query 1)))))
+      (throw (error "Args to the query vector must be one map for subscription " query-id "\n" "Received query: " (pr-str query))))
     (trace/with-trace {:operation (first query)
                        :op-type   :sub/create
                        :tags      {:query-v query}}
@@ -240,10 +240,9 @@
        (let [db-ratom (get-input-db-signal app)
              path     (if (fn? path-vec-or-fn) (path-vec-or-fn) path-vec-or-fn)]
          (ratom/cursor db-ratom path)))
-      ([app query-vec]
-       (assert (or (nil? query-vec) (vector? query-vec)))
-       (let [args     (second query-vec)
-             db-ratom (get-input-db-signal app)
+      ([app args]
+       (assert (or (nil? args) (map? args)))
+       (let [db-ratom (get-input-db-signal app)
              path     (if (fn? path-vec-or-fn) (path-vec-or-fn args) path-vec-or-fn)]
          (ratom/cursor db-ratom path))))))
 

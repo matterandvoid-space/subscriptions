@@ -19,6 +19,13 @@
 (sut/defsub layer3-def3 :<- [layer3-def2] :<- [layer3-def1] :-> #(apply + %))
 (sut/defsub layer3-def4 :<- [layer3-def2] :<- [layer3-def1] :-> (fn [a] (apply + a)))
 (sut/defsub layer3-def5 :<- [layer3-def2] :<- [layer3-def1] (fn [a] (apply + a)))
+(sut/defsub layer3-def6
+  (fn [db args]
+    {:val1 (layer3-def1 db)
+     :val2 (layer3-def2 db)})
+  (fn [{:keys [val1 val2]}]
+    (+ val1 val2)))
+
 (sut/defsub layer2-fn (fn [db] (* -1 (:sub2 db))))
 (sut/defsub layer2-fn2 :-> (comp (partial * -1) :sub2))
 (sut/defsub layer2-fn3 :sub3)
@@ -55,6 +62,12 @@
 
 (def layer-2-sub2 (fn [& args] (ratom/cursor db [:sub2])))
 
+(def layer-2-sub3 (let [sub-fn
+                        (fn [& args] (ratom/cursor db [:sub2]))]
+                    (with-meta (fn [& args] @(sub-fn)) {:subscription sub-fn})))
+
+(def layer-2-sub4 (sut/sub-fn (fn [& args] (ratom/cursor db [:sub2]))))
+
 (deftest basic-test
   (is (= 500 (sut/<sub db [::sub-2-accessor])))
   (is (= 500 (sut/<sub db [layer-2-sub2])))
@@ -65,8 +78,10 @@
   (is (= nil (sut/<sub db [layer2-fn3])))
   (is (= nil (sut/<sub db [layer2-fn4])))
   (is (= nil (sut/<sub db [layer2-fn4 {:abcd 5}])))
-  (is (= 500 (layer-2-sub2)))
-  (is (= 500 (layer-2-sub-w-args db {:path [:sub2]})))
+  (is (= 500 @(layer-2-sub2)))
+  (is (= 500 (layer-2-sub3)))
+  (is (= 500 (layer-2-sub4)))
+  (is (= 500 @(layer-2-sub-w-args db {:path [:sub2]})))
   (is (= 500 (sut/<sub db [layer-2-sub-w-args {:path [:sub2]}])))
   (is (= 500 (sub2 db)))
   (is (= 500 (sub2' db)))

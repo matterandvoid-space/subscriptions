@@ -5,8 +5,7 @@
     ["use-sync-external-store/shim" :refer [useSyncExternalStore]]
     ["use-sync-external-store/shim/with-selector" :refer [useSyncExternalStoreWithSelector]]
     [goog.object :as gobj]
-    [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
-    [space.matterandvoid.subscriptions.fulcro :as subs]))
+    [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]))
 
 ;; The following was adapted from
 ;; https://github.com/roman01la/hooks/blob/1a98408280892da1abebde206b5ca2444aced1b3/src/hooks/impl.cljs

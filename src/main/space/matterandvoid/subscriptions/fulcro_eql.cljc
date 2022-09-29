@@ -2,7 +2,7 @@
   (:require
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [edn-query-language.core :as eql]
-    [space.matterandvoid.subscriptions.fulcro :refer [reg-sub-raw reg-sub <sub]]
+    [space.matterandvoid.subscriptions.fulcro :refer [reg-sub-raw reg-sub <sub sub-fn]]
     [space.matterandvoid.subscriptions.impl.eql-queries :as impl]
     [space.matterandvoid.subscriptions.impl.eql-protocols :as proto]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :refer [cursor]]
@@ -59,9 +59,9 @@
   the `sub-joins-map` argument is a hashmap whose keys are the join properties of the component and whose value is a
   subscription function for normal joins, and a nested hashmap for unions of the union key to subscription.
   You do not need to provide a subscription function for recursive joins."
-  [c sub-joins-map] (impl/create-component-subs <sub fulcro-data-source c sub-joins-map))
+  [c sub-joins-map] (impl/create-component-subs <sub sub-fn fulcro-data-source c sub-joins-map))
 
 (defn register-component-subs!
   "Registers subscriptions that will fulfill the given fulcro component's query.
   The component and any components in its query must have a name (cannot be anonymous)."
-  [c] (impl/register-component-subs! reg-sub-raw reg-sub <sub fulcro-data-source c))
+  [c] (impl/register-component-subs! reg-sub-raw <sub fulcro-data-source c))

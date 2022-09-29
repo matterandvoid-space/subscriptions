@@ -38,7 +38,7 @@
   (let [counter_ (volatile! 0)
         add      (fn add [x y]
                    (vswap! counter_ inc)
-                   (println "EXECUTING") (+ x y))
+                   (+ x y))
         mem-add  (memoize-fn {:max-args-cached-size 2 :max-history-size 3} add)]
     (mem-add 1 1) (mem-add 1 1) (mem-add 1 1) (mem-add 1 1) (mem-add 1 1)
     (is (= 1 @counter_))))

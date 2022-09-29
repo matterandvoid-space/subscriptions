@@ -372,9 +372,10 @@ with this shape:
                                  )))
 ```
 When you call `subscribe` the keyword in the subscription vector is used to lookup this "handler" function. So we can skip
-that keyword step and just pass the handler itself, and have the `subscribe` function invoke that directly.
+that keyword step and just pass the handler itself, and `subscribe` can invoke that function directly.
 
-That's what this library allows.
+That's what this library allows. These handler functions are the same as `reg-sub-raw` in re-frame, but again, without an
+associated keyword.
 
 Here is a brief example:
 
@@ -417,6 +418,47 @@ And a "layer 3" subscription function is one that only `deref`s "layer 2" subcri
 Now you can subscribe directly to any of these:
 ```clojure
 (<sub db_ [layer-3-sub-fn])
+(<sub db_ [a-fn-sub])
+```
+
+And invoke them directly, because they are functions:
+
+```clojure
+@(layer-3-sub-fn db_)
+@(a-fn-sub db_)
+```
+Notice that they return a Reaction or RCursor and thus must be dereferenced.
+
+It would be great if we didn't have to deref the function to get its value. This sort of thing is the source of unnecessary bugs due
+to inconsistencies (sometimes you deref things, sometimes not..)
+
+The library uses the following convention to allow subscribing to functions while also invoking and deref'ing them:
+
+```clojure
+(def layer-3-sub-fn (let [sub-fn
+                          (fn [db_]
+                            (make-reaction
+                              (fn []
+                                (+ 10 (inc (<sub db_ [a-fn-sub])) (<sub db_ [a-layer-2-fn])))))]
+                      (with-meta (fn layer-3-sub-fn [db_ ] @(sub-fn db_)) {:space.matterandvoid.subscriptions.core/subscription sub-fn})))
+```
+
+When subscribe is called and a function is passed in the subscription vector the library will first look for a function under
+the `:space.matterandvoid.subscriptions.core/subscription` key in the metadata of the function to get the subscription function instead of using the function itself.
+If there is not a function in the metadata under the `:space.matterandvoid.subscriptions.core/subscription` key, then the function itself is used.
+
+This is a bit noisy to write by hand, so the library provides to helpers: you can either use the `sub-fn` function helper, or use the `defsub` macro which produces this output for you.
+
+These are equivalent to the above definition:
+
+```clojure
+(def layer-3-sub-fn
+  (sub-fn (fn [db_]
+            (make-reaction (fn []
+                             (+ 10 (inc (<sub db_ [a-fn-sub])) (<sub db_ [a-layer-2-fn])))))))
+
+(defsub layer-3-sub-fn :<- [a-fn-sub] :<- [a-layer-2-fn]
+  (fn [[num1 num2]] (+ 10 (inc num1) num2)))
 ```
 
 The main benefits of using functions directly (as explained in the `repose` documentation) are proper module placement for code splitting
@@ -425,7 +467,8 @@ The functions will be analyzed correctly and can be moved to the modules that th
 where all subscriptions will have to be in a common module.
 IDE features like jump to definition work as expected instead of having to have special re-frame aware tooling.
 
-You are free to mix and match using the registry and not, as the code is agnostic to using the registry or not.
+You are free to mix and match using the registry (`reg-sub` etc.) and not (subscribing directly to functions).
+The registry is used to associate subscription keywords with handler functions and once the handler function is retrieved there is no difference in execution.
 
 ## `defregsub` macro
 
@@ -460,7 +503,7 @@ and if you really don't care for it you can just use reg-sub and subscribe.
 ## `defsub` macro
 
 If you are using the library without a registry there is a macro that provides the same syntax as `reg-sub` but expands
-to a `defn` which returns a Reagent Reaction when invoked. This means you can either invoke and deref the function directly with 
+to a `defn` which returns the value of the deref'd Reagent Reaction when invoked. This means you can either invoke the function directly with
 the data source and optional args map, or pass it to `subscribe` (or use it as an input signal to another subscription).
 
 example:
@@ -469,7 +512,7 @@ example:
 (defsub sorted-todos :<- [all-todos] :-> (partial sort-by :todo/text))
 
 ;; use it:
-@(sorted-todos db_)
+(sorted-todos db_)
 (<sub db_ [sorted-todos])
 ```
 

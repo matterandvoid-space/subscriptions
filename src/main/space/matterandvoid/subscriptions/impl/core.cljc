@@ -18,7 +18,9 @@
   (swap! handler-registry_ assoc-in (subs-state-path id) (fn [& args] (apply handler-fn args)))
   handler-fn)
 
-(defn get-handler [id] (if (fn? id) (-> id meta :subscription) (get-in @handler-registry_ (subs-state-path id))))
+(defn get-handler [id] (if (fn? id)
+                         (or (-> id meta :space.matterandvoid.subscriptions.core/subscription) id)
+                         (get-in @handler-registry_ (subs-state-path id))))
 
 (defn clear-handlers
   ;; clear all handlers

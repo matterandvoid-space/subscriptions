@@ -120,7 +120,6 @@
        `(let [[inputs-fn# ~compute-fn'] (impl/parse-reg-sub-args ~(vec args))
               subscription-fn#
               (fn ~fn-name
-
                 ([datasource#]
                  (let [input-subscriptions# (inputs-fn# datasource#)]
                    (ratom/make-reaction
@@ -140,24 +139,15 @@
               (fn ~fn-name
                 ([datasource#] (deref (subscription-fn# datasource#)))
                 ([datasource# args#] (deref (subscription-fn# datasource# args#))))
-              {:subscription subscription-fn#}))))))
+              {:space.matterandvoid.subscriptions.core/subscription subscription-fn#}))))))
 
-;; todo idea is to return a function that has a "subscription" property
-;; but the function itself will deref that subscription
-
-;; something like this:
-;(let [sub-fn (fn [datasource args]
-;               (ratom/make-reaction (fn [] (get-in @datasource (:a args)))))]
-;  (defn my-sub [datasource args]
-;    (deref (sub-fn datasource args)))
-;  (with-meta my-sub {:subscription sub-fn}))
-
-"
-so that (.subscription my-sub db args) returns a reaction
-and (my-sub db args) returns a value
-and then in get-handler you can return (.-subscription my-sub)
-this would not work in clojure though would it?
-
-in clojure we can use metadata?
-I think that makes sense
-"
+(defn sub-fn
+  "Takes a function that returns either a Reaction or RCursor. Returns a function that when invoked delegates to `f` and
+   derefs its output. The returned function can be used in subscriptions."
+  [f]
+  (with-meta
+    (fn
+      ([] (deref (f)))
+      ([datasource] (deref (f datasource)))
+      ([datasource args] (deref (f datasource args))))
+    {::subscription f}))

@@ -2,10 +2,8 @@
   (:require
     [space.matterandvoid.subscriptions.fulcro-eql :as sut]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
-    [space.matterandvoid.subscriptions.fulcro :as subs :refer [<sub]]
+    [space.matterandvoid.subscriptions.fulcro :refer [<sub]]
     [com.fulcrologic.fulcro.application :as fulcro.app]
-    [edn-query-language.core :as eql]
-    [com.fulcrologic.fulcro.algorithms.merge :as merge]
     [taoensso.timbre :as log]
     [clojure.test :refer [deftest is testing]]))
 
@@ -39,13 +37,12 @@
 (def todo-sub (sut/create-component-subs todo-comp {:todo/comment  comment-sub
                                                     :todo/comments comment-sub
                                                     :todo/author   {:bot/id bot-sub :user/id user-sub}}))
-(def list-sub (sut/create-component-subs list-comp {:list/items {:comment/id comment-sub :todo/id todo-sub}
-                                                    :list/members {:comment/id comment-sub :todo/id todo-sub}
-                                                    }))
+(def list-sub (sut/create-component-subs list-comp {:list/items   {:comment/id comment-sub :todo/id todo-sub}
+                                                    :list/members {:comment/id comment-sub :todo/id todo-sub}}))
 (comment
-  (sut/eql-query-keys-by-type (sut/get-query todo-comp) {:todo/comment comment-sub
+  (sut/eql-query-keys-by-type (sut/get-query todo-comp) {:todo/comment  comment-sub
                                                          :todo/comments comment-sub
-                                                         :todo/author {:bot/id bot-sub :user/id user-sub}})
+                                                         :todo/author   {:bot/id bot-sub :user/id user-sub}})
   (def todo-sub (sut/create-component-subs todo-comp nil)))
 
 ;(def list-sub (sut/create-component-subs list-comp nil))
@@ -54,7 +51,7 @@
 ;(run! sut/register-component-subs! [user-comp bot-comp comment-comp todo-comp list-comp human-comp])
 
 (def db_ (r/atom {:comment/id {:comment-1 {:comment/id           :comment-1 :comment/text "FIRST COMMENT"
-                                           :comment/author [:user/id :user-1]
+                                           :comment/author       [:user/id :user-1]
                                            :comment/sub-comments [[:comment/id :comment-2]]}
                                :comment-2 {:comment/id :comment-2 :comment/text "SECOND COMMENT"}
                                :comment-3 {:comment/id :comment-3 :comment/text "THIRD COMMENT"}}
@@ -81,6 +78,7 @@
 (def app (assoc (fulcro.app/fulcro-app {}) ::fulcro.app/state-atom db_))
 (comment
   ;; wow. it works....
+  (bot-sub app {:bot/id :bot-1})
   (<sub app [user-sub {:user/id :user-1 sut/query-key [:user/name]}])
   (<sub app [user-sub {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends 1}]}])
   (<sub app [user-sub {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends 0}]}])
@@ -112,7 +110,7 @@
   (fulcro.app/current-state app)
   (<sub app [todo-sub {:todo/id :todo-1 sut/query-key [:todo/id :todo/author]}])
   (<sub app [list-sub {:list/id :list-1 sut/query-key [{:list/items list-member-q}
-                                                     {:list/members {:comment/id [:comment/id :comment/text] :todo/id [:todo/id :todo/text]}}]}])
+                                                       {:list/members {:comment/id [:comment/id :comment/text] :todo/id [:todo/id :todo/text]}}]}])
   )
 (deftest union-queries-test
   (testing "to-one union queries"
@@ -123,7 +121,7 @@
           (<sub app [todo-sub {:todo/id :todo-2 sut/query-key [:todo/id :todo/author]}])))
     (is (= {:todo/id :todo-2, :todo/author {:user/name "user 2"}}
           (<sub app [todo-sub {:todo/id :todo-2 sut/query-key [:todo/id {:todo/author {:user/id        [:user/name]
-                                                                                     :does-not/exist [:a :b :c]}}]}])))
+                                                                                       :does-not/exist [:a :b :c]}}]}])))
     (testing "support for * query"
       (is (= #:todo{:id :todo-1, :author #:bot{:id :bot-1, :name "bot 1"}} (<sub app [todo-sub {:todo/id :todo-1 sut/query-key [:todo/id {:todo/author ['*]}]}])))
       (is (= #:todo{:id :todo-2, :author #:user{:id :user-2, :name "user 2", :friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3]]}}
@@ -141,7 +139,7 @@
                            #:comment{:id :comment-1, :text "FIRST COMMENT", :sub-comments [#:comment{:id :comment-2, :text "SECOND COMMENT"}]}],
                  :members [#:comment{:id :comment-1, :text "FIRST COMMENT"} #:todo{:id :todo-2, :text "todo 2"}]}
           (<sub app [list-sub {:list/id :list-1 sut/query-key [{:list/items list-member-q}
-                                                             {:list/members {:comment/id [:comment/id :comment/text] :todo/id [:todo/id :todo/text]}}]}])))
+                                                               {:list/members {:comment/id [:comment/id :comment/text] :todo/id [:todo/id :todo/text]}}]}])))
 
     (testing "unions should only return queried-for branches"
       (is (= {:list/items []} (<sub app [list-sub {:list/id :list-1 sut/query-key [{:list/items {:todo2/id [:todo/id :todo/text]}}]}])))
@@ -211,14 +209,16 @@
 
 (deftest queries-test
   (testing "props"
-    (is (= {:todo/id :todo-1 :todo/text "todo 1"} (<sub app [todo-sub {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]}])))
-    (is (=
-          #:todo{:comment  [:comment/id :comment-1],
-                 :comments sut/missing-val
-                 :author   [:bot/id :bot-1],
-                 :id       :todo-1,
-                 :text     "todo 1"}
-          (<sub app [todo-sub {:todo/id :todo-1 sut/query-key ['* :todo/text]}]))))
+    (let [out1 {:todo/id :todo-1 :todo/text "todo 1"}
+          out2 #:todo{:comment  [:comment/id :comment-1],
+                      :comments sut/missing-val
+                      :author   [:bot/id :bot-1],
+                      :id       :todo-1,
+                      :text     "todo 1"}]
+      (is (= out1 (<sub app [todo-sub {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]}])))
+      (is (= out1 (todo-sub app {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]})))
+      (is (= out2 (<sub app [todo-sub {:todo/id :todo-1 sut/query-key ['* :todo/text]}])))
+      (is (= out2 (todo-sub app {:todo/id :todo-1 sut/query-key ['* :todo/text]})))))
 
   (testing "entity subscription with no query returns all attributes"
     (is (=
@@ -240,26 +240,26 @@
 
 (comment
   (<sub app [list-sub {:list/id :list-1 sut/query-key [{:list/items list-member-q}
-                                                     {:list/members {:comment/id [:comment/id :comment/text] :todo/id [:todo/id :todo/text]}}]}])
+                                                       {:list/members {:comment/id [:comment/id :comment/text] :todo/id [:todo/id :todo/text]}}]}])
   (<sub app [todo-sub {:todo/id :todo-1 sut/query-key [:todo/id :todo/author]}])
   (<sub app [list-sub {:list/id :list-1}])
   (<sub app [list-sub {:list/id :list-1 sut/query-key [#_:list/name {:list/members {:comment/id [:comment/id :comment/text]
-                                                                                  :todo/id    [:todo/id :todo/text]}}]}])
+                                                                                    :todo/id    [:todo/id :todo/text]}}]}])
   (<sub app [list-sub {:list/id :list-1 sut/query-key [:list/name {:list/members {:comment/id [:comment/id :comment/text
-                                                                                             {:comment/sub-comments '...}]
-                                                                                :todo/id    [:todo/id :todo/text]}}]}])
+                                                                                               {:comment/sub-comments '...}]
+                                                                                  :todo/id    [:todo/id :todo/text]}}]}])
   (<sub app [list-sub {:list/id :list-1 sut/query-key [:list/name
-                                                     {:list/members {:comment/id [:comment/id :comment/text {:comment/sub-comments '...}] :todo/id [:todo/id :todo/text]}}
-                                                     {:list/items
+                                                       {:list/members {:comment/id [:comment/id :comment/text {:comment/sub-comments '...}] :todo/id [:todo/id :todo/text]}}
+                                                       {:list/items
 
-                                                      {:comment/id [:comment/id :comment/text {:comment/sub-comments 0}] :todo/id [:todo/id :todo/text]}
-                                                      }
-                                                     ]}])
+                                                        {:comment/id [:comment/id :comment/text {:comment/sub-comments 0}] :todo/id [:todo/id :todo/text]}
+                                                        }
+                                                       ]}])
   (<sub app [list-sub {:list/id :list-1 sut/query-key [; :list/name
-                                                     ;{:list/members (sut/get-query list-member-comp)}
-                                                     {:list/items {
-                                                                   ;:comment/id [:comment/id :comment/text {:comment/sub-comments 0}]
-                                                                   :todo/id [:todo/id :todo/text]}}
-                                                     ]}])
+                                                       ;{:list/members (sut/get-query list-member-comp)}
+                                                       {:list/items {
+                                                                     ;:comment/id [:comment/id :comment/text {:comment/sub-comments 0}]
+                                                                     :todo/id [:todo/id :todo/text]}}
+                                                       ]}])
 
   )

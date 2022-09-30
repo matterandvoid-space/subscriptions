@@ -6,7 +6,7 @@
 *.jar
 core/
 out/
-tmpg
+tmp
 target/
 compiled/
 node_modules/

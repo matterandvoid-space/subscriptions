@@ -6,12 +6,12 @@
 *.jar
 core/
 out/
-tmp/
-/target/
+tmpg
+target/
 compiled/
 node_modules/
 *~
-/.shadow-cljs/
+.shadow-cljs/
 .cpcache
 test-output
 node-tests.js

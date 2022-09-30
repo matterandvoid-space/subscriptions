@@ -2,7 +2,7 @@
   (:require
     [borkdude.dynaload :refer [dynaload]]
     [edn-query-language.core :as eql]
-    [space.matterandvoid.subscriptions.core :refer [reg-sub-raw reg-sub <sub sub-fn]]
+    [space.matterandvoid.subscriptions.core :refer [reg-sub-raw <sub sub-fn]]
     [space.matterandvoid.subscriptions.impl.eql-queries :as impl]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
     [space.matterandvoid.subscriptions.impl.eql-protocols :as proto]

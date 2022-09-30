@@ -6,7 +6,7 @@
   (:import [java.time LocalDate]))
 
 (def lib 'space.matterandvoid/subscriptions)
-(def version (str (str/replace (str (LocalDate/now)) "-" ".") "-2"))
+(def version (str/replace (str (LocalDate/now)) "-" "."))
 
 ;; run these to deploy a new version of the app
 ;; clojure -T:build jar

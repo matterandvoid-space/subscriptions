@@ -2,11 +2,10 @@
   (:require
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [edn-query-language.core :as eql]
-    [space.matterandvoid.subscriptions.fulcro :refer [reg-sub-raw reg-sub <sub sub-fn]]
+    [space.matterandvoid.subscriptions.fulcro :refer [reg-sub-raw <sub sub-fn]]
     [space.matterandvoid.subscriptions.impl.eql-queries :as impl]
     [space.matterandvoid.subscriptions.impl.eql-protocols :as proto]
-    [space.matterandvoid.subscriptions.impl.reagent-ratom :refer [cursor]]
-    [taoensso.timbre :as log]))
+    [space.matterandvoid.subscriptions.impl.reagent-ratom :refer [cursor]]))
 
 (def query-key impl/query-key)
 (def missing-val impl/missing-val)

@@ -33,6 +33,11 @@ Get the latest coordinates on clojars:
 
 [![Clojars Project](https://img.shields.io/clojars/v/space.matterandvoid/subscriptions.svg)](https://clojars.org/space.matterandvoid/subscriptions)
 
+API Docs:
+
+[![cljdoc badge](https://cljdoc.org/badge/space.matterandvoid/subscriptions)](https://cljdoc.org/d/space.matterandvoid/subscriptions)
+
+
 _note_ this library depends on reagent, but given its prevalance and chance for version conflicts does not declare it 
 as a dependency, you must add it to your deps.
 

@@ -1,3 +1,5 @@
+# EQL Queries via subscriptions
+
 This library features support for fulfilling [EQL](https://github.com/edn-query-language/eql) queries via subscriptions.
 
 The goals of implementing this were:

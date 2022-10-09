@@ -1,5 +1,6 @@
 (ns space.matterandvoid.subscriptions.impl.core
   (:require
+    [space.matterandvoid.subscriptions.core :as-alias subs.core]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
     [space.matterandvoid.subscriptions.impl.subs :as subs]
     [taoensso.timbre :as log]))
@@ -7,8 +8,8 @@
 (defn get-input-db-signal [ratom] ratom)
 (defonce subs-cache_ (atom {}))
 (defn get-subscription-cache [_app] subs-cache_)
-(defn get-cache-key [app query-v] (if (keyword? (first query-v)) query-v (into [(hash app)] query-v)))
-(defn cache-lookup [app cache-key] (when app (get @(get-subscription-cache app) cache-key)))
+(defn get-cache-key [datasource query-v] (if (keyword? (first query-v)) query-v (into [(hash datasource)] query-v)))
+(defn cache-lookup [datasource cache-key] (when datasource (get @(get-subscription-cache datasource) cache-key)))
 (defn subs-state-path [k] [k])
 (defonce handler-registry_ (atom {}))
 
@@ -19,7 +20,7 @@
   handler-fn)
 
 (defn get-handler [id] (if (fn? id)
-                         (or (-> id meta :space.matterandvoid.subscriptions.core/subscription) id)
+                         (or (-> id meta ::subs.core/subscription) id)
                          (get-in @handler-registry_ (subs-state-path id))))
 
 (defn clear-handlers

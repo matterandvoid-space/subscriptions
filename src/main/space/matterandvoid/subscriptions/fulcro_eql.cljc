@@ -27,7 +27,6 @@
       ;(log/debug "-ref->id ref" ref)
       (cond (eql/ident? ref) (second ref)
             (map? ref) (let [id-key (first (filter (comp #(= % "id") name) (keys ref)))]
-                         ;(println "ID KEY: " id-key)
                          (get ref id-key))
             :else ref))
     (-entity-id [_ _ id-attr args] (get args id-attr))

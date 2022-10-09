@@ -1,6 +1,7 @@
 (ns space.matterandvoid.subscriptions.core
   #?(:cljs (:require-macros [space.matterandvoid.subscriptions.core]))
   (:require
+    #?(:cljs ["react" :as react])
     [space.matterandvoid.subscriptions.impl.core :as impl]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]))
 
@@ -139,7 +140,7 @@
               (fn ~fn-name
                 ([datasource#] (deref (subscription-fn# datasource#)))
                 ([datasource# args#] (deref (subscription-fn# datasource# args#))))
-              {:space.matterandvoid.subscriptions.core/subscription subscription-fn#}))))))
+              {::subscription subscription-fn#}))))))
 
 (defn sub-fn
   "Takes a function that returns either a Reaction or RCursor. Returns a function that when invoked delegates to `f` and
@@ -151,3 +152,5 @@
       ([datasource] (deref (f datasource)))
       ([datasource args] (deref (f datasource args))))
     {::subscription f}))
+
+#?(:cljs (def datasource-context (react/createContext nil)))

@@ -131,32 +131,20 @@ and rendered with their values - this way there are never any stale components o
 
 See the `space.matterandvoid.subscriptions.react-hook-fulcro` namespace
 
+# Subscriptions support passing the fulcro application of state map as a datasource
+
+Subscriptions compute derived data and a common place to make use of that derived data is in mutations.
+
+To make this integration even smoother for fulcro applications you can pass the fulcro state hashmap to a subscription
+instead of a fulcro application. When using subscriptions inside components you will pass the fulcro application, but 
+for mutation helpers that operate on the state map itself (functions that you would pass to `(swap!)`), you don't have
+to also pass the fulcro app just to use subscriptions in that context.
+
 # Subscription authoring tips
 
-All the subscription compute functions are memoized and thus you must be aware that if the inputs to a subscription do not
-change then the computation will return the cached data.
+You can use Reagent RCursors for layer 2 subscriptions, these perform much better than Reactions for layer 2 subscriptions.
 
-When integrating with fulcro the following strategy is recommended to deal with the design tension of wanting optimal caching
-while still ensuring the UI reflects the most up-to-date state of the app db.
-
-At the layer 2 level use db->tree and depend on the db - this way you'll ensure your downstream subs will properly
-invalidate the memoization cache (or really, compute on new inputs).
-
-Then in layer 3 subs you can select only the parts of the data tree from the layer 2 inputs that you care about, and
-pass those to another layer 3 sub - this way the leaf subscription which the UI will use to render - can be memoized while
-the layer 2 subs (by using db->tree) will ensure they pick up the newest dependent data from a fulcro query.
-
-The short way to say it is if your layer-3 subscription takes as input an ident then you will likely get bit by the subscription
-not updating properly.
-
-So:
-- never take an ident as input to a subscription (or a collection of them) - use db->tree instead
-- add 'extractor' subscriptions on top of the db->tree ones to gain the benefits of memoization
-    - for example if you are rendering a list of items but only their `::title` field and some other field changes on them,
-      having a subscription that maps over them only pulling out the `::title` will enable the subscription to be cached.
-- do not use the fulcro application from within a subscription to extract some data "side-band" because this is really
-  hiding a subscription dependency - so refactor it to be another subscription, this way your compute graph will recompute
-  correctly when dependent data changes.
+If you're using the EQL subscriptions in this library with fulcro, layer 2 subscriptions are implemented with RCursors for you.
 
 ## Do not use swap!
 

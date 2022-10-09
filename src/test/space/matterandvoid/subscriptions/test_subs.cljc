@@ -1,4 +1,4 @@
-(ns space.matterandvoid.subscriptions.subs
+(ns space.matterandvoid.subscriptions.test-subs
   (:require
     [space.matterandvoid.subscriptions.fulcro :as sut]))
 

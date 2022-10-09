@@ -11,7 +11,7 @@
 ;; run these to deploy a new version of the app
 ;; clojure -T:build jar
 ;; CLOJARS_USERNAME=... clojure -T:build deploy
-;; git tag -a <version>
+;; git tag -a v<version>
 ;; git push github --tags
 
 (defn clean [opts] (bb/clean opts))

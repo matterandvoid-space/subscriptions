@@ -5,7 +5,6 @@
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [com.fulcrologic.fulcro.components :as c]
     #?(:cljs [goog.object :as obj])
-    [space.matterandvoid.subscriptions.fulcro :as-alias subs.fulcro]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
     [space.matterandvoid.subscriptions.impl.subs :as subs]
@@ -73,7 +72,7 @@
   Lookup in the place where the query-id -> handler functions are stored."
   [id]
   (if (fn? id)
-    (or (-> id meta ::subs.fulcro/subscription) id)
+    (or (-> id meta :space.matterandvoid.subscriptions.fulcro/subscription) id)
     (get-in @handler-registry_ (subs-state-path subs-key id))))
 
 (defn register-handler!

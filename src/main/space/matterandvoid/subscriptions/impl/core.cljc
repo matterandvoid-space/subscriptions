@@ -1,6 +1,5 @@
 (ns space.matterandvoid.subscriptions.impl.core
   (:require
-    [space.matterandvoid.subscriptions.core :as-alias subs.core]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
     [space.matterandvoid.subscriptions.impl.subs :as subs]
     [taoensso.timbre :as log]))
@@ -20,7 +19,7 @@
   handler-fn)
 
 (defn get-handler [id] (if (fn? id)
-                         (or (-> id meta ::subs.core/subscription) id)
+                         (or (-> id meta :space.matterandvoid.subscriptions.core/subscription) id)
                          (get-in @handler-registry_ (subs-state-path id))))
 
 (defn clear-handlers

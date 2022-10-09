@@ -5,6 +5,7 @@
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [com.fulcrologic.fulcro.components :as c]
     #?(:cljs [goog.object :as obj])
+    [space.matterandvoid.subscriptions.fulcro :as-alias subs.fulcro]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
     [space.matterandvoid.subscriptions.impl.subs :as subs]
@@ -15,16 +16,20 @@
   (this it the 'db' in re-frame parlance).
   this assumes you've set your fulcro app's state-atom to be reagent reactive atom."
   [app]
-  (::fulcro.app/state-atom app))
+  ;; This is a kind of hack to allow passing in the fulcro state map to subscriptions
+  ;; which is useful in contexts like mutation helpers which operate on the hashmap and some arguments, but would
+  ;; be annoying to pass the fulcro app to.
+  (if (fulcro.app/fulcro-app? app)
+    (::fulcro.app/state-atom app)
+    (ratom/atom app)))
 
 ;; for other proxy interfaces (other than fulcro storage) this has to be an atom of a map.
 ;; this is here for now just to inspect it at the repl
 (defonce subs-cache_ (atom {}))
 (comment @subs-cache_
   (let [k (first (keys @subs-cache_))]
-
     @(get @subs-cache_ k))
-  ;; now all i need to do is
+  ;; now all I need to do is
   ;; (reset! fulcro-state-atom
   ;;   (reduce-kv (fn [state k v] (assoc-in state [k] @v) @fulcro-state-atom @subs-cache)
   ;; store the subscriptions as normalized data
@@ -41,7 +46,13 @@
 ;; so there isn't an explosion in the top level keyspace
 ;; it's a tradeoff, it may make more sense to just add integration with fulcro inspect via the
 ;; existing tracing calls.
-(defn get-cache-key [app query-v] (if (keyword? (first query-v)) query-v (into [(hash app)] query-v)))
+(defn get-cache-key [app query-v]
+  (let [datasource-map (cond
+                         (fulcro.app/fulcro-app? app) (fulcro.app/current-state app)
+                         (ratom/ratom? app) (deref app)
+                         (map? app) app)]
+    (if (keyword? (first query-v)) query-v (into [(hash datasource-map)] query-v))))
+
 (defn get-subscription-cache [app] subs-cache_ #_(atom {}))
 (defn cache-lookup [app cache-key] (when app (get @(get-subscription-cache app) cache-key)))
 
@@ -62,7 +73,7 @@
   Lookup in the place where the query-id -> handler functions are stored."
   [id]
   (if (fn? id)
-    (or (-> id meta :space.matterandvoid.subscriptions.fulcro/subscription) id)
+    (or (-> id meta ::subs.fulcro/subscription) id)
     (get-in @handler-registry_ (subs-state-path subs-key id))))
 
 (defn register-handler!
@@ -102,7 +113,8 @@
 
   To obtain the current value from the Signal, it must be dereferenced"
   [?app query]
-  (subs/subscribe get-handler cache-lookup get-subscription-cache get-cache-key (c/any->app ?app) query))
+  (subs/subscribe get-handler cache-lookup get-subscription-cache get-cache-key
+    (cond-> ?app (c/component-instance? ?app) c/any->app) query))
 
 (defn <sub
   "Subscribe and deref a subscription, returning its value, not a reaction."

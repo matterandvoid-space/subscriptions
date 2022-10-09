@@ -37,7 +37,6 @@ API Docs:
 
 [![cljdoc badge](https://cljdoc.org/badge/space.matterandvoid/subscriptions)](https://cljdoc.org/d/space.matterandvoid/subscriptions)
 
-
 _note_ this library depends on reagent, but given its prevalance and chance for version conflicts does not declare it 
 as a dependency, you must add it to your deps.
 
@@ -206,6 +205,37 @@ See the examples directory in the source for working code.
        "Add a todo")
       ($ :h4 "todos: " (pr-str my-todos))
       ($ :h4 "sorted todos: " (pr-str (:sorted-todo-list the-subs))))))
+```
+
+### Use React Context to pass the datasource through the component tree
+
+The hooks `use-sub` and `use-sub-map` have single-arity versions which will look up the datasource using React [context](https://beta.reactjs.org/apis/react/createContext#creating-context).
+
+A React context object is `def`'d in the library for you to bind a value to for a component tree.
+
+Here is an example using [helix](https://github.com/lilactown/helix) for react rendering:
+
+```clojure
+(ns co.company.my-app
+  (:require
+    [space.matterandvoid.subscriptions.core :as subs :refer [defsub]]
+    [space.matterandvoid.subscriptions.reagent-ratom :as ratom]
+    [space.matterandvoid.subscriptions.react-hook :as subs.hooks]
+    [helix.core :as hc]))
+
+(def my-datasource (ratom/atom {:a-number 500}))
+
+(defsub a-number :-> :a-number)
+
+(hc/a-component []
+  (let [the-number (subs.hooks/use-sub [a-number])] ; <-- notice here we don't have to pass the datasource
+    (hc/$ :div "A number: " the-number)))
+
+(hc/defnc app []
+  (hc/provider {:context subs/datasource-context :value my-datasource}
+    (hc/$ :div
+      (hc/$ :p "your app here")
+      (hc/$ a-component))))
 ```
 
 # Differences/modifications from upstream re-frame
@@ -630,9 +660,18 @@ https://github.com/reagent-project/reagent/blob/master/doc/WhenDoComponentsUpdat
 
 # Development and contributing
 
-clone the repo and:
+Clone the repo and run:
 
 ```bash
 bb dev
 ```
+
 Open the shadow-cljs builds page and then open the page that hosts the tests or an example app.
+
+Run the clojure tests:
+
+```bash
+bb clj-test
+```
+
+

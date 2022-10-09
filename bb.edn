@@ -55,4 +55,16 @@
 
   test
   {:depends [yarn-install]
-   :task    (run-shadow-watch '[test] (into *command-line-args* dev-aliases))}}}
+   :task    (run-shadow-watch '[test] (into *command-line-args* dev-aliases))}
+
+  clj-test
+  {:task
+   (do
+     (println "Running XTDB EQL tests")
+     (clojure "-M:dev:test:run-tests :xtdb-eql --reporter documentation")
+     (println "Running Datalevin EQL tests")
+     (clojure "-M:dev:test:run-tests :datalevin-eql --reporter documentation")
+     (println "Running Fulcro EQL tests")
+     (clojure "-M:dev:test:run-tests :fulcro-eql --reporter documentation")
+     (println "Running Core tests")
+     (clojure "-M:dev:test:run-tests :core --reporter documentation"))}}}

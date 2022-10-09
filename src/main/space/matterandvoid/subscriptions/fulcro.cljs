@@ -8,7 +8,8 @@
     [com.fulcrologic.fulcro.rendering.ident-optimized-render :as ident-optimized-render]
     [space.matterandvoid.subscriptions.impl.fulcro :as impl]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
-    [goog.object :as g]))
+    [goog.object :as g]
+    ["react" :as react]))
 
 (defn set-memoize-fn! [f] (impl/set-memoize-fn! f))
 (defn set-args-merge-fn! [f] (impl/set-args-merge-fn! f))
@@ -216,3 +217,13 @@
          ;(log/info "Drop component!" (c/component-name this))
          (cleanup! this)
          (fulcro.index/drop-component! this ident))))))
+
+(defn with-headless-fulcro
+  "Takes a fulcro app, disables all UI rendering and replaces the state atom with a Reagent RAtom."
+  [app]
+  (assoc app :render-root! identity
+             :optimized-render! identity
+             :hydrate-root! identity
+             ::fulcro.app/state-atom (ratom/atom {})))
+
+(def datasource-context (react/createContext nil))

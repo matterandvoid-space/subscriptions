@@ -1,7 +1,7 @@
 (ns space.matterandvoid.subscriptions.fulcro-test
   (:require
     [clojure.test :refer [deftest is testing use-fixtures]]
-    [space.matterandvoid.subscriptions.subs :as subs]
+    [space.matterandvoid.subscriptions.test-subs :as subs]
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [space.matterandvoid.subscriptions.fulcro :as sut]))
 
@@ -56,6 +56,7 @@
         out3 (sut/<sub app [::third])
         out4 (sut/<sub app [::fourth])
         out5 (sut/<sub app [::fifth])
+        out6 (sut/<sub (fulcro.app/current-state app) [::fifth])
         a    (sut/<sub app [::a])]
     (is (= out1 500))
     (is (= out2 510))
@@ -64,6 +65,7 @@
     (is (= out3 520))
     (is (= out4 "500"))
     (is (= out5 520))
+    (is (= out6 520))
     (is (= a "hi"))
     (is (= 4 @counter_))))
 

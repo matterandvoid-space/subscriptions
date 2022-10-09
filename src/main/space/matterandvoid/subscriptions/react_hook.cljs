@@ -25,7 +25,10 @@
   subscription which will cause the consuming react function component to update when the subscription's value updates.
 
   Arguments are a reagent ratom `data-source`, and a subscription query vector (vector of keyword and an optional hashmap of
-  arguments)."
+  arguments).
+
+  The single-arity version takes only a query map and will use the suscription app-context to read the fulcro app from
+  React context."
   ([data-source query]
    (when goog/DEBUG (assert (ratom/ratom? data-source)))
    (let [ref (react/useRef nil)]
@@ -42,7 +45,10 @@
   Takes a data source (reagent ratom) and a hashmap
   - keys are keywords (qualified or simple) that you make up.
   - values are subscription vectors.
-  Returns a map with the same keys and the values are the subscriptions subscribed and deref'd (thus, being their current values)."
+  Returns a map with the same keys and the values are the subscriptions subscribed and deref'd (thus, being their current values).
+
+  The single-arity version takes only a query map and will use the suscription app-context to read the fulcro app from
+  React context."
   ([data-source query-map]
    (when goog/DEBUG (assert (ratom/ratom? data-source)))
    (when goog/DEBUG (assert (map? query-map)))

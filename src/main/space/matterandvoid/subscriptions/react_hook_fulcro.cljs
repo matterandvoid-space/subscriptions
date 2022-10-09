@@ -16,8 +16,8 @@
   Arguments are a fulcro application whose state atom is a reagent ratom and a subscription query vector
   (a vector of a keyword and an optional hashmap of arguments).
 
-  The single-arity version takes only a query map and will use the suscription app-context to read the fulcro app from\n  React context.
-  "
+  The single-arity version takes only a query map and will use the suscription app-context to read the fulcro app from
+  React context."
   ([data-source query]
    (when goog/DEBUG (assert (fulcro.app/fulcro-app? data-source)))
    (let [ref (react/useRef nil)]
@@ -38,7 +38,7 @@
   - values are subscription vectors.
   Returns a map with the same keys and the values are the subscriptions subscribed and deref'd (thus, being their current values).
 
-  The single-arity version takes only a query map and will use the suscription app-context to read the fulcro app from
+  The single-arity version takes only a query map and will use the suscription datasource-context to read the fulcro app from
   React context."
   ([data-source query-map]
    (when goog/DEBUG (assert (fulcro.app/fulcro-app? data-source)))

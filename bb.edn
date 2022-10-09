@@ -57,6 +57,13 @@
   {:depends [yarn-install]
    :task    (run-shadow-watch '[test] (into *command-line-args* dev-aliases))}
 
+  cljs-test
+  {:depends [yarn-install]
+   :task
+   (do
+     (shell "yarn run shadow-cljs compile ci-tests")
+     (shell "./node_modules/.bin/karma start --single-run"))}
+
   clj-test
   {:task
    (do

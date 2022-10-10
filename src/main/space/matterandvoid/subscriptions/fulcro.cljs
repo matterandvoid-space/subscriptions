@@ -116,10 +116,6 @@
 ;; reactive refresh of components
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; todo this only supports class components right now, not hooks.
-;; maybe have a primitive that handles this: `(use-subscriptions)`
-;; and the macro can use that hook?
-
 (defn cleanup! "Intended to be called when a component unmounts to clear the registered Reaction."
   [this] (impl/cleanup! this))
 
@@ -224,6 +220,6 @@
   (assoc app :render-root! identity
              :optimized-render! identity
              :hydrate-root! identity
-             ::fulcro.app/state-atom (ratom/atom {})))
+             ::fulcro.app/state-atom (ratom/atom @(::fulcro.app/state-atom app))))
 
 (def datasource-context (react/createContext nil))

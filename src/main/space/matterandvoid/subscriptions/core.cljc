@@ -142,15 +142,29 @@
                 ([datasource# args#] (deref (subscription-fn# datasource# args#))))
               {::subscription subscription-fn#}))))))
 
+#?(:clj
+   (defmacro deflayer2-sub
+     "Only supports use cases where your datasource is a hashmap.
+
+     Takes a symbol for a subscription name and a way to derive a path in your datasource hashmap. Returns a function subscription
+     which itself returns a Reagent RCursor.
+     Supports a vector path, a single keyword, or a function which takes the arguments map passed to subscribe and
+     must return a path vector to use as an RCursor path.
+
+     Examples:
+
+     (deflayer2-sub my-subscription :a-path-in-your-db)
+
+     (deflayer2-sub my-subscription [:a-path-in-your-db])
+
+     (deflayer2-sub my-subscription (fn [sub-args-map] [:a-key (:some-val sub-args-map])))
+     "
+     [sub-name ?path] `(impl/deflayer2-sub ::subscription ~sub-name ~?path)))
+
 (defn sub-fn
   "Takes a function that returns either a Reaction or RCursor. Returns a function that when invoked delegates to `f` and
    derefs its output. The returned function can be used in subscriptions."
   [f]
-  (with-meta
-    (fn
-      ([] (deref (f)))
-      ([datasource] (deref (f datasource)))
-      ([datasource args] (deref (f datasource args))))
-    {::subscription f}))
+  (impl/sub-fn ::subscription f))
 
 #?(:cljs (def datasource-context (react/createContext nil)))

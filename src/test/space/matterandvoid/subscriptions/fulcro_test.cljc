@@ -24,6 +24,10 @@
 (sut/reg-sub ::first
   (fn [db] (:first db)))
 
+(sut/deflayer2-sub acc1 :first)
+(sut/deflayer2-sub acc1' [:first])
+(sut/deflayer2-sub acc1'' (fn [args] [(:kw args)]))
+
 (sut/reg-sub ::second :<- [::first]
   (fn [args]
     ;(println "secodn args: " args)
@@ -59,6 +63,17 @@
         out6 (sut/<sub (fulcro.app/current-state app) [::fifth])
         a    (sut/<sub app [::a])]
     (is (= out1 500))
+    (is (= 500 (sut/<sub app [acc1])))
+    (is (= 500 (sut/<sub app [acc1 nil])))
+    (is (= 500 (sut/<sub app [acc1'])))
+    (is (= 500 (sut/<sub app [acc1' nil])))
+    (is (= 500 (sut/<sub app [acc1'' {:kw :first}])))
+    (is (= 500 (acc1 app)))
+    (is (= 500 (acc1 app nil)))
+    (is (= 500 (acc1' app)))
+    (is (= 500 (acc1' app nil)))
+    (is (= 500 (acc1'' app {:kw :first})))
+
     (is (= out2 510))
     (is (= (sut/<sub app [::second]) 510))
     (is (= (sut/<sub app [::second]) 510))

@@ -105,12 +105,7 @@
   "Takes a function that returns either a Reaction or RCursor. Returns a function that when invoked delegates to `f` and
    derefs its output. The returned function can be used in subscriptions."
   [f]
-  (with-meta
-    (fn
-      ([] (deref (f)))
-      ([datasource] (deref (f datasource)))
-      ([datasource args] (deref (f datasource args))))
-    {::subscription f}))
+  (impl/sub-fn ::subscription f))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; reactive refresh of components

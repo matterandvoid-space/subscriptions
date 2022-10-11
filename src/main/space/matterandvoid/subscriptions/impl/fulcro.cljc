@@ -131,6 +131,30 @@
 
 (defn clear-subscription-cache! [registry] (subs/clear-subscription-cache! get-subscription-cache registry))
 
+(defn sub-fn
+  "Takes a function that returns either a Reaction or RCursor. Returns a function that when invoked delegates to `f` and
+   derefs its output. The returned function can be used in subscriptions."
+  [meta-fn-key f]
+  (subs/sub-fn meta-fn-key f))
+
+#?(:clj
+   (defmacro deflayer2-sub
+     "Takes a symbol for a subscription name and a way to derive a path in your fulcro app db. Returns a function subscription
+     which itself returns a Reagent RCursor.
+     Supports a vector path, a single keyword, or a function which takes the arguments map passed to subscribe and
+     must return a path vector to use as an RCursor path.
+
+     Examples:
+
+     (deflayer2-sub my-subscription :a-path-in-your-db)
+
+     (deflayer2-sub my-subscription [:a-path-in-your-db])
+
+     (deflayer2-sub my-subscription (fn [sub-args-map] [:a-key (:some-val sub-args-map])))
+     "
+     [meta-sub-kw sub-name ?path]
+     `(subs/deflayer2-sub ~meta-sub-kw get-input-db-signal ~sub-name ~?path)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; reactive refresh of components
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

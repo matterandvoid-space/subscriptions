@@ -1,0 +1,5 @@
+{:lint-as
+ {space.matterandvoid.subscriptions.fulcro/defsub    clojure.core/def
+  space.matterandvoid.subscriptions.fulcro/defregsub clojure.core/def
+  space.matterandvoid.subscriptions.core/defsub      clojure.core/def
+  space.matterandvoid.subscriptions.core/defregsub   clojure.core/def}}

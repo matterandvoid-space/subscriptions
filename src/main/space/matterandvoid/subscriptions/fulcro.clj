@@ -208,6 +208,14 @@
          (cleanup! this)
          (fulcro.index/drop-component! this ident))))))
 
+(defn with-headless-fulcro
+  "Takes a fulcro app, disables all UI rendering and replaces the state atom with a Reagent RAtom."
+  [app]
+  (assoc app :render-root! identity
+             :optimized-render! identity
+             :hydrate-root! identity
+             ::fulcro.app/state-atom (ratom/atom @(::fulcro.app/state-atom app))))
+
 (defmacro defregsub
   "Has the same function signature as `reg-sub`.
   Registers a subscription and creates a function which is invokes subscribe and deref on the registered subscription

@@ -51,6 +51,15 @@
 (def class->registry-key impl/class->registry-key)
 (def get-ident impl/get-ident)
 
+;; todo here you want to also create form config subs for these:
+;; {:com.fulcrologic.fulcro.algorithms.form-state/config [:com.fulcrologic.fulcro.algorithms.form-state/id
+;                                                         :com.fulcrologic.fulcro.algorithms.form-state/fields
+;                                                         :com.fulcrologic.fulcro.algorithms.form-state/complete?
+;                                                         :com.fulcrologic.fulcro.algorithms.form-state/subforms
+;                                                         :com.fulcrologic.fulcro.algorithms.form-state/pristine-state]}
+; this way you can use these eql subs instead of db->tree
+; but not in impl because they are fulcro specific
+
 (defn create-component-subs
   "Creates a subscription function that will fulfill the given fulcro component's query.
   The component and any components in its query must have a name (cannot be anonymous).

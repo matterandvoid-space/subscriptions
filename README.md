@@ -551,6 +551,29 @@ example:
 (<sub db_ [sorted-todos])
 ```
 
+## `deflayer2-sub` macro
+
+For use without a subscription registry. When using a subscription registry see the `reg-layer2-sub` function.
+
+For "layer2" subscriptions this library supports returning a Reagent RCursor type instead of a Reaction.
+
+This helper lets you just return a path instead of the cursor itself:
+
+For convenience you can provide
+- a single keyword
+- a vector path
+- a function which takes your db-atom and an optional arguments hashmap passed to `subscribe` and returns a vector path
+
+The function form lets you do things like store the cursor path in the db itself, for example a pointer (ref) to an entity.
+
+Examples:
+
+```clojure
+(deflayer2-sub a-sub :some-value)
+(deflayer2-sub my-todo [:todo/id 1234])
+(deflayer2-sub form-todo (fn [db_ args-map] (:root/new-todo-ref @db_)))
+```
+
 # Implementation details
 
 The codebase is quite tiny (the impl.subs namespace, pretty much the same as in re-frame), but if you haven't played with 

@@ -16,9 +16,10 @@
 (sut/defsub layer3-def2 :<- [sub2'] :-> #(* 10 %))
 
 (sut/reg-layer2-sub ::sub-2-accessor [:sub2])
+(sut/reg-layer2-sub ::sub-2-accessor-5 (fn [_db _args] [:sub2]))
 (sut/deflayer2-sub sub-2-accessor-2 [:sub2])
 (sut/deflayer2-sub sub-2-accessor-3 :sub2)
-(sut/deflayer2-sub sub-2-accessor-4 (fn [args] [(:kw args)]))
+(sut/deflayer2-sub sub-2-accessor-4 (fn [_db args] [(:kw args)]))
 (sut/defsub layer3-def3 :<- [layer3-def2] :<- [layer3-def1] :-> #(apply + %))
 (sut/defsub layer3-def4 :<- [layer3-def2] :<- [layer3-def1] :-> (fn [a] (apply + a)))
 (sut/defsub layer3-def5 :<- [layer3-def2] :<- [layer3-def1] (fn [a] (apply + a)))
@@ -74,6 +75,7 @@
 
 (deftest basic-test
   (is (= 500 (sut/<sub db [::sub-2-accessor])))
+  (is (= 500 (sut/<sub db [::sub-2-accessor-5])))
   (is (= 500 (sut/<sub db [sub-2-accessor-2])))
   (is (= 500 (sut/<sub db [sub-2-accessor-2 {}])))
   (is (= 500 (sut/<sub db [sub-2-accessor-3])))

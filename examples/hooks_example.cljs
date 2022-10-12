@@ -73,7 +73,7 @@
 
   )
 
-(reg-layer2-sub ::lvl2-cursor (fn [args] [:level1 (:key args)]))
+(reg-layer2-sub ::lvl2-cursor (fn [_db args] [:level1 (:key args)]))
 (reg-layer2-sub ::lvl2-cursor2 [:level1 :level2])
 (reg-layer2-sub `lvl2-cursor2 [:level1 :level2])
 (reg-sub :plus-level3 :<- [::lvl2-cursor2] :-> (fn [{:keys [level3]}]

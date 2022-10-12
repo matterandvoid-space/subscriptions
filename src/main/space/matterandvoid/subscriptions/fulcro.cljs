@@ -53,6 +53,13 @@
   [query-id & args]
   (apply impl/reg-sub query-id args))
 
+(defn reg-layer2-sub
+  "Registers a handler function that returns a Reagent RCursor instead of a Reagent Reaction.
+  Accepts a single keyword, a vector path into or a function which takes your db atom and arguments map passed to subscribe
+  and must return a vector path to be used for the cursor."
+  [query-id path-vec-or-fn]
+  (impl/reg-layer2-sub query-id path-vec-or-fn))
+
 (defn subscribe
   "Given a `query` vector, returns a Reagent `reaction` which will, over
   time, reactively deliver a stream of values. Also known as a `Signal`.

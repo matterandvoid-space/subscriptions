@@ -265,7 +265,7 @@
 (defmacro deflayer2-sub
   "Takes a symbol for a subscription name and a way to derive a path in your fulcro app db. Returns a function subscription
   which itself returns a Reagent RCursor.
-  Supports a vector path, a single keyword, or a function which takes the arguments map passed to subscribe and
+  Supports a vector path, a single keyword, or a function which takes the RAtom datasource and the arguments map passed to subscribe and
   must return a path vector to use as an RCursor path.
 
   Examples:
@@ -274,7 +274,7 @@
 
   (deflayer2-sub my-subscription [:a-path-in-your-db])
 
-  (deflayer2-sub my-subscription (fn [sub-args-map] [:a-key (:some-val sub-args-map])))
+  (deflayer2-sub my-subscription (fn [db-atom sub-args-map] [:a-key (:some-val sub-args-map])))
   "
   [sub-name ?path] `(impl/deflayer2-sub ::subscription ~sub-name ~?path))
 

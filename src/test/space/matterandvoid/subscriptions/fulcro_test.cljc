@@ -26,7 +26,9 @@
 
 (sut/deflayer2-sub acc1 :first)
 (sut/deflayer2-sub acc1' [:first])
-(sut/deflayer2-sub acc1'' (fn [args] [(:kw args)]))
+(sut/deflayer2-sub acc1'' (fn [_db args] [(:kw args)]))
+
+(sut/reg-layer2-sub ::sub-2-accessor-5 (fn [_db _args] [:first]))
 
 (sut/reg-sub ::second :<- [::first]
   (fn [args]
@@ -63,6 +65,7 @@
         out6 (sut/<sub (fulcro.app/current-state app) [::fifth])
         a    (sut/<sub app [::a])]
     (is (= out1 500))
+    (is (= 500 (sut/<sub app [::sub-2-accessor-5])))
     (is (= 500 (sut/<sub app [acc1])))
     (is (= 500 (sut/<sub app [acc1 nil])))
     (is (= 500 (sut/<sub app [acc1'])))

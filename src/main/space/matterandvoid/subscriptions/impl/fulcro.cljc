@@ -106,6 +106,15 @@
     get-input-db-signal get-handler register-handler! get-subscription-cache cache-lookup get-cache-key
     query-id args))
 
+(defn reg-layer2-sub
+  "Registers a handler function that returns a Reagent RCursor instead of a Reagent Reaction.
+  Accepts a single keyword, a vector path into or a function which takes your db atom and arguments map passed to subscribe
+  and must return a vector path to be used for the cursor."
+  [query-id path-vec-or-fn]
+  (subs/reg-layer2-sub
+    get-input-db-signal register-handler!
+    query-id path-vec-or-fn))
+
 (defn subscribe
   "Given a `query` vector, returns a Reagent `reaction` which will, over
   time, reactively deliver a stream of values. Also known as a `Signal`.
@@ -141,7 +150,7 @@
    (defmacro deflayer2-sub
      "Takes a symbol for a subscription name and a way to derive a path in your fulcro app db. Returns a function subscription
      which itself returns a Reagent RCursor.
-     Supports a vector path, a single keyword, or a function which takes the arguments map passed to subscribe and
+     Supports a vector path, a single keyword, or a function which takes the RAtom datasource and the arguments map passed to subscribe and
      must return a path vector to use as an RCursor path.
 
      Examples:
@@ -150,7 +159,7 @@
 
      (deflayer2-sub my-subscription [:a-path-in-your-db])
 
-     (deflayer2-sub my-subscription (fn [sub-args-map] [:a-key (:some-val sub-args-map])))
+     (deflayer2-sub my-subscription (fn [db-atom sub-args-map] [:a-key (:some-val sub-args-map])))
      "
      [meta-sub-kw sub-name ?path]
      `(subs/deflayer2-sub ~meta-sub-kw get-input-db-signal ~sub-name ~?path)))

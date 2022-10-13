@@ -264,13 +264,17 @@ The `todo-sub`'s joins map has a second level of nesting for the `:todo/author` 
 for a specific todo (`[:bot/id :bot-id-1]` or `[:user/id :user-id-1]` for example) the appropriate subscription will be used 
 to fulfill the rest of the query.
 
-To subscribe to these you pass the function to `subscribe` or `<sub` functions.
+To subscribe to these you pass the function to `subscribe` or `<sub` functions - or invoke them directly.
 
 Here was ask for the appropriate name, based on the type of the author found for the todo with id `:todo-1`:
 
 ```clojure
-(<sub [todo-sub {:todo/id :todo-1 query-key [{:todo/author {:bot/id [:bot/name]
+(<sub db_ [todo-sub {:todo/id :todo-1 query-key [{:todo/author {:bot/id [:bot/name]
                                                             :user/id [:user/name]}}]}])
+;; or invoke directly:
+
+(todo-sub db_ {:todo/id :todo-1 query-key [{:todo/author {:bot/id [:bot/name]
+                                                          :user/id [:user/name]}}]})
 ```
 which would return `{:todo/author {:bot/name "bot"}}` if a bot ref is found and `{:todo/author {:user/name "user"}}` if a user ref is found.
 

@@ -233,18 +233,21 @@
     (register-handler! query-id (make-subs-handler-fn inputs-fn compute-fn query-id))))
 
 (defn reg-layer2-sub
+  "Registers a handler function that returns a Reagent RCursor instead of a Reagent Reaction.
+  Accepts a single keyword, a vector path into or a function which takes your db atom and arguments map passed to subscribe
+  and must return a vector path to be used for the cursor."
   [get-input-db-signal register-handler!
    query-id path-vec-or-fn]
   (register-handler! query-id
     (fn layer2-handler-fn
       ([app]
        (let [db-ratom (get-input-db-signal app)
-             path     (if (fn? path-vec-or-fn) (path-vec-or-fn) path-vec-or-fn)]
+             path     (if (fn? path-vec-or-fn) (path-vec-or-fn db-ratom) path-vec-or-fn)]
          (ratom/cursor db-ratom path)))
       ([app args]
        (assert (or (nil? args) (map? args)))
        (let [db-ratom (get-input-db-signal app)
-             path     (if (fn? path-vec-or-fn) (path-vec-or-fn args) path-vec-or-fn)]
+             path     (if (fn? path-vec-or-fn) (path-vec-or-fn db-ratom args) path-vec-or-fn)]
          (ratom/cursor db-ratom path))))))
 
 (defn reg-sub-raw [register-handler! query-id handler-fn]
@@ -270,7 +273,7 @@
 
      Takes a symbol for a subscription name and a way to derive a path in your datasource hashmap. Returns a function subscription
      which itself returns a Reagent RCursor.
-     Supports a vector path, a single keyword, or a function which takes the arguments map passed to subscribe and
+     Supports a vector path, a single keyword, or a function which takes the RAtom datasource and the arguments map passed to subscribe and
      must return a path vector to use as an RCursor path.
 
      Examples:
@@ -279,33 +282,36 @@
 
      (deflayer2-sub my-subscription [:a-path-in-your-db])
 
-     (deflayer2-sub my-subscription (fn [sub-args-map] [:a-key (:some-val sub-args-map])))
+     (deflayer2-sub my-subscription (fn [db-atom sub-args-map] [:a-key (:some-val sub-args-map])))
      "
      [meta-sub-kw get-input-db-signal sub-name ?path]
-     (let [args-sym (gensym "args")
-           path-sym (gensym "path")]
+     (let [args-sym     (gensym "args")
+           path-sym     (gensym "path")
+           db-ratom-sym (gensym "db-ratom")]
        `(let [subscription-fn#
 
               (fn ~sub-name
                 ([datasource#]
-                 (let [db-ratom# (~get-input-db-signal datasource#)
+                 (let [~db-ratom-sym (~get-input-db-signal datasource#)
                        ~path-sym ~(cond
                                     (keyword? ?path) [?path]
                                     (vector? ?path) ?path
-                                    :else `(if (fn? ~?path) (~?path) ~?path))]
+                                    :else `(if (fn? ~?path) (~?path ~db-ratom-sym) ~?path))]
                    ~(when (:ns &env)
-                      `(when goog/DEBUG (assert (vector? ~path-sym) (str "Layer 2 subscription \"" '~(symbol (str (:name (:ns &env))) (name sub-name)) "\" must return a vector path."))))
-                   (ratom/cursor db-ratom# ~path-sym)))
+                      `(when goog/DEBUG (assert (or (nil? ~path-sym) (vector? ~path-sym))
+                                          (str "Layer 2 subscription \"" '~(symbol (str (:name (:ns &env))) (name sub-name)) "\" must return a vector path."))))
+                   (ratom/cursor ~db-ratom-sym ~path-sym)))
 
                 ([datasource# ~args-sym]
                  (assert (or (nil? ~args-sym) (map? ~args-sym)))
-                 (let [db-ratom# (~get-input-db-signal datasource#)
+                 (let [~db-ratom-sym (~get-input-db-signal datasource#)
                        ~path-sym ~(cond
                                     (keyword? ?path) [?path]
                                     (vector? ?path) ?path
-                                    :else `(if (fn? ~?path) (~?path ~args-sym) ~?path))]
+                                    :else `(if (fn? ~?path) (~?path ~db-ratom-sym ~args-sym) ~?path))]
                    ~(when (:ns &env)
-                      `(when goog/DEBUG (assert (vector? ~path-sym) (str "Layer 2 subscription \"" '~(symbol (str (:name (:ns &env))) (name sub-name)) "\" must return a vector path."))))
-                   (ratom/cursor db-ratom# ~path-sym))))]
+                      `(when goog/DEBUG (assert (or (nil? ~path-sym) (vector? ~path-sym))
+                                          (str "Layer 2 subscription \"" '~(symbol (str (:name (:ns &env))) (name sub-name)) "\" must return a vector path."))))
+                   (ratom/cursor ~db-ratom-sym ~path-sym))))]
 
           (def ~sub-name (sub-fn ~meta-sub-kw subscription-fn#))))))

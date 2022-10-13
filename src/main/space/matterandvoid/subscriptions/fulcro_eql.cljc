@@ -1,11 +1,14 @@
 (ns space.matterandvoid.subscriptions.fulcro-eql
   (:require
+    [com.fulcrologic.fulcro.algorithms.form-state :as fs]
     [com.fulcrologic.fulcro.application :as fulcro.app]
+    [com.fulcrologic.fulcro.raw.components :as rc]
     [edn-query-language.core :as eql]
-    [space.matterandvoid.subscriptions.fulcro :refer [reg-sub-raw <sub sub-fn]]
-    [space.matterandvoid.subscriptions.impl.eql-queries :as impl]
+    [space.matterandvoid.subscriptions.fulcro :refer [<sub reg-sub-raw sub-fn]]
     [space.matterandvoid.subscriptions.impl.eql-protocols :as proto]
-    [space.matterandvoid.subscriptions.impl.reagent-ratom :refer [cursor]]))
+    [space.matterandvoid.subscriptions.impl.eql-queries :as impl]
+    [space.matterandvoid.subscriptions.impl.reagent-ratom :refer [cursor]]
+    [space.matterandvoid.subscriptions.reagent-ratom :as ratom]))
 
 (def query-key impl/query-key)
 (def missing-val impl/missing-val)
@@ -51,13 +54,39 @@
 (def class->registry-key impl/class->registry-key)
 (def get-ident impl/get-ident)
 
+(def ^:private fulcro-form-state-config-sub (impl/create-component-subs <sub sub-fn fulcro-data-source fs/FormConfig {}))
+
+(defn ^:private query-contains-form-config? [component]
+  (-> (rc/get-query component)
+    (eql/focus-subquery [fs/form-config-join])
+    not-empty
+    boolean))
+
+(defn expand-ident-list-sub
+  "Takes a layer2 subscription function and an eql subscription for a component.
+  Returns a function subscription that invokes the eql subscription for each ident in the list of idents returned from the provided `layer2-sub`."
+  [layer2-sub component-eql-sub]
+  (fn expand-ident-list [fulcro-app args]
+    (let [component (-> component-eql-sub meta ::impl/component)]
+      (ratom/make-reaction
+        (fn []
+          (let [idents          (layer2-sub fulcro-app args)
+                component-query (rc/get-query component (fulcro.app/current-state fulcro-app))]
+            (mapv (fn [[id-attr id-value]]
+                    (component-eql-sub fulcro-app {query-key component-query, id-attr id-value}))
+                  idents)))))))
+
 (defn create-component-subs
-  "Creates a subscription function that will fulfill the given fulcro component's query.
+  "Creates a subscription function that will fulfill the given Fulcro component's query.
   The component and any components in its query must have a name (cannot be anonymous).
   the `sub-joins-map` argument is a hashmap whose keys are the join properties of the component and whose value is a
   subscription function for normal joins, and a nested hashmap for unions of the union key to subscription.
-  You do not need to provide a subscription function for recursive joins."
-  [c sub-joins-map] (impl/create-component-subs <sub sub-fn fulcro-data-source c sub-joins-map))
+  You do not need to provide a subscription function for recursive joins.
+  You do not need to provide a subscription for Fulcro's form-state config join if you component includes that join in its query,
+  a subscription will be created for you for form-state/config."
+  [component sub-joins-map]
+  (let [sub-joins-map (cond-> sub-joins-map (query-contains-form-config? component) (assoc ::fs/config fulcro-form-state-config-sub))]
+    (impl/create-component-subs <sub sub-fn fulcro-data-source component sub-joins-map)))
 
 (defn register-component-subs!
   "Registers subscriptions that will fulfill the given fulcro component's query.

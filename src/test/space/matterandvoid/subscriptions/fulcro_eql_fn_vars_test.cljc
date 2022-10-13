@@ -1,11 +1,13 @@
 (ns space.matterandvoid.subscriptions.fulcro-eql-fn-vars-test
   (:require
+    [clojure.test :refer [deftest is testing]]
+    [com.fulcrologic.fulcro.algorithms.form-state :as fs]
+    [com.fulcrologic.fulcro.application :as fulcro.app]
+    [com.fulcrologic.fulcro.raw.components :as rc]
+    [space.matterandvoid.subscriptions.fulcro :refer [<sub]]
     [space.matterandvoid.subscriptions.fulcro-eql :as sut]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
-    [space.matterandvoid.subscriptions.fulcro :refer [<sub]]
-    [com.fulcrologic.fulcro.application :as fulcro.app]
-    [taoensso.timbre :as log]
-    [clojure.test :refer [deftest is testing]]))
+    [taoensso.timbre :as log]))
 
 (log/set-level! :debug)
 #?(:cljs (enable-console-print!))
@@ -39,6 +41,14 @@
                                                     :todo/author   {:bot/id bot-sub :user/id user-sub}}))
 (def list-sub (sut/create-component-subs list-comp {:list/items   {:comment/id comment-sub :todo/id todo-sub}
                                                     :list/members {:comment/id comment-sub :todo/id todo-sub}}))
+
+(def todo-with-form-component
+  (sut/nc
+    {:query       [:todo/id :todo/text fs/form-config-join], :name ::todo-with-form, :ident :todo/id,
+     :form-fields #{:todo/text}}))
+
+(def todo-with-form-sub (sut/create-component-subs todo-with-form-component {}))
+
 (comment
   (sut/eql-query-keys-by-type (sut/get-query todo-comp) {:todo/comment  comment-sub
                                                          :todo/comments comment-sub
@@ -46,8 +56,6 @@
   (def todo-sub (sut/create-component-subs todo-comp nil)))
 
 ;(def list-sub (sut/create-component-subs list-comp nil))
-
-
 ;(run! sut/register-component-subs! [user-comp bot-comp comment-comp todo-comp list-comp human-comp])
 
 (def db_ (r/atom {:comment/id {:comment-1 {:comment/id           :comment-1 :comment/text "FIRST COMMENT"
@@ -76,6 +84,15 @@
                                :todo-3 {:todo/id :todo-3 :todo/text "todo 3" :todo/comments [[:comment/id :comment-1] [:comment/id :comment-3]]}}}))
 
 (def app (assoc (fulcro.app/fulcro-app {}) ::fulcro.app/state-atom db_))
+
+(let [todo-w-form-ident [:todo/id :todo-with-form]
+      todo-w-form       {:todo/id :todo-with-form :todo/text "todo with-form"}]
+  (swap! (::fulcro.app/state-atom app)
+    (fn [state]
+      (-> state
+        (assoc-in todo-w-form-ident todo-w-form)
+        (fs/add-form-config* todo-with-form-component todo-w-form-ident)))))
+
 (comment
   ;; wow. it works....
   (bot-sub app {:bot/id :bot-1})
@@ -237,6 +254,15 @@
            :list/name    "first list",
            :list/id      :list-1}
           (<sub app [list-sub {:list/id :list-1}])))))
+
+(deftest form-state-test
+  (is (=
+        {:todo/id    :todo-with-form,
+         :todo/text  "todo with-form",
+         ::fs/config {::fs/id         [:todo/id :todo-with-form], ::fs/fields #{:todo/text}, ::fs/complete? nil, ::fs/subforms {},
+                      ::fs/pristine-state {:todo/text "todo with-form"}}}
+        (todo-with-form-sub app {:todo/id      :todo-with-form
+                                 sut/query-key (rc/get-query todo-with-form-component)}))))
 
 (comment
   (<sub app [list-sub {:list/id :list-1 sut/query-key [{:list/items list-member-q}

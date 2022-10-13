@@ -50,6 +50,8 @@
 
 ;(run! sut/register-component-subs! [user-comp bot-comp comment-comp todo-comp list-comp human-comp])
 
+;; todo - use merge-component with form-state and test fulcro form-state/config join returns data correctly.
+
 (def db_ (r/atom {:comment/id {:comment-1 {:comment/id           :comment-1 :comment/text "FIRST COMMENT"
                                            :comment/author       [:user/id :user-1]
                                            :comment/sub-comments [[:comment/id :comment-2]]}

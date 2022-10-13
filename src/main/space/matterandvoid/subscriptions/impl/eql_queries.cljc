@@ -133,26 +133,25 @@
   [<sub sub-fn datasource id-attr props attr-kw->sub-fn]
   (let [f
         (fn [app args]
-          (log/debug "in sub-entity. id attr" id-attr)
+          ;(log/debug "in sub-entity. id attr" id-attr)
           (if (some? (get args query-key))
             (let [props->ast  (eql-by-key (get args query-key args))
                   props'      (keys (dissoc props->ast '*))
                   query       (get args query-key)
                   star-query? (some? (get props->ast '*))]
-              (log/debug "\n\n------ENTITY sub have query" (pr-str query))
+              ;(log/debug "\n\n------ENTITY sub have query" (pr-str query))
               (make-reaction
                 (fn []
                   (let [all-props (if star-query? (get-all-props-shallow datasource app id-attr props args) nil)
                         output
                                   (if (or (nil? query) (= query '[*]))
                                     (do
-                                      (log/debug "entity in first else")
+                                      ;(log/debug "entity in first else")
                                       (proto/-entity datasource app id-attr args))
                                     (do
-                                      (log/debug "entity in 2nd else")
-
+                                      ;(log/debug "entity in 2nd else")
                                       (reduce (fn [acc prop]
-                                                (log/debug "look up prop: " prop " in map: " attr-kw->sub-fn)
+                                                ;(log/debug "look up prop: " prop " in map: " attr-kw->sub-fn)
                                                 (when-not (get attr-kw->sub-fn prop)
                                                   (throw (error "Missing subscription for entity prop: " prop)))
                                                 (let [prop-sub-fn (get attr-kw->sub-fn prop)
@@ -164,12 +163,12 @@
                                                     (not= missing-val output)
                                                     (assoc prop output))))
                                         {} props')))
-                        _         (log/debug "entity output1: " output)
+                        ;_         (log/debug "entity output1: " output)
                         output    (merge all-props output)]
-                    _ (log/debug "entity output2: " output)
+                    ;(log/debug "entity output2: " output)
                     output))))
             (do
-              (log/debug "ENTITY SUB NO QUERY: selecting props " props)
+              ;(log/debug "ENTITY SUB NO QUERY: selecting props " props)
               (make-reaction (fn [] (reduce (fn [acc prop]
                                               (let [prop-sub-fn (get attr-kw->sub-fn prop)]
                                                 (assoc acc prop (<sub app [prop-sub-fn args]))))
@@ -510,7 +509,7 @@
           union-join-subs (zipmap (map first union-joins) (map (fn [[p component-sub]] (sub-union-join <sub datasource id-attr p component-sub)) union-joins))
           recur-join-subs (zipmap (map first recur-joins) (map (fn [[p]] (sub-recur-join <sub datasource id-attr p recur-join-fn_)) recur-joins))
           kw->sub-fn      (merge prop-subs plain-join-subs union-join-subs recur-join-subs)
-          entity-sub      (sub-entity <sub sub-fn datasource id-attr all-children kw->sub-fn)]
+          entity-sub      (vary-meta (sub-entity <sub sub-fn datasource id-attr all-children kw->sub-fn) assoc ::component c)]
       (reset! recur-join-fn_ entity-sub)
       entity-sub)))
 

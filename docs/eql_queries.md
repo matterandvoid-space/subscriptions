@@ -283,6 +283,8 @@ which would return `{:todo/author {:bot/name "bot"}}` if a bot ref is found and 
 If you would like to add support for another datasource like doxa, or datascript for example, you simply need to fill in the
 IDataSource [protocol](https://github.com/matterandvoid-space/subscriptions/blob/mainline/src/main/space/matterandvoid/subscriptions/impl/eql_protocols.cljc)
 
+(pull requests are welcome!)
+
 See the sources for examples:
 
 https://github.com/matterandvoid-space/subscriptions/blob/mainline/src/main/space/matterandvoid/subscriptions/datalevin_eql.clj

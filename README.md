@@ -470,12 +470,14 @@ to inconsistencies (sometimes you deref things, sometimes not..)
 The library uses the following convention to allow subscribing to functions while also invoking and deref'ing them:
 
 ```clojure
-(def layer-3-sub-fn (let [sub-fn
-                          (fn [db_]
-                            (make-reaction
-                              (fn []
-                                (+ 10 (inc (<sub db_ [a-fn-sub])) (<sub db_ [a-layer-2-fn])))))]
-                      (with-meta (fn layer-3-sub-fn [db_ ] @(sub-fn db_)) {:space.matterandvoid.subscriptions.core/subscription sub-fn})))
+(def layer-3-sub-fn
+  (let [sub-fn
+        (fn [db_]
+          (make-reaction
+            (fn [] (+ 10 (inc (<sub db_ [a-fn-sub])) (<sub db_ [a-layer-2-fn])))))]
+    (with-meta 
+      (fn layer-3-sub-fn [db_ ] @(sub-fn db_))
+      {:space.matterandvoid.subscriptions.core/subscription sub-fn})))
 ```
 
 When subscribe is called and a function is passed in the subscription vector the library will first look for a function under
@@ -489,11 +491,13 @@ These are equivalent to the above definition:
 ```clojure
 (def layer-3-sub-fn
   (sub-fn (fn [db_]
-            (make-reaction (fn []
-                             (+ 10 (inc (<sub db_ [a-fn-sub])) (<sub db_ [a-layer-2-fn])))))))
+            (make-reaction 
+              (fn []
+                (+ 10 (inc (<sub db_ [a-fn-sub])) (<sub db_ [a-layer-2-fn])))))))
 
 (defsub layer-3-sub-fn :<- [a-fn-sub] :<- [a-layer-2-fn]
-  (fn [[num1 num2]] (+ 10 (inc num1) num2)))
+  (fn [[num1 num2]] 
+    (+ 10 (inc num1) num2)))
 ```
 
 The main benefits of using functions directly (as explained in the `repose` documentation) are proper module placement for code splitting
@@ -501,6 +505,8 @@ and much better editor and IDE integration.
 The functions will be analyzed correctly and can be moved to the modules that they are used in, versus using a registry
 where all subscriptions will have to be in a common module.
 IDE features like jump to definition work as expected instead of having to have special re-frame aware tooling.
+
+They are just functions, so you can just invoke them and get values, no need to use subscribe.
 
 You are free to mix and match using the registry (`reg-sub` etc.) and not (subscribing directly to functions).
 The registry is used to associate subscription keywords with handler functions and once the handler function is retrieved there is no difference in execution.

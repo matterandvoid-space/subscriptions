@@ -24,7 +24,8 @@
   [get-subscription-cache get-cache-key app query-v #?(:cljs ^clj reaction-or-cursor :clj reaction-or-cursor)]
   ;; this prevents memory leaks (caching subscription -> reaction) but still allows
   ;; executing outside of a (reagent.reaction) form, like in event handlers.
-  (when (ratom/reactive-context?)
+  (when (and (ratom/reactive-context?) (ratom/reaction? reaction-or-cursor))
+    (log/info "IN REACTIVE CONTEXT, caching")
     (let [cache-key          (get-cache-key app query-v)
           subscription-cache (get-subscription-cache app)
           on-dispose         (fn [] (trace/with-trace {:operation (first query-v)
@@ -70,8 +71,27 @@
       (let [cached-reaction (cache-lookup datasource cache-key)]
         (if cached-reaction
           (do (trace/merge-trace! {:tags {:cached? true :reaction (ratom/reagent-id cached-reaction)}})
+
+              (log/info "HAVE CACHED REACTEION " (or (.-name query-id) query-id))
               cached-reaction)
           (let [handler-fn (get-handler query-id)]
+            (log/info "NO CACHED REACTION : " (cond
+                                                #?(:cljs (instance? cljs.core/MetaFn query-id)
+                                                   :clj  true) (.-name (.-afn query-id))
+                                                (fn? query-id) (.-name query-id)
+                                                :else
+                                                query-id))
+            (def qi' query-id)
+            (def ds' datasource)
+            (def gck get-cache-key)
+
+            (comment
+              (set! *print-fn-bodies* true)
+              (js/JSON.stringify qi')
+              (.-name qi')
+              (.-name (.-afn qi'))
+              (gck ds' qi')
+              )
             (assert (fn? handler-fn) (str "Subscription handler for the following query is missing\n\n" (pr-str query-id) "\n"))
             (trace/merge-trace! {:tags {:cached? false}})
             (if (nil? handler-fn)
@@ -287,19 +307,23 @@
      [meta-sub-kw get-input-db-signal sub-name ?path]
      (let [args-sym     (gensym "args")
            path-sym     (gensym "path")
+           path-val-sym (gensym "path")
            db-ratom-sym (gensym "db-ratom")]
-       `(let [subscription-fn#
+       `(let [~path-val-sym ~?path
+              subscription-fn#
 
               (fn ~sub-name
                 ([datasource#]
                  (let [~db-ratom-sym (~get-input-db-signal datasource#)
+
                        ~path-sym ~(cond
                                     (keyword? ?path) [?path]
                                     (vector? ?path) ?path
-                                    :else `(if (fn? ~?path) (~?path ~db-ratom-sym) ~?path))]
+                                    :else `(if (fn? ~path-val-sym) (apply ~path-val-sym [~db-ratom-sym]) ~path-val-sym))]
                    ~(when (:ns &env)
                       `(when goog/DEBUG (assert (or (nil? ~path-sym) (vector? ~path-sym))
-                                          (str "Layer 2 subscription \"" '~(symbol (str (:name (:ns &env))) (name sub-name)) "\" must return a vector path."))))
+                                          (str "Layer 2 subscription \"" '~(symbol (str (:name (:ns &env))) (name sub-name)) "\" must return a vector path."
+                                            " Got: " (pr-str ~path-sym)))))
                    (ratom/cursor ~db-ratom-sym ~path-sym)))
 
                 ([datasource# ~args-sym]
@@ -308,10 +332,11 @@
                        ~path-sym ~(cond
                                     (keyword? ?path) [?path]
                                     (vector? ?path) ?path
-                                    :else `(if (fn? ~?path) (~?path ~db-ratom-sym ~args-sym) ~?path))]
+                                    :else `(if (fn? ~path-val-sym) (apply ~path-val-sym [~db-ratom-sym ~args-sym]) ~path-val-sym))]
                    ~(when (:ns &env)
                       `(when goog/DEBUG (assert (or (nil? ~path-sym) (vector? ~path-sym))
-                                          (str "Layer 2 subscription \"" '~(symbol (str (:name (:ns &env))) (name sub-name)) "\" must return a vector path."))))
+                                          (str "Layer 2 subscription \"" '~(symbol (str (:name (:ns &env))) (name sub-name)) "\" must return a vector path."
+                                            " Got: " (pr-str ~path-sym)))))
                    (ratom/cursor ~db-ratom-sym ~path-sym))))]
 
           (def ~sub-name (sub-fn ~meta-sub-kw subscription-fn#))))))

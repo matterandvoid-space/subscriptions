@@ -23,8 +23,17 @@
 (def fulcro-data-source
   (reify proto/IDataSource
     (-attribute-subscription-fn [_ id-attr attr]
-      (fn [fulcro-app args]
-        (cursor (::fulcro.app/state-atom fulcro-app) [id-attr (get args id-attr) attr])))
+      (fn [?fulcro-app args]
+        ;; this is to support passing state map to subscriptions instead of the fulcro app, for example in mutations
+        (cond
+          (fulcro.app/fulcro-app? ?fulcro-app)
+          (cursor (::fulcro.app/state-atom ?fulcro-app) [id-attr (get args id-attr) attr])
+
+          (ratom/deref? ?fulcro-app)
+          (cursor ?fulcro-app [id-attr (get args id-attr) attr])
+
+          :else
+          (ratom/make-reaction (fn [] (get-in ?fulcro-app [id-attr (get args id-attr) attr]))))))
     (-ref->attribute [_ ref] (first ref))
     (-ref->id [_ ref]
       ;(log/debug "-ref->id ref" ref)
@@ -66,15 +75,21 @@
   "Takes a layer2 subscription function and an eql subscription for a component.
   Returns a function subscription that invokes the eql subscription for each ident in the list of idents returned from the provided `layer2-sub`."
   [layer2-sub component-eql-sub]
-  (fn expand-ident-list [fulcro-app args]
-    (let [component (-> component-eql-sub meta ::impl/component)]
-      (ratom/make-reaction
-        (fn []
-          (let [idents          (layer2-sub fulcro-app args)
-                component-query (rc/get-query component (fulcro.app/current-state fulcro-app))]
-            (mapv (fn [[id-attr id-value]]
-                    (component-eql-sub fulcro-app {query-key component-query, id-attr id-value}))
-                  idents)))))))
+  (let [sub
+        (fn expand-ident-list [fulcro-app args]
+          (let [component (-> component-eql-sub meta ::impl/component)]
+            (ratom/make-reaction
+              (fn []
+                (let [idents          (layer2-sub fulcro-app args)
+                      state-map       (cond (fulcro.app/fulcro-app? fulcro-app)
+                                            (fulcro.app/current-state fulcro-app)
+                                            (ratom/deref? fulcro-app) (deref fulcro-app)
+                                            :else fulcro-app)
+                      component-query (rc/get-query component state-map)]
+                  (mapv (fn [[id-attr id-value]]
+                          (component-eql-sub fulcro-app {query-key component-query, id-attr id-value}))
+                        idents))))))]
+    (sub-fn sub)))
 
 (defn create-component-subs
   "Creates a subscription function that will fulfill the given Fulcro component's query.

@@ -59,7 +59,8 @@
       (set! (.-reaction obj) reaction))))
 
 (defn cursor [^clj ratom path]
-  (let [cursor (reagent.ratom/->RCursor ratom path nil nil nil)
+  (reagent.ratom/cursor ratom path)
+  #_(let [cursor (reagent.ratom/->RCursor ratom path nil nil nil)
         f      (fn [] (get-in @ratom path))]
     (cached-reaction f ratom path cursor nil)
     cursor))

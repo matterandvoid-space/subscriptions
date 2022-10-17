@@ -164,9 +164,6 @@ There are four react hooks in the `space.matterandvoid.subscriptions.react-hook`
 
 The same hooks for fulcro use are in `space.matterandvoid.subscriptions.react-hook-fulcro`
 
-With this implementation components will re-render once per animation frame (via requestAnimationFrame) even if the reactive
-callback fires multiple times in one frame.
-
 These hooks are all implemented via [useSyncExternalStore](https://beta.reactjs.org/apis/react/useSyncExternalStore) allowing
 them to be used in React's concurrent rendering mode.
 

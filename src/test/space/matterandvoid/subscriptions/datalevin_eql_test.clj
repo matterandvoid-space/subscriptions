@@ -20,7 +20,7 @@
    :bot/name             {:db/valueType :db.type/string :db/unique :db.unique/identity}
 
    :comment/id           {:db/valueType :db.type/keyword :db/unique :db.unique/identity}
-   :comment/text         {:db/valueType :db.type/string :db/unique :db.unique/identity}
+   :comment/text         {:db/valueType :db.type/string}
    :comment/sub-comments {:db/valueType :db.type/ref :db/cardinality :db.cardinality/many}
 
    :list/id              {:db/valueType :db.type/keyword :db/unique :db.unique/identity}

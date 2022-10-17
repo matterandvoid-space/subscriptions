@@ -13,8 +13,7 @@
 ;; for more on implementation details see https://github.com/reactwg/react-18/discussions/86
 
 (defn use-run-in-reaction [reaction]
-  (let [render-scheduled? (react/useRef false)
-        reaction-key      "reaction"
+  (let [reaction-key      "reaction"
         reaction-obj      (react/useRef #js{})]
     (react/useCallback
       (fn setup-subscription [listener]
@@ -22,13 +21,7 @@
           (fn [] @reaction)
           (.-current reaction-obj)
           reaction-key
-          (fn on-react! []
-            (when-not (.-current render-scheduled?)
-              (set! (.-current render-scheduled?) true)
-              (js/requestAnimationFrame
-                (fn [_]
-                  (listener)
-                  (set! (.-current render-scheduled?) false)))))
+          listener
           {:no-cache true})
         (fn cleanup-subscription []
           (ratom/dispose! (gobj/get (.-current reaction-obj) reaction-key))))

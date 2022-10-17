@@ -24,7 +24,7 @@
   [get-subscription-cache get-cache-key app query-v #?(:cljs ^clj reaction-or-cursor :clj reaction-or-cursor)]
   ;; this prevents memory leaks (caching subscription -> reaction) but still allows
   ;; executing outside of a (reagent.reaction) form, like in event handlers.
-  (when (and (ratom/reactive-context?) (ratom/reaction? reaction-or-cursor))
+  (when (and (ratom/reactive-context?) reaction-or-cursor)
     (log/info "IN REACTIVE CONTEXT, caching")
     (let [cache-key          (get-cache-key app query-v)
           subscription-cache (get-subscription-cache app)
@@ -324,7 +324,7 @@
                       `(when goog/DEBUG (assert (or (nil? ~path-sym) (vector? ~path-sym))
                                           (str "Layer 2 subscription \"" '~(symbol (str (:name (:ns &env))) (name sub-name)) "\" must return a vector path."
                                             " Got: " (pr-str ~path-sym)))))
-                   (ratom/cursor ~db-ratom-sym ~path-sym)))
+                   (when ~path-sym (ratom/cursor ~db-ratom-sym ~path-sym))))
 
                 ([datasource# ~args-sym]
                  (assert (or (nil? ~args-sym) (map? ~args-sym)))
@@ -337,6 +337,6 @@
                       `(when goog/DEBUG (assert (or (nil? ~path-sym) (vector? ~path-sym))
                                           (str "Layer 2 subscription \"" '~(symbol (str (:name (:ns &env))) (name sub-name)) "\" must return a vector path."
                                             " Got: " (pr-str ~path-sym)))))
-                   (ratom/cursor ~db-ratom-sym ~path-sym))))]
+                   (when ~path-sym (ratom/cursor ~db-ratom-sym ~path-sym)))))]
 
           (def ~sub-name (sub-fn ~meta-sub-kw subscription-fn#))))))

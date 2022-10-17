@@ -566,6 +566,10 @@ For convenience you can provide
 - a single keyword
 - a vector path
 - a function which takes your db-atom and an optional arguments hashmap passed to `subscribe` and returns a vector path
+  - to deal with timing issues around dynamic subscription path values being missing, if your path function returns `nil`
+    the cursor will not be cached, thus when it is present then it will be cached.
+    This is to support use cases where the path value in the db is added dynamically, thus you don't want to use the `nil`
+    value but still want to get caching support once it is available.
 
 The function form lets you do things like store the cursor path in the db itself, for example a pointer (ref) to an entity.
 
@@ -574,7 +578,7 @@ Examples:
 ```clojure
 (deflayer2-sub a-sub :some-value)
 (deflayer2-sub my-todo [:todo/id 1234])
-(deflayer2-sub form-todo (fn [db_ args-map] (:root/new-todo-ref @db_)))
+(deflayer2-sub form-todo (fn [db_ args-map] (:root/new-todo-ref @db_ nil)))
 ```
 
 # Implementation details

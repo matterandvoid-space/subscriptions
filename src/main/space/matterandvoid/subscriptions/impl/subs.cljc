@@ -71,27 +71,15 @@
       (let [cached-reaction (cache-lookup datasource cache-key)]
         (if cached-reaction
           (do (trace/merge-trace! {:tags {:cached? true :reaction (ratom/reagent-id cached-reaction)}})
-
-              (log/info "HAVE CACHED REACTEION " (or (.-name query-id) query-id))
+              ;(log/info "HAVE CACHED REACTEION " (or (.-name query-id) query-id))
               cached-reaction)
           (let [handler-fn (get-handler query-id)]
-            (log/info "NO CACHED REACTION : " (cond
-                                                #?(:cljs (instance? cljs.core/MetaFn query-id)
-                                                   :clj  true) (.-name (.-afn query-id))
-                                                (fn? query-id) (.-name query-id)
-                                                :else
-                                                query-id))
-            (def qi' query-id)
-            (def ds' datasource)
-            (def gck get-cache-key)
-
-            (comment
-              (set! *print-fn-bodies* true)
-              (js/JSON.stringify qi')
-              (.-name qi')
-              (.-name (.-afn qi'))
-              (gck ds' qi')
-              )
+            ;(log/info "NO CACHED REACTION : " (cond
+            ;                                    #?(:cljs (instance? cljs.core/MetaFn query-id)
+            ;                                       :clj  true) (.-name (.-afn query-id))
+            ;                                    (fn? query-id) (.-name query-id)
+            ;                                    :else
+            ;                                    query-id))
             (assert (fn? handler-fn) (str "Subscription handler for the following query is missing\n\n" (pr-str query-id) "\n"))
             (trace/merge-trace! {:tags {:cached? false}})
             (if (nil? handler-fn)

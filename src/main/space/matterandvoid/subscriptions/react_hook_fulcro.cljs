@@ -48,12 +48,7 @@
        (set! (.-current ref)
          (ratom/make-reaction
            (fn []
-             (println "COMPUTING REACTION IN HOOK")
-             (reduce-kv (fn [acc k query-vec]
-                          (println "CAlling sub: " query-vec)
-                          (let [out (subs/<sub data-source query-vec)]
-                            (println " sub output: " out)
-                            (assoc acc k out)))
+             (reduce-kv (fn [acc k query-vec] (assoc acc k (subs/<sub data-source query-vec)))
                {} query-map)))))
      (common/use-reaction ref)))
   ([query-map]

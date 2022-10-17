@@ -47,15 +47,7 @@
 ;; it's a tradeoff, it may make more sense to just add integration with fulcro inspect via the
 ;; existing tracing calls.
 (defn get-cache-key [app query-v]
-  (let [datasource-map (cond
-                         (fulcro.app/fulcro-app? app) (fulcro.app/current-state app)
-                         (ratom/ratom? app) (deref app)
-                         (map? app) app)
-        ]
-    (log/info "LOOKUP cache: " query-v)
-    (def app' app)
-    (def query-v' query-v)
-    (if (keyword? (first query-v)) query-v (into [(hash app)] query-v))))
+  (if (keyword? (first query-v)) query-v (into [(hash app)] query-v)))
 
 (defn get-subscription-cache [app] subs-cache_ #_(atom {}))
 (defn cache-lookup [app cache-key] (when app (get @(get-subscription-cache app) cache-key)))

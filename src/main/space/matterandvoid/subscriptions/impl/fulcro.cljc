@@ -18,9 +18,10 @@
   ;; This is a kind of hack to allow passing in the fulcro state map to subscriptions
   ;; which is useful in contexts like mutation helpers which operate on the hashmap and some arguments, but would
   ;; be annoying to pass the fulcro app to.
-  (if (fulcro.app/fulcro-app? app)
-    (::fulcro.app/state-atom app)
-    (ratom/atom app)))
+  (cond
+    (fulcro.app/fulcro-app? app) (::fulcro.app/state-atom app)
+    (ratom/deref? app) app
+    :else (ratom/atom app)))
 
 ;; for other proxy interfaces (other than fulcro storage) this has to be an atom of a map.
 ;; this is here for now just to inspect it at the repl
@@ -46,11 +47,7 @@
 ;; it's a tradeoff, it may make more sense to just add integration with fulcro inspect via the
 ;; existing tracing calls.
 (defn get-cache-key [app query-v]
-  (let [datasource-map (cond
-                         (fulcro.app/fulcro-app? app) (fulcro.app/current-state app)
-                         (ratom/ratom? app) (deref app)
-                         (map? app) app)]
-    (if (keyword? (first query-v)) query-v (into [(hash datasource-map)] query-v))))
+  (if (keyword? (first query-v)) query-v (into [(hash app)] query-v)))
 
 (defn get-subscription-cache [app] subs-cache_ #_(atom {}))
 (defn cache-lookup [app cache-key] (when app (get @(get-subscription-cache app) cache-key)))
@@ -163,6 +160,7 @@
      "
      [meta-sub-kw sub-name ?path]
      `(subs/deflayer2-sub ~meta-sub-kw get-input-db-signal ~sub-name ~?path)))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; reactive refresh of components

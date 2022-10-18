@@ -14,3 +14,5 @@
 (defn make-reaction
   "Creates a Reagent Reaction using the supplied function."
   [f] (ratom/make-reaction f))
+
+(defn deref? [x] (ratom/deref? x))

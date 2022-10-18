@@ -25,7 +25,6 @@
   ;; this prevents memory leaks (caching subscription -> reaction) but still allows
   ;; executing outside of a (reagent.reaction) form, like in event handlers.
   (when (and (ratom/reactive-context?) reaction-or-cursor)
-    (log/info "IN REACTIVE CONTEXT, caching")
     (let [cache-key          (get-cache-key app query-v)
           subscription-cache (get-subscription-cache app)
           on-dispose         (fn [] (trace/with-trace {:operation (first query-v)

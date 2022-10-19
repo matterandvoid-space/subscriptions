@@ -5,7 +5,7 @@
     [space.matterandvoid.subscriptions.impl.core :as impl]
     [space.matterandvoid.subscriptions.reagent-ratom :as ratom :refer [make-reaction cursor]]
     [space.matterandvoid.subscriptions.core :as subs :refer [subscribe reg-layer2-sub reg-sub <sub]]
-    [space.matterandvoid.subscriptions.react-hook :refer [use-sub use-sub-map use-reaction use-reaction-ref]]))
+    [space.matterandvoid.subscriptions.react-hooks :refer [use-sub use-sub-map use-reaction use-reaction-ref]]))
 
 (def my-atom (ratom/atom {:a {:nested {:2-nested 500}}}))
 (def my-cursor (ratom/cursor my-atom [:a :nested]))

@@ -1,4 +1,4 @@
-(ns space.matterandvoid.subscriptions.impl.hooks-common
+(ns space.matterandvoid.subscriptions.impl.react-hooks-common
   (:require
     ["react" :as react]
     ["react-dom" :as react-dom]
@@ -18,13 +18,14 @@
     (react/useCallback
       (fn setup-subscription [listener]
         (ratom/run-in-reaction
-          (fn [] @reaction)
+          (fn [] (when reaction @reaction))
           (.-current reaction-obj)
           reaction-key
           listener
           {:no-cache true})
         (fn cleanup-subscription []
-          (ratom/dispose! (gobj/get (.-current reaction-obj) reaction-key))))
+          (when (gobj/get (.-current reaction-obj) reaction-key)
+            (ratom/dispose! (gobj/get (.-current reaction-obj) reaction-key)))))
       #js [reaction])))
 
 (defn use-sync-external-store [subscribe get-snapshot]
@@ -39,7 +40,7 @@
 
 ;; Public API
 
-(defn use-reaction
+(defn use-reaction-ref
   "Takes a Reagent Reaction inside a React Ref and rerenders the UI component when the Reaction's value changes.
    Returns the current value of the Reaction"
   [^js reaction-ref]
@@ -49,5 +50,13 @@
                          " You passed: " (pr-str reaction-ref))))))
   (let [reaction     (.-current reaction-ref)
         subscribe    (use-run-in-reaction reaction)
+        get-snapshot (react/useCallback (fn [] (ratom/in-reactive-context #js{} (fn [] (when reaction @reaction)))) #js[reaction])]
+    (use-sync-external-store subscribe get-snapshot)))
+
+(defn use-reaction
+  "Takes a Reagent Reaction and rerenders the UI component when the Reaction's value changes.
+   Returns the current value of the Reaction"
+  [^clj reaction]
+  (let [subscribe    (use-run-in-reaction reaction)
         get-snapshot (react/useCallback (fn [] (ratom/in-reactive-context #js{} (fn [] @reaction))) #js[reaction])]
     (use-sync-external-store subscribe get-snapshot)))

@@ -34,3 +34,20 @@
   ([datasource query-map]
    (assert (map? query-map) "You must pass a map literal to use-sub-map")
    (->> query-map (map (fn [[k query]] `[~k (use-sub ~datasource ~query)])) (into {}))))
+
+(defmacro use-sub4 [[sub args]]
+  (if (map? args)
+    (do
+      (.println System/err (str "Args is a map!"))
+      (let [map-vals (vals args)]
+        `(let [memo-query# (react/useMemo (fn [] ~[sub args]) (cljs.core/array ~@map-vals))]
+           (use-sub2 '~sub memo-query#))))
+    (if (nil? args)
+      (do
+        (.println System/err (str "Args is nil!"))
+        `(let [memo-query# (react/useMemo (fn [] [~sub]) (cljs.core/array))]
+           (use-sub2 '~sub memo-query#)))
+      (do
+        (.println System/err (str "Args is present and not nil!"))
+        `(let [memo-query# (react/useMemo (fn [] ~[sub args]) (cljs.core/array ~args))]
+           (use-sub2 '~sub memo-query#))))))

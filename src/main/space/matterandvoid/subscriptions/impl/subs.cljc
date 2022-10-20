@@ -57,7 +57,7 @@
    datasource query]
   ;(log/debug "\n\nSUBSCRIBE IMPL--------------------------------------------")
   ;(log/debug "subscribe query: " query)
-  (assert (vector? query) (str "Queries must be vectors, you passed: " query))
+  (assert (vector? query) (str "Queries must be vectors, you passed: " (pr-str query)))
   (let [cnt       (count query),
         query-id  (first query)
         cache-key (get-cache-key datasource query)]

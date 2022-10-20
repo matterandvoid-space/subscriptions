@@ -24,6 +24,13 @@
    (let [last-query (react/useRef query)
          ref        (react/useRef nil)]
      (when-not (.-current ref) (set! (.-current ref) (subs/subscribe data-source query)))
+
+     (when (not (identical? (.-current last-query) query))
+       (println  "use-sub QUERY IS NOT IDENTICAL"))
+     (when (identical? (.-current last-query) query)
+       (println  "use-sub QUERY IS IDENTICAL" (pr-str query))
+       )
+
      (when (not= (.-current last-query) query)
        (set! (.-current last-query) query)
        (ratom/dispose! (.-current ref))
@@ -32,6 +39,32 @@
   ([query]
    (let [data-source (react/useContext subs/datasource-context)]
      (use-sub data-source query))))
+
+(defn use-sub2
+  ([sub-name data-source query]
+   (when goog/DEBUG (assert (fulcro.app/fulcro-app? data-source)))
+   (let [last-query (react/useRef query)
+         ref        (react/useRef nil)]
+     (when-not (.-current ref) (set! (.-current ref) (subs/subscribe data-source query)))
+
+     (when (not (identical? (.-current last-query) query))
+       (set! (.-current last-query) query)
+       (ratom/dispose! (.-current ref))
+       (set! (.-current ref) (subs/subscribe data-source query))
+       (println  "use-sub2 QUERY IS NOT IDENTICAL" (pr-str sub-name))
+       (println "last : " (pr-str (.-current last-query)) ", curr: " (pr-str  query)))
+
+     (when (identical? (.-current last-query) query)
+       (println  "use-sub2 QUERY IS IDENTICAL" (pr-str sub-name) (pr-str query)))
+
+     ;(when (not= (.-current last-query) query)
+     ;  (set! (.-current last-query) query)
+     ;  (ratom/dispose! (.-current ref))
+     ;  (set! (.-current ref) (subs/subscribe data-source query)))
+     (common/use-reaction-ref ref)))
+  ([name query]
+   (let [data-source (react/useContext subs/datasource-context)]
+     (use-sub2 name data-source query))))
 
 (defn use-reaction-ref
   "Takes a Reagent Reaction inside a React ref and rerenders the UI component when the Reaction's value changes.

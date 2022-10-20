@@ -59,3 +59,10 @@
    Returns the current value of the Reaction"
   [reaction]
   (common/use-reaction reaction))
+
+(defn use-reaction-in-ref
+  "Takes a Reagent Reaction, uses a react ref to cache the Reaction and rerenders the UI component when the Reaction's value changes.
+   Returns the current value of the Reaction"
+  [reaction]
+  (let [ref (react/useRef reaction)]
+    (common/use-reaction-ref ref)))

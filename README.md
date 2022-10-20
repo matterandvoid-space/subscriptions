@@ -155,25 +155,30 @@ I haven't used datascript much so there may be better/more efficient integration
 
 ## Use with React hooks
 
-There are four react hooks in the `space.matterandvoid.subscriptions.react-hooks` namespace 
+There are react hooks in the `space.matterandvoid.subscriptions.react-hooks` namespace 
 
 - `use-sub`, which takes one subscription vector 
-- `use-sub-map` which takes a hashmap of keywords to subscription vectors intended to be destructured.
+- `use-sub-memo`, a macro which takes one subscription vector and wraps your subscrition vector in `react/useMemo` before subscribing.
+- `use-sub-map` a macro which takes a hashmap of keywords to subscription vectors intended to be destructured.
 - `use-reaction` which takes a Reagent Reaction, the output of the hook is the return value of the Reaction.
-- `use-reaction-ref` which takes a React Ref which contains a Reagent Reaction, the output of the hook is the return value of the reaction.
+- `use-reaction-ref` which takes a React Ref which contains a Reagent Reaction, the output of the hook is the return value of the Reaction.
+- `use-reaction-in-ref` which takes a Reagent Reaction and wraps it in a React Ref to avoid being recreated each render,
+   the output of the hook is the return value of the Reaction.
 
 The same hooks for fulcro use are in `space.matterandvoid.subscriptions.react-hooks-fulcro`
 
 These hooks are all implemented via [useSyncExternalStore](https://beta.reactjs.org/apis/react/useSyncExternalStore) allowing
 them to be used in React's concurrent rendering mode.
 
-See the examples directory in the source for working code.
+When using subscriptions in hooks you need to be aware of memoization, see the document [docs/react-hooks.md](docs/react-hooks.md) for more details.
+
+Also see the examples directory in the source for working code.
 
 ```clojure 
 (:ns sample
  (:require 
    [space.matterandvoid.subscriptions.core :refer [defsub]]
-   [space.matterandvoid.subscriptions.react-hooks :refer [use-sub use-sub-map use-reaction]]))
+   [space.matterandvoid.subscriptions.react-hooks :refer [use-sub-map use-reaction-in-ref]]))
  
 (defonce db_ (ratom/atom {}))
 
@@ -200,7 +205,7 @@ See the examples directory in the source for working code.
          ;; this is contrived, but you could imagine passing in subs as a prop
          ;; or other dynamic possibilities
          some-subs [[sorted-todos] [all-todos]]
-         list-of-lists (use-reaction (make-reaction (fn [] (mapv <sub some-subs)))]
+         list-of-lists (use-reaction-in-ref (make-reaction (fn [] (mapv <sub some-subs)))]
     ($ :div
       ($ :button #js{:onClick #(swap! db_ update :todos conj (make-todo (random-uuid) "another todo"))}
        "Add a todo")

@@ -2,7 +2,6 @@
 
 This page contains notes on using subscription in react hooks, mainly dealing with how memoization of subscriptions happens.
 
-
 ## On memoization with React hooks
 
 The react hooks internally create a subscription which is an underlying Reagent type like Reaction or Cursor.
@@ -114,15 +113,52 @@ using `useMemo`, or defined statically outside of your function component.
   (set! (.-current ref) (subs/subscribe datasource query)))
 ```
 
+All of these subscription hooks use a React Ref to wrap the Reaction.
+The reason for doing so is so that React does not re-create the Reaction object each time the component is rendered.
 
- All of these subscription hooks use a React Ref to wrap the Reaction.
- The reason for doing so is so that React does not re-create the Reaction object each time the component is rendered.
+This is safe because the ref's value never changes for the lifetime of the component (per use of use-reaction)
+Thus the caution to not read .current from a ref during rendering doesn't apply because we know it never changes.
 
- This is safe because the ref's value never changes for the lifetime of the component (per use of use-reaction)
- Thus the caution to not read .current from a ref during rendering doesn't apply because we know it never changes.
-
- The guideline exists for refs whose underlying value will change between renders, but we are just using it
+The guideline exists for refs whose underlying value will change between renders, but we are just using it
 as a cache local to the component in order to not recreate the Reaction with each render.
+
+### Configuring memoization via metadata on the subscription
+
+
+You are able to annotate the subscription argument to `use-sub-memo` and any of the subscriptions in `use-sub-map` with
+metadata to both disable memoizing the subscription vector and to change the equality function used to determine when
+the subscription vector has changed between re-renders.
+
+For example to disable memoization, use `:no-memo`:
+
+```clojure
+(let [arguments {:filter current-filter}]
+  (use-sub-memo ^:no-memo [todo.subscriptions/selected-tab arguments]))
+```
+
+To change the equality function pass it via `:memo`
+
+```clojure
+(let [arguments {:filter current-filter}]
+  (use-sub-memo ^{:memo =}[todo.subscriptions/selected-tab arguments]))
+```
+
+When using `use-sub-map` you can thus opt-out certain subscriptions from memoization using the same syntax:
+
+```clojure
+(let [[current-filter set-current-filter!] (react/useState :active)
+      todo-list-args (react/useMemo (fn [] {:filter current-filter}) #js[current-filter])
+      {:keys [form-todo todos-list incomplete-count selected-tab any-completed?]}
+      (use-sub-map {:form-todo        [todo.subscriptions/form-todo]
+                    :todos-list       [todo.subscriptions/todos-list-main todo-list-args]
+                    :selected-tab     [todo.subscriptions/selected-tab {:filter current-filter}]
+                    :any-completed?   [todo.subscriptions/any-completed?]
+                    :some-other-sub   ^:no-memo [todo.subscriptions/my-other-sub]
+                    :incomplete-count [todo.subscriptions/incomplete-todos-count]})]
+
+  ;; render output here
+  )
+```
 
 ### Dynamic subscrptions
 

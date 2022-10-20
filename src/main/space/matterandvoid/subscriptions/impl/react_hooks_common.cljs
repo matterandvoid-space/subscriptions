@@ -58,5 +58,5 @@
    Returns the current value of the Reaction"
   [^clj reaction]
   (let [subscribe    (use-run-in-reaction reaction)
-        get-snapshot (react/useCallback (fn [] (ratom/in-reactive-context #js{} (fn [] @reaction))) #js[reaction])]
+        get-snapshot (react/useCallback (fn [] (ratom/in-reactive-context #js{} (fn [] (when reaction @reaction)))) #js[reaction])]
     (use-sync-external-store subscribe get-snapshot)))

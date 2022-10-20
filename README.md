@@ -155,14 +155,14 @@ I haven't used datascript much so there may be better/more efficient integration
 
 ## Use with React hooks
 
-There are four react hooks in the `space.matterandvoid.subscriptions.react-hook` namespace 
+There are four react hooks in the `space.matterandvoid.subscriptions.react-hooks` namespace 
 
 - `use-sub`, which takes one subscription vector 
 - `use-sub-map` which takes a hashmap of keywords to subscription vectors intended to be destructured.
 - `use-reaction` which takes a Reagent Reaction, the output of the hook is the return value of the Reaction.
 - `use-reaction-ref` which takes a React Ref which contains a Reagent Reaction, the output of the hook is the return value of the reaction.
 
-The same hooks for fulcro use are in `space.matterandvoid.subscriptions.react-hook-fulcro`
+The same hooks for fulcro use are in `space.matterandvoid.subscriptions.react-hooks-fulcro`
 
 These hooks are all implemented via [useSyncExternalStore](https://beta.reactjs.org/apis/react/useSyncExternalStore) allowing
 them to be used in React's concurrent rendering mode.
@@ -170,7 +170,11 @@ them to be used in React's concurrent rendering mode.
 See the examples directory in the source for working code.
 
 ```clojure 
-(require [space.matterandvoid.subscriptions.react-hook :refer [reg-sub use-sub use-sub-map use-reaction]])
+(:ns sample
+ (:require 
+   [space.matterandvoid.subscriptions.core :refer [defsub]]
+   [space.matterandvoid.subscriptions.react-hooks :refer [use-sub use-sub-map use-reaction]]))
+ 
 (defonce db_ (ratom/atom {}))
 
 (defn make-todo [id text] {:todo/id id :todo/text text})
@@ -178,8 +182,8 @@ See the examples directory in the source for working code.
 (def todo2 (make-todo #uuid"b13319dd-3200-40ec-b8ba-559e404f9aa5" "todo2"))
 (swap! db_ assoc :todos [todo1 todo2])
 
-(reg-sub ::all-todos :-> :todos)
-(reg-sub ::sorted-todos :<- [::all-todos] :-> (partial sort-by :todo/text))
+(defsub all-todos :-> :todos)
+(defsub sorted-todos :<- [all-todos] (partial sort-by :todo/text))
 
 ;; lifted from helix.core
 (defn $ [type & args]
@@ -188,14 +192,14 @@ See the examples directory in the source for working code.
       (apply react/createElement type' (clj->js ?p) ?c)
       (apply react/createElement type' nil args))))
 
-(defn a-react-hook-component []
+(defn a-react-hooks-component []
   (let [{:keys [my-todos] :as the-subs} 
-           (use-sub-map db_ {:my-todos [::all-todos] 
-                             :sorted-todo-list [::sorted-todos]})
+           (use-sub-map db_ {:my-todos [all-todos] 
+                             :sorted-todo-list [sorted-todos]})
           
          ;; this is contrived, but you could imagine passing in subs as a prop
          ;; or other dynamic possibilities
-         some-subs [[::sorted-todos] [:all-todos]]
+         some-subs [[sorted-todos] [all-todos]]
          list-of-lists (use-reaction (make-reaction (fn [] (mapv <sub some-subs)))]
     ($ :div
       ($ :button #js{:onClick #(swap! db_ update :todos conj (make-todo (random-uuid) "another todo"))}
@@ -217,7 +221,7 @@ Here is an example using [helix](https://github.com/lilactown/helix) for react r
   (:require
     [space.matterandvoid.subscriptions.core :as subs :refer [defsub]]
     [space.matterandvoid.subscriptions.reagent-ratom :as ratom]
-    [space.matterandvoid.subscriptions.react-hook :as subs.hooks]
+    [space.matterandvoid.subscriptions.react-hooks :as subs.hooks]
     [helix.core :as hc]))
 
 (def my-datasource (ratom/atom {:a-number 500}))

@@ -1,21 +1,36 @@
-(ns space.matterandvoid.subscriptions.react-hooks-fulcro)
+(ns space.matterandvoid.subscriptions.react-hooks-fulcro
+  (:require [space.matterandvoid.subscriptions.fulcro :as subs]))
 
-(defmacro use-subs
-  "A react hook that subscribes to multiple subscriptions, the return value of the hook is the return value of the
-  subscriptions which will cause the consuming react function component to update when the subscriptions' values update.
+(defmacro use-sub-memo
+  "Macro that expands expands to `use-sub`, memoizes the subscription vector so that the underlying subscription
+  is reused across re-renders by React. If your subscription vector contains an arguments map, it is memoized with dependencies
+  being the values of the map. If you pass a symbol as the arguments the symbol will be used as the dependency for useMemo
+  thus, you are expected to memoize the arguments yourself."
+  ([datasource sub-vector]
+   (let [sub (when (vector? sub-vector) (first sub-vector))
+         args (when (vector? sub-vector) (second sub-vector))
+         memo-val (-> args meta :memo)
+         equal?   (or memo-val 'cljs.core/identical?)]
+     (if (map? args)
+       (let [map-vals (vals args)]
+         (if (false? memo-val)
+           `(use-sub ~[sub args])
+           `(let [memo-query# (react/useMemo (fn [] ~[sub args]) (cljs.core/array ~@map-vals))]
+              (use-sub ~datasource memo-query# ~equal?))))
 
-  Takes an optional data source (fulcro application) and a variable number of subscription vectors.
-  Returns a vector with the current values of the subscriptions in the corresponding positions in the vector as the input.
+       (cond
+         (symbol? sub-vector)
+         `(use-sub ~datasource ~sub-vector ~equal?)
 
-  You can optionally pass a datasource as the first argument, otherwise the subscriptions will use the suscription
-  datasource-context to read the fulcro app from React context
-  e.g.
-  (use-subs [my-sub1] [my-sub2])"
-  [& subs]
-  (if (vector? (first subs))
-    `[~@(mapv (fn [sub] `(use-sub ~sub)) subs)]
-    (let [datasource (first subs)]
-      `[~@(mapv (fn [sub] `(use-sub ~datasource ~sub)) (rest subs))])))
+         (nil? args)
+         `(let [memo-query# (react/useMemo (fn [] [~sub]) (cljs.core/array))]
+            (use-sub ~datasource memo-query# ~equal?))
+
+         :else
+         `(let [memo-query# (react/useMemo (fn [] ~[sub args]) (cljs.core/array ~args))]
+            (use-sub ~datasource memo-query# ~equal?))))))
+  ([args]
+   `(use-sub-memo (react/useContext subs/datasource-context) ~args)))
 
 (defmacro use-sub-map
   "A react hook that subscribes to multiple subscriptions, the return value of the hook is the return value of the
@@ -30,24 +45,13 @@
   React context."
   ([query-map]
    (assert (map? query-map) "You must pass a map literal to use-sub-map")
-   (->> query-map (map (fn [[k query]] `[~k (use-sub ~query)])) (into {})))
+   (let [datasource-sym (gensym "datasource")]
+     `(let [~datasource-sym (react/useContext subs/datasource-context)]
+        ~(->> query-map
+           (map (fn [[k query]]
+                  `[~k (use-sub-memo ~datasource-sym ~query)]))
+           (into {})))))
+
   ([datasource query-map]
    (assert (map? query-map) "You must pass a map literal to use-sub-map")
-   (->> query-map (map (fn [[k query]] `[~k (use-sub ~datasource ~query)])) (into {}))))
-
-(defmacro use-sub4 [[sub args]]
-  (if (map? args)
-    (do
-      (.println System/err (str "Args is a map!"))
-      (let [map-vals (vals args)]
-        `(let [memo-query# (react/useMemo (fn [] ~[sub args]) (cljs.core/array ~@map-vals))]
-           (use-sub2 '~sub memo-query#))))
-    (if (nil? args)
-      (do
-        (.println System/err (str "Args is nil!"))
-        `(let [memo-query# (react/useMemo (fn [] [~sub]) (cljs.core/array))]
-           (use-sub2 '~sub memo-query#)))
-      (do
-        (.println System/err (str "Args is present and not nil!"))
-        `(let [memo-query# (react/useMemo (fn [] ~[sub args]) (cljs.core/array ~args))]
-           (use-sub2 '~sub memo-query#))))))
+   (->> query-map (map (fn [[k query]] `[~k (use-sub-memo ~datasource ~query)])) (into {}))))

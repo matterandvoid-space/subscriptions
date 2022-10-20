@@ -20,7 +20,7 @@
 
   The underlying subscription is cached in a React ref so it is not recreated across re-renders.
   By default the subscription will be re-created when the query vector to the subscription changes between renders.
-  By default uses `cljs.core/identical?` to determine if the query has changed, but the equality function can be passed in
+  By default uses `cljs.core/identical?` to determine if the query has changed, but the equality function `equal?` can be passed in
   to change this behavior.
   Thus it is expected that the subscription vector is memoized between renders and is invalidated by the calling code
   when necessary (for example when the arguments map changes values) to achieve optimal rendering performance."
@@ -43,21 +43,19 @@
    (use-sub datasource query identical?))
 
   ([query]
-   (let [datasource (react/useContext subs/datasource-context)]
-     (use-sub datasource query identical?))))
+   (use-sub (react/useContext subs/datasource-context) query identical?)))
 
 (defn use-reaction-ref
   "Takes a Reagent Reaction inside a React ref and rerenders the UI component when the Reaction's value changes.
   Returns the current value of the Reaction"
-  [^js r]
-  (when goog/DEBUG (when (not (gobj/containsKey r "current"))
+  [^js ref]
+  (when goog/DEBUG (when (not (gobj/containsKey ref "current"))
                      (throw (js/Error (str "use-reaction-ref hook must be passed a reaction inside a React ref."
-                                        " You passed: " (pr-str r))))))
-  (common/use-reaction-ref r))
+                                        " You passed: " (pr-str ref))))))
+  (common/use-reaction-ref ref))
 
 (defn use-reaction
   "Takes a Reagent Reaction and rerenders the UI component when the Reaction's value changes.
    Returns the current value of the Reaction"
-  [r]
-  (let [ref (react/useRef r)]
-    (common/use-reaction-ref ref)))
+  [reaction]
+  (common/use-reaction reaction))

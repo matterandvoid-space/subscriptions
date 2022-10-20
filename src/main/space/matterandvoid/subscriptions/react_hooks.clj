@@ -1,36 +1,72 @@
-(ns space.matterandvoid.subscriptions.react-hooks)
+(ns space.matterandvoid.subscriptions.react-hooks
+  (:require [space.matterandvoid.subscriptions.core :as subs]))
 
-(defmacro use-subs
-  "A react hook that subscribes to multiple subscriptions, the return value of the hook is the return value of the
-  subscriptions which will cause the consuming react function component to update when the subscriptions' values update.
+(defmacro use-sub-memo
+  "Macro that expands expands to `use-sub`, memoizes the subscription vector so that the underlying subscription
+  is reused across re-renders by React. If your subscription vector contains an arguments map literal, it is memoized with dependencies
+  being the values of the map. If you pass a symbol as the arguments the symbol will be used as the dependency for useMemo;
+  thus, you are expected to memoize the arguments yourself in that case.
 
-  Takes an optional data source (fulcro application) and a variable number of subscription vectors.
-  Returns a vector with the current values of the subscriptions in the corresponding positions in the vector as the input.
+  If you pass a symbol for the entire subscription vector, no memoization takes place.
 
-  You can optionally pass a datasource as the first argument, otherwise the subscriptions will use the suscription
-  datasource-context to read the fulcro app from React context
-  e.g.
-  (use-subs [my-sub1] [my-sub2])"
-  [& subs]
-  (if (vector? (first subs))
-    `[~@(mapv (fn [sub] `(use-sub ~sub)) subs)]
-    (let [datasource (first subs)]
-      `[~@(mapv (fn [sub] `(use-sub ~datasource ~sub)) (rest subs))])))
+  You can annotate the subscription vector with ^:no-memo to emit a plain call to `use-sub` that will not wrap the
+  subscription vector in a react/useMemo call.
+  You can also pass ^{:memo your-equality-fn} to change the memoization function used (for example to `=`)."
+  ([datasource subscription-vector]
+   (let [sub (when (vector? subscription-vector) (first subscription-vector))
+         args (when (vector? subscription-vector) (second subscription-vector))
+         no-memo-val (-> subscription-vector meta :no-memo)
+         memo-val (-> subscription-vector meta :memo)
+         equal?   (or memo-val 'cljs.core/identical?)]
+     (if (map? args)
+       (let [map-vals (vals args)]
+         (if (true? no-memo-val)
+           `(use-sub ~datasource ~subscription-vector ~equal?)
+           `(let [memo-query# (react/useMemo (fn [] ~[sub args]) (cljs.core/array ~@map-vals))]
+              (use-sub ~datasource memo-query# ~equal?))))
+
+       (cond
+         (symbol? subscription-vector)
+         `(use-sub ~datasource ~subscription-vector ~equal?)
+
+         (nil? args)
+         (if (true? no-memo-val)
+           `(use-sub ~datasource ~subscription-vector ~equal?)
+           `(let [memo-query# (react/useMemo (fn [] [~sub]) (cljs.core/array))]
+              (use-sub ~datasource memo-query# ~equal?)))
+
+         :else
+         (if (true? no-memo-val)
+           `(use-sub ~datasource ~subscription-vector ~equal?)
+           `(let [memo-query# (react/useMemo (fn [] ~[sub args]) (cljs.core/array ~args))]
+              (use-sub ~datasource memo-query# ~equal?)))))))
+
+  ([subscription-vector]
+   `(use-sub-memo (react/useContext subs/datasource-context) ~subscription-vector)))
 
 (defmacro use-sub-map
   "A react hook that subscribes to multiple subscriptions, the return value of the hook is the return value of the
   subscriptions which will cause the consuming react function component to update when the subscriptions' values update.
 
-  Takes a data source (reagent ratom) and a hashmap
+  Takes an optional data source (Reagent RAtom) and a hashmap
   - keys are keywords (qualified or simple) that you make up.
   - values are subscription vectors.
   Returns a map with the same keys and the values are the subscriptions subscribed and deref'd (thus, being their current values).
 
-  The single-arity version takes only a query map and will use the suscription app-context to read the fulcro app from
-  React context."
+  You can annotate any of the subscription vectors with ^:no-memo to emit a plain call to `use-sub` that will not wrap the
+  subscription vector in a react/useMemo call.
+  You can also pass ^{:memo your-equality-fn} to change the memoization function used (for example to `=`).
+
+  The single-arity version takes only a query map and will use the suscription datasource-context to read the Reagent RAtom
+  from React context."
   ([query-map]
    (assert (map? query-map) "You must pass a map literal to use-sub-map")
-   (->> query-map (map (fn [[k query]] `[~k (use-sub ~query)])) (into {})))
+   (let [datasource-sym (gensym "datasource")]
+     `(let [~datasource-sym (react/useContext subs/datasource-context)]
+        ~(->> query-map
+           (map (fn [[k query]] `[~k (use-sub-memo ~datasource-sym ~query)]))
+           (into {})))))
+
   ([datasource query-map]
    (assert (map? query-map) "You must pass a map literal to use-sub-map")
-   (->> query-map (map (fn [[k query]] `[~k (use-sub ~datasource ~query)])) (into {}))))
+   (->> query-map (map (fn [[k query]] `[~k (use-sub-memo ~datasource ~query)])) (into {}))))

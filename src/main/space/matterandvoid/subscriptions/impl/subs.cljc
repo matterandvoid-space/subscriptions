@@ -348,38 +348,38 @@
   "Creates a subscription function that takes the datasource ratom and optionally an args map and returns a Reaction
   or RCursor type."
   [meta-sub-kw get-input-db-signal sub-name args body]
-  (let [args-sym     (gensym "args")
-        out-sym      (gensym "out")
-        out-sym2     (gensym "out2")
-        f-sym        (gensym "f")
-        db-ratom-sym (gensym "db-ratom")
-        one-arg?     (= 1 (count args))]
+  (let [args-sym       (gensym "args")
+        datasource-sym (gensym "out")
+        out-sym        (gensym "out2")
+        f-sym          (gensym sub-name)
+        db-ratom-sym   (gensym "db-ratom")
+        full-name      (symbol (str *ns*) (name sub-name))
+        one-arg?       (= 1 (count args))]
     (assert (or one-arg? (= 2 (count args))) (str "Args to defsubraw must be 2 at most. sub: " sub-name))
     `(let [~f-sym
            (fn ~sub-name ~args
              (ratom/make-reaction
                (fn []
-                 (let [~out-sym2 ~body]
+                 (let [~out-sym ~body]
                    ~(when (:ns &env)
                       `(when goog/DEBUG
-                         (assert (not (ratom/reaction? ~out-sym2))
-                           (str "Raw subscription: " '~(symbol (str (:name (:ns &env))) (name sub-name))
-                             " Must not return a Reaction, it is wrapped for you " (pr-str ~out-sym2)))))
-                   ~out-sym2))))
+                         (assert (not (ratom/reaction? ~out-sym))
+                           (str "Raw subscription: " '~full-name " Must not return a Reaction, it is wrapped for you " (pr-str ~out-sym)))))
+                   ~out-sym))))
 
            subscription-fn#
            (fn ~sub-name
-             ([datasource#]
-
-              (let [~db-ratom-sym (~get-input-db-signal datasource#)
-                    ~out-sym (~f-sym ~db-ratom-sym ~(when-not one-arg? 'nil)
-                               )]
-                ~out-sym))
+             ([~datasource-sym]
+              ~(if one-arg?
+                 `(~f-sym (~get-input-db-signal ~datasource-sym))
+                 `(~f-sym (~get-input-db-signal ~datasource-sym '~nil))))
 
              ([datasource# ~args-sym]
-              (assert (or (nil? ~args-sym) (map? ~args-sym)))
+              (assert (or (nil? ~args-sym) (map? ~args-sym) (str "Invalid args passed to " '~full-name)))
               (let [~db-ratom-sym (~get-input-db-signal datasource#)]
-                (~f-sym ~db-ratom-sym ~args-sym))))]
+                ~(if one-arg?
+                   `(~f-sym ~db-ratom-sym)
+                   `(~f-sym ~db-ratom-sym ~args-sym)))))]
 
        (def ~sub-name (vary-meta (sub-fn ~meta-sub-kw subscription-fn#)
-                        assoc ~(keyword (namespace meta-sub-kw) "sub-name") ~(keyword (str *ns*) (str sub-name)))))))
+                        assoc ~(keyword (namespace meta-sub-kw) "sub-name") ~(keyword full-name))))))

@@ -260,7 +260,9 @@
            (fn ~fn-name
              ([datasource#] (deref (subscription-fn# datasource#)))
              ([datasource# args#] (deref (subscription-fn# datasource# args#))))
-           {::subscription subscription-fn#})))))
+           {::subscription subscription-fn#
+            :other         ~(keyword (str *ns*) (str fn-name))
+            ::sub-name     ~(keyword (str *ns*) (str fn-name))})))))
 
 (defmacro deflayer2-sub
   "Takes a symbol for a subscription name and a way to derive a path in your fulcro app db. Returns a function subscription

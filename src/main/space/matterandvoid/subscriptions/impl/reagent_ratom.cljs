@@ -19,11 +19,28 @@
 (def atom reagent.ratom/atom)
 (defn deref? [x] (satisfies? IDeref x))
 (defn make-reaction [f] (reagent.ratom/make-reaction f))
-(defn run-in-reaction [f obj key run opts] (reagent.ratom/run-in-reaction f obj key run opts))
+(defn run-in-reaction
+  "Evaluates `f` and returns the result.  If `f` calls `deref` on any ratoms,
+   creates a new Reaction that watches those atoms and calls `run` whenever
+   any of those watched ratoms change.  Also, the new reaction is added to
+   list of 'watches' of each of the ratoms. The `run` parameter is a function
+   that should expect one argument.  It is passed `obj` when run.  The `opts`
+   are any options accepted by a Reaction and will be set on the newly created
+   Reaction. Sets the newly created Reaction to the `key` on `obj`."
+  [f obj key run opts] (reagent.ratom/run-in-reaction f obj key run opts))
 (defn add-on-dispose! [a-ratom f] (reagent.ratom/add-on-dispose! a-ratom f))
 (defn reaction? [r] (instance? reagent.ratom/Reaction r))
 (defn cursor? [r] (instance? reagent.ratom/RCursor r))
-(defn dispose! [a-ratom] (reagent.ratom/dispose! a-ratom))
+(defn dispose! [^clj a-ratom]
+  (println "Calling dispose on a-ratom: " a-ratom)
+  (if (cursor? a-ratom)
+    (do (println "a-ratom: " a-ratom)
+        (println "keys: " (js-keys a-ratom))
+        (if (.-on-dispose a-ratom)
+          (.on-dispose a-ratom)
+          (when (.-reaction a-ratom)
+            (reagent.ratom/dispose! (.-reaction a-ratom)))))
+    (reagent.ratom/dispose! a-ratom)))
 (defn ^boolean reactive-context? [] (reagent.ratom/reactive?))
 (defn in-reactive-context [o f] (binding [reagent.ratom/*ratom-context* o] (f)))
 

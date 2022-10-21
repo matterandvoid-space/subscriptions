@@ -20,28 +20,35 @@
     (console :warn "subscriptions: The subscription cache isn't empty after being cleared")))
 
 (defn cache-and-return!
-  "cache the reaction r"
+  "cache the reaction reaction-or-cursor"
   [get-subscription-cache get-cache-key app query-v #?(:cljs ^clj reaction-or-cursor :clj reaction-or-cursor)]
   ;; this prevents memory leaks (caching subscription -> reaction) but still allows
   ;; executing outside of a (reagent.reaction) form, like in event handlers.
-  (when (and (ratom/reactive-context?) reaction-or-cursor)
+  (when (and #_(ratom/reactive-context?) reaction-or-cursor)
+    (println " IN REACTIVE CONTEXT CACHING " query-v " key is : " (get-cache-key app query-v))
     (let [cache-key          (get-cache-key app query-v)
-          subscription-cache (get-subscription-cache app)
-          on-dispose         (fn [] (trace/with-trace {:operation (first query-v)
+          on-dispose         (fn []
+                               (println "ON DISPOSE SUBS")
+                               (trace/with-trace {:operation (first query-v)
                                                        :op-type   :sub/dispose
                                                        :tags      {:query-v  query-v
                                                                    :reaction (ratom/reagent-id reaction-or-cursor)}}
-                                      (swap! subscription-cache
+
+                                      (println "ON DISPOSE SUBS cache key:  " cache-key)
+                                 (println " cache has key? " (contains? (get-subscription-cache app) cache-key))
+                                 (println "@subscription-cache "  (get-subscription-cache app))
+                                 (swap! (get-subscription-cache app)
                                         (fn [query-cache]
-                                          (if (and (contains? query-cache cache-key) (identical? reaction-or-cursor (get query-cache cache-key)))
-                                            (dissoc query-cache cache-key)
+                                          (if (and (contains? query-cache cache-key) #_(identical? reaction-or-cursor (get query-cache cache-key)))
+                                            (do (println "REMOVE FROM CACHE " cache-key)
+                                              (dissoc query-cache cache-key))
                                             query-cache)))))]
       ;(log/info "CACHING REACTION with KEY: " cache-key)
       ;; when this reaction is no longer being used, remove it from the cache
 
       (when (ratom/reaction? reaction-or-cursor) (ratom/add-on-dispose! reaction-or-cursor on-dispose))
       (when (ratom/cursor? reaction-or-cursor) (set! (.-on-dispose reaction-or-cursor) on-dispose))
-      (swap! subscription-cache (fn [query-cache]
+      (swap! (get-subscription-cache app) (fn [query-cache]
                                   (when ratom/debug-enabled?
                                     (when (contains? query-cache cache-key)
                                       (console :warn "subscriptions: Adding a new subscription to the cache while there is an existing subscription in the cache" cache-key)))
@@ -55,9 +62,10 @@
   "Takes a datasource and query and returns a Reaction."
   [get-handler cache-lookup get-subscription-cache get-cache-key
    datasource query]
-  ;(log/debug "\n\nSUBSCRIBE IMPL--------------------------------------------")
-  ;(log/debug "subscribe query: " query)
+  (log/debug "\n\nSUBSCRIBE IMPL--------------------------------------------")
+  (log/debug "subscribe query: " query)
   (assert (vector? query) (str "Queries must be vectors, you passed: " (pr-str query)))
+
   (let [cnt       (count query),
         query-id  (first query)
         cache-key (get-cache-key datasource query)]
@@ -70,7 +78,7 @@
       (let [cached-reaction (cache-lookup datasource cache-key)]
         (if cached-reaction
           (do (trace/merge-trace! {:tags {:cached? true :reaction (ratom/reagent-id cached-reaction)}})
-              ;(log/info "HAVE CACHED REACTEION " (or (.-name query-id) query-id))
+              (log/info "HAVE CACHED REACTEION " (or (.-name query-id) query-id))
               cached-reaction)
           (let [handler-fn (get-handler query-id)]
             ;(log/info "NO CACHED REACTION : " (cond
@@ -89,6 +97,7 @@
                 (let [reaction
                       #?(:cljs (handler-fn datasource handler-args)
                          :clj (try (handler-fn datasource handler-args) (catch clojure.lang.ArityException _ (handler-fn datasource))))]
+                  (log/info "DO NOT HAVE CACHED")
                   (cache-and-return! get-subscription-cache get-cache-key datasource query reaction))))))))))
 
 ;; -- reg-sub -----------------------------------------------------------------
@@ -326,4 +335,5 @@
                                             " Got: " (pr-str ~path-sym)))))
                    (when ~path-sym (ratom/cursor ~db-ratom-sym ~path-sym)))))]
 
-          (def ~sub-name (sub-fn ~meta-sub-kw subscription-fn#))))))
+          (def ~sub-name (vary-meta (sub-fn ~meta-sub-kw subscription-fn#)
+                           assoc ~(keyword (namespace meta-sub-kw) "sub-name") ~(keyword (str *ns*) (str sub-name))))))))

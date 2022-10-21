@@ -37,7 +37,14 @@
        (ratom/dispose! (.-current ref))
        (set! (.-current ref) (subs/subscribe datasource query)))
 
-     (common/use-reaction-ref ref)))
+     (react/useEffect (fn []
+                        (fn []
+                          (when (.-current ref)
+                            (println "COMPONENT DID UNMOUNT - DISPSE")
+                            (ratom/dispose! (.-current ref)))
+                          )) #js[])
+     (common/use-reaction (.-current ref))
+     ))
 
   ([datasource query]
    (use-sub datasource query identical?))

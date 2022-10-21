@@ -490,7 +490,7 @@
   "Creates a subscription function (and dependent subscription functions) that will fulfill the given fulcro component's query.
   The subscription name will by the fully qualified keyword or symbol returned from class->registry-key of the component.
   The component must have a name and so must any components in its query."
-  [<sub sub-fn datasource c join-subs-map]
+  [sub-name-kw <sub sub-fn datasource c join-subs-map]
   (when-not (class->registry-key c) (throw (error "Component name missing on component: " c)))
   (let [query   (get-query c)
         id-attr (component-id-prop c)
@@ -505,7 +505,10 @@
               union-joins) (str "All joins must have a provided subscription " (pr-str (map first union-joins))))
     (let [recur-join-fn_  (atom nil)
           prop-subs       (zipmap props (map (fn [p] (proto/-attribute-subscription-fn datasource id-attr p)) props))
-          plain-join-subs (zipmap (map first plain-joins) (map (fn [[p component-sub]] (sub-plain-join <sub datasource id-attr p component-sub)) plain-joins))
+          plain-join-subs (zipmap (map first plain-joins) (map (fn [[p component-sub]]
+                                                                 (vary-meta
+                                                                   (sub-plain-join <sub datasource id-attr p component-sub)
+                                                                   assoc sub-name-kw p)) plain-joins))
           union-join-subs (zipmap (map first union-joins) (map (fn [[p component-sub]] (sub-union-join <sub datasource id-attr p component-sub)) union-joins))
           recur-join-subs (zipmap (map first recur-joins) (map (fn [[p]] (sub-recur-join <sub datasource id-attr p recur-join-fn_)) recur-joins))
           kw->sub-fn      (merge prop-subs plain-join-subs union-join-subs recur-join-subs)

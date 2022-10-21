@@ -14,18 +14,31 @@
 
 (defn use-run-in-reaction [reaction]
   (let [reaction-key      "reaction"
-        reaction-obj      (react/useRef #js{})]
+        ;reaction-obj      (react/useRef #js{})
+        reaction-obj      (react/useMemo (fn [] #js{}) #js[])]
     (react/useCallback
       (fn setup-subscription [listener]
         (ratom/run-in-reaction
-          (fn [] (when reaction @reaction))
-          (.-current reaction-obj)
+          (fn []
+            (println "RUN REACTION" reaction)
+            (when reaction @reaction))
+          ;(.-current reaction-obj)
+          reaction-obj
           reaction-key
-          listener
+          (fn []
+            (println "CALLING LISTENER")
+            (listener))
           {:no-cache true})
         (fn cleanup-subscription []
-          (when (gobj/get (.-current reaction-obj) reaction-key)
-            (ratom/dispose! (gobj/get (.-current reaction-obj) reaction-key)))))
+          (println "CLEANUP sub" reaction-obj)
+          (when (gobj/get reaction-obj reaction-key)
+            (println "disposing run-in-reaction reaction")
+            (ratom/dispose! (gobj/get reaction-obj reaction-key)))
+
+          ;(when reaction
+          ;  (println "disposing MAIN reaction " reaction)
+          ;  (ratom/dispose! reaction))
+          ))
       #js [reaction])))
 
 (defn use-sync-external-store [subscribe get-snapshot]
@@ -58,5 +71,8 @@
    Returns the current value of the Reaction"
   [^clj reaction]
   (let [subscribe    (use-run-in-reaction reaction)
-        get-snapshot (react/useCallback (fn [] (ratom/in-reactive-context #js{} (fn [] (when reaction @reaction)))) #js[reaction])]
+        get-snapshot (react/useCallback
+                       (fn []
+                         (ratom/in-reactive-context #js{} (fn [] (when reaction @reaction))))
+                       #js[reaction])]
     (use-sync-external-store subscribe get-snapshot)))

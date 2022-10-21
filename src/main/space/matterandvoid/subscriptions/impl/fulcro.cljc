@@ -1,5 +1,6 @@
 (ns space.matterandvoid.subscriptions.impl.fulcro
   (:require
+    [space.matterandvoid.subscriptions.fulcro :as-alias fulcro.subs]
     [com.fulcrologic.fulcro.algorithms.tx-processing :as ftx]
     [com.fulcrologic.fulcro.algorithms.normalized-state :refer [dissoc-in]]
     [com.fulcrologic.fulcro.application :as fulcro.app]
@@ -26,7 +27,23 @@
 ;; for other proxy interfaces (other than fulcro storage) this has to be an atom of a map.
 ;; this is here for now just to inspect it at the repl
 (defonce subs-cache_ (atom {}))
-(comment @subs-cache_
+(comment
+  @subs-cache_
+  (count @subs-cache_)
+  (take 3 @subs-cache_)
+  (key (first @subs-cache_))
+  (val (first @subs-cache_))
+  (.-watches (val (first @subs-cache_)))
+  (js-keys (val (first @subs-cache_)))
+  (.-watching (val (first @subs-cache_)))
+  (ratom/dispose! (val (first @subs-cache_)))
+  (val (first @subs-cache_))
+  (key (first @subs-cache_))
+  (let [[k v] (first @subs-cache_)]
+    (get @subs-cache_ k))
+  (js-keys (val (first @subs-cache_)))
+  (.on-dispose (val (first @subs-cache_)))
+
   (let [k (first (keys @subs-cache_))]
     @(get @subs-cache_ k))
   ;; now all I need to do is
@@ -47,7 +64,51 @@
 ;; it's a tradeoff, it may make more sense to just add integration with fulcro inspect via the
 ;; existing tracing calls.
 (defn get-cache-key [app query-v]
-  (if (keyword? (first query-v)) query-v (into [(hash app)] query-v)))
+  ;(println "get cache key  app fulcro app?: " (fulcro.app/fulcro-app? app))
+  ;(println "get cache key  app ratom?  " (ratom/ratom? app))
+  (cond
+    (keyword? (first query-v))
+    query-v
+
+    ;:else
+    ;(into [(hash app) query-v])
+
+    (instance? #?(:cljs cljs.core/MetaFn :clj nil) (first query-v))
+    (do
+      (println "CACH KEY meta fn " (-> query-v first meta ::fulcro.subs/sub-name))
+      (when (nil? (-> query-v first meta ::fulcro.subs/sub-name))
+        (throw
+          #?(:cljs
+             (js/Error. (str "SUB MISSING NAME : " (-> query-v first .-afn .-name)
+                          " meta name: " (-> query-v first meta ::fulcro.subs/sub-name)
+                          ))
+             :clj (Exception. "ERR"))))
+
+      (log/info "CACHE HAS sub? "
+        "key: " [(-> query-v first meta ::fulcro.subs/sub-name) (second query-v)]
+        " "
+        (contains? @subs-cache_ [(-> query-v first meta ::fulcro.subs/sub-name) (second query-v)]))
+      [(-> query-v first meta ::fulcro.subs/sub-name) (second query-v)])
+
+    (fn? (first query-v))
+    (do
+      (println "CACH KEY Fn " (pr-str (-> query-v first .-name)) " fn: " (-> query-v first meta ::fulcro.subs/sub-name)
+        )
+      #?(:cljs
+         (throw
+           (js/Error. (str "SUB FN MISSING NAME : " (-> query-v first)
+
+                        ))))
+      query-v
+      ;(into [(hash app) query-v])
+      ;[(-> query-v first hash) (second query-v)]
+      )
+
+    :else
+    query-v
+    ;(hash query-v)
+    ;(hash (into [app] query-v))
+    ))
 
 (defn get-subscription-cache [app] subs-cache_ #_(atom {}))
 (defn cache-lookup [app cache-key] (when app (get @(get-subscription-cache app) cache-key)))

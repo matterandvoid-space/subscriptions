@@ -2,7 +2,7 @@
   (:require
     [borkdude.dynaload :refer [dynaload]]
     [edn-query-language.core :as eql]
-    [space.matterandvoid.subscriptions.core :refer [reg-sub-raw <sub sub-fn]]
+    [space.matterandvoid.subscriptions.core :as subs :refer [reg-sub-raw <sub sub-fn]]
     [space.matterandvoid.subscriptions.impl.eql-protocols :as proto]
     [space.matterandvoid.subscriptions.impl.eql-queries :as impl]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r :refer [make-reaction]]
@@ -70,7 +70,7 @@
   the `sub-joins-map` argument is a hashmap whose keys are the join properties of the component and whose value is a
   subscription function for normal joins, and a nested hashmap for unions of the union key to subscription.
   You do not need to provide a subscription function for recursive joins."
-  [c sub-joins-map] (impl/create-component-subs <sub sub-fn xtdb-data-source c sub-joins-map))
+  [c sub-joins-map] (impl/create-component-subs ::subs/sub-name <sub sub-fn xtdb-data-source c sub-joins-map))
 
 (defn register-component-subs!
   "Registers subscriptions that will fulfill the given fulcro component's query.

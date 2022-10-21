@@ -1,11 +1,13 @@
 (ns space.matterandvoid.subscriptions.impl.eql-queries
   "Automatically register subscriptions to fulfill EQL queries for fulcro components."
   (:require
+    #?(:cljs [goog.object :as gobj])
     [borkdude.dynaload :refer [dynaload]]
     [edn-query-language.core :as eql]
     [space.matterandvoid.subscriptions.impl.eql-protocols :as proto]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :refer [make-reaction]]
-    [taoensso.timbre :as log]))
+    [taoensso.timbre :as log]
+    [clojure.set :as set]))
 
 (def query-key ::query)
 (def missing-val ::missing)
@@ -67,7 +69,9 @@
   (if @fulcro-loaded? (nc-wrapper args) (default-nc args)))
 
 (defn group-by-flat [f coll] (persistent! (reduce #(assoc! %1 (f %2) %2) (transient {}) coll)))
-(defn eql-by-key [query] (group-by-flat :dispatch-key (:children (eql/query->ast query))))
+
+(defn eql-by-key* [query] (group-by-flat :dispatch-key (:children (eql/query->ast query))))
+(def eql-by-key (memoize eql-by-key*))
 
 (defn ast-by-key->query [k->ast] (vec (mapcat eql/ast->query (vals k->ast))))
 
@@ -125,24 +129,27 @@
   "Return hashmap of data attribute keywords -> subscription output implementation for '* queries"
   [datasource app id-attr props args]
   (let [entity (proto/-entity datasource app id-attr args)]
+    ;(persistent! (reduce (fn [acc k] (assoc! acc k (get entity k))) (transient {}) props))
     (reduce (fn [acc prop] (assoc acc prop (get entity prop missing-val))) {} props)))
 
 (defn sub-entity
   "Registers a subscription that returns a domain entity as a hashmap.
   id-attr for the entity, the entity subscription name (fq kw) a seq of dependent subscription props"
-  [<sub sub-fn datasource id-attr props attr-kw->sub-fn]
-  (let [f
+  [<sub sub-fn datasource id-attr plain-props join-props full-props attr-kw->sub-fn]
+  (let [join-props-set (set join-props)
+        f
         (fn [app args]
           ;(log/debug "in sub-entity. id attr" id-attr)
           (if (some? (get args query-key))
-            (let [props->ast  (eql-by-key (get args query-key args))
-                  props'      (keys (dissoc props->ast '*))
-                  query       (get args query-key)
-                  star-query? (some? (get props->ast '*))]
+            ;; todo eql-by-key should be cached / memoized as this is pretty pricey
+            (let [props->ast     (eql-by-key (get args query-key args))
+                  props'         (set (keys (dissoc props->ast '*)))
+                  query          (get args query-key)
+                  star-query?    (some? (get props->ast '*))]
               ;(log/debug "\n\n------ENTITY sub have query" (pr-str query))
               (make-reaction
                 (fn []
-                  (let [all-props (if star-query? (get-all-props-shallow datasource app id-attr props args) nil)
+                  (let [all-props (if star-query? (get-all-props-shallow datasource app id-attr full-props args) nil)
                         output
                                   (if (or (nil? query) (= query '[*]))
                                     (do
@@ -165,9 +172,10 @@
                                                   (cond-> acc
                                                     (not= missing-val output)
                                                     (assoc prop output))))
-                                        {} props')))
+                                        (get-all-props-shallow datasource app id-attr plain-props args)
+                                        (set/intersection props' join-props-set))))
                         ;_         (log/debug "entity output1: " output)
-                        output    (merge all-props output)]
+                        output    (if all-props (merge all-props output) output)]
                     ;(log/debug "entity output2: " output)
                     output))))
             (do
@@ -175,7 +183,8 @@
               (make-reaction (fn [] (reduce (fn [acc prop]
                                               (let [prop-sub-fn (get attr-kw->sub-fn prop)]
                                                 (assoc acc prop (<sub app [prop-sub-fn args]))))
-                                      {} props))))))]
+                                      (get-all-props-shallow datasource app id-attr plain-props args)
+                                      join-props))))))]
     (if sub-fn (sub-fn f) f)))
 
 (defn sub-plain-join
@@ -515,7 +524,9 @@
           union-join-subs (zipmap (map first union-joins) (map (fn [[p component-sub]] (sub-union-join <sub datasource id-attr p component-sub)) union-joins))
           recur-join-subs (zipmap (map first recur-joins) (map (fn [[p]] (sub-recur-join <sub datasource id-attr p recur-join-fn_)) recur-joins))
           kw->sub-fn      (merge prop-subs plain-join-subs union-join-subs recur-join-subs)
-          entity-sub      (vary-meta (sub-entity <sub sub-fn datasource id-attr all-children kw->sub-fn) assoc ::component c)]
+          entity-sub      (vary-meta (sub-entity <sub sub-fn datasource id-attr (keys prop-subs)
+                                       (set/union plain-joins union-joins recur-joins)
+                                       all-children kw->sub-fn) assoc ::component c)]
       (reset! recur-join-fn_ entity-sub)
       entity-sub)))
 
@@ -544,5 +555,7 @@
     (run! (fn [[p component-sub]] (reg-sub-raw p (sub-plain-join <sub datasource id-attr p component-sub))) plain-joins)
     (run! (fn [[p component-sub]] (reg-sub-raw p (sub-union-join <sub datasource id-attr p component-sub))) union-joins)
     (run! (fn [[p]] (reg-sub-raw p (sub-recur-join <sub datasource id-attr p (atom entity-sub)))) recur-joins)
-    (reg-sub-raw entity-sub (sub-entity <sub nil datasource id-attr all-children join-props->sub))
+    (reg-sub-raw entity-sub (sub-entity <sub nil datasource id-attr props
+                              (set/union plain-joins union-joins recur-joins)
+                              all-children join-props->sub))
     nil))

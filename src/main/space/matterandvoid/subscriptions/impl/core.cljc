@@ -78,6 +78,13 @@
      [meta-sub-kw sub-name ?path]
      `(subs/deflayer2-sub ~meta-sub-kw get-input-db-signal ~sub-name ~?path)))
 
+#?(:clj
+   (defmacro defsubraw
+     "Creates a subscription function that takes the datasource ratom and optionally an args map and
+     returns the subscription value. The return value is wrapped in a Reaction for you, so you do not need to."
+     [meta-sub-kw sub-name args body]
+     `(subs/defsubraw ~meta-sub-kw get-input-db-signal ~sub-name ~args ~body)))
+
 (defn subscribe
   "Given a `query` vector, returns a Reagent `reaction` which will, over
   time, reactively deliver a stream of values. Also known as a `Signal`.

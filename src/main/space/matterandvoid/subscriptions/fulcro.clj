@@ -264,6 +264,12 @@
             :other         ~(keyword (str *ns*) (str fn-name))
             ::sub-name     ~(keyword (str *ns*) (str fn-name))})))))
 
+(defmacro defsubraw
+  "Creates a subscription function that takes the datasource ratom and optionally an args map and returns a Reaction
+  or RCursor type."
+  [sub-name args body]
+  `(impl/defsubraw ::subscription ~sub-name ~args ~body))
+
 (defmacro deflayer2-sub
   "Takes a symbol for a subscription name and a way to derive a path in your fulcro app db. Returns a function subscription
   which itself returns a Reagent RCursor.

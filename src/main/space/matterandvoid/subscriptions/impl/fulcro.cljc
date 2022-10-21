@@ -75,7 +75,7 @@
 
     (instance? #?(:cljs cljs.core/MetaFn :clj nil) (first query-v))
     (do
-      (println "CACH KEY meta fn " (-> query-v first meta ::fulcro.subs/sub-name))
+      ;(println "CACH KEY meta fn " (-> query-v first meta ::fulcro.subs/sub-name))
       (when (nil? (-> query-v first meta ::fulcro.subs/sub-name))
         (throw
           #?(:cljs
@@ -84,16 +84,15 @@
                           ))
              :clj (Exception. "ERR"))))
 
-      (log/info "CACHE HAS sub? "
-        "key: " [(-> query-v first meta ::fulcro.subs/sub-name) (second query-v)]
-        " "
-        (contains? @subs-cache_ [(-> query-v first meta ::fulcro.subs/sub-name) (second query-v)]))
+      ;(log/info "CACHE HAS sub? "
+      ;  "key: " [(-> query-v first meta ::fulcro.subs/sub-name) (second query-v)]
+      ;  " "
+      ;  (contains? @subs-cache_ [(-> query-v first meta ::fulcro.subs/sub-name) (second query-v)]))
       [(-> query-v first meta ::fulcro.subs/sub-name) (second query-v)])
 
     (fn? (first query-v))
     (do
-      (println "CACH KEY Fn " (pr-str (-> query-v first .-name)) " fn: " (-> query-v first meta ::fulcro.subs/sub-name)
-        )
+      ;(println "CACH KEY Fn " (pr-str (-> query-v first .-name)) " fn: " (-> query-v first meta ::fulcro.subs/sub-name) )
       #?(:cljs
          (throw
            (js/Error. (str "SUB FN MISSING NAME : " (-> query-v first)
@@ -222,6 +221,12 @@
      [meta-sub-kw sub-name ?path]
      `(subs/deflayer2-sub ~meta-sub-kw get-input-db-signal ~sub-name ~?path)))
 
+#?(:clj
+   (defmacro defsubraw
+     "Creates a subscription function that takes the datasource ratom and optionally an args map and
+     returns the subscription value. The return value is wrapped in a Reaction for you, so you do not need to."
+     [meta-sub-kw sub-name args body]
+     `(subs/defsubraw ~meta-sub-kw get-input-db-signal ~sub-name ~args ~body)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; reactive refresh of components

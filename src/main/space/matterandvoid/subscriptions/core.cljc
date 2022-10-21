@@ -164,6 +164,13 @@
      "
      [sub-name ?path] `(impl/deflayer2-sub ::subscription ~sub-name ~?path)))
 
+#?(:clj
+   (defmacro defsubraw
+     "Creates a subscription function that takes the datasource ratom and optionally an args map and returns a Reaction
+     or RCursor type."
+     [sub-name args body]
+     `(impl/defsubraw ::subscription ~sub-name ~args ~body)))
+
 (defn sub-fn
   "Takes a function that returns either a Reaction or RCursor. Returns a function that when invoked delegates to `f` and
    derefs its output. The returned function can be used in subscriptions."

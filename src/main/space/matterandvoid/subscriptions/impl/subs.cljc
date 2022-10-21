@@ -24,37 +24,42 @@
   [get-subscription-cache get-cache-key app query-v #?(:cljs ^clj reaction-or-cursor :clj reaction-or-cursor)]
   ;; this prevents memory leaks (caching subscription -> reaction) but still allows
   ;; executing outside of a (reagent.reaction) form, like in event handlers.
-  (when (and #_(ratom/reactive-context?) reaction-or-cursor)
-    (println " IN REACTIVE CONTEXT CACHING " query-v " key is : " (get-cache-key app query-v))
+  (when (and (ratom/reactive-context?) reaction-or-cursor)
+    ;(log/debug " IN REACTIVE CONTEXT CACHING " query-v " key is : " (get-cache-key app query-v))
     (let [cache-key          (get-cache-key app query-v)
+          subscription-cache (get-subscription-cache app)
           on-dispose         (fn []
-                               (println "ON DISPOSE SUBS")
+                               ;(log/debug "ON DISPOSE SUBS")
                                (trace/with-trace {:operation (first query-v)
-                                                       :op-type   :sub/dispose
-                                                       :tags      {:query-v  query-v
-                                                                   :reaction (ratom/reagent-id reaction-or-cursor)}}
+                                                  :op-type   :sub/dispose
+                                                  :tags      {:query-v  query-v
+                                                              :reaction (ratom/reagent-id reaction-or-cursor)}}
 
-                                      (println "ON DISPOSE SUBS cache key:  " cache-key)
+                                 ;(log/info "ON DISPOSE SUBS cache key:  " cache-key)
                                  ;(println " cache has key? " (contains? (get-subscription-cache app) cache-key))
                                  ;(println "@subscription-cache "  (get-subscription-cache app))
-                                 (swap! (get-subscription-cache app)
-                                        (fn [query-cache]
-                                          (if (and (contains? query-cache cache-key) #_(identical? reaction-or-cursor (get query-cache cache-key)))
-                                            (do
-                                              (println "REMOVE FROM CACHE " cache-key)
-                                              (dissoc query-cache cache-key))
-                                            query-cache)))))]
-      ;(log/info "CACHING REACTION with KEY: " cache-key)
+                                 (swap! subscription-cache
+                                   (fn [query-cache]
+                                     (if (and (contains? query-cache cache-key)
+                                           (identical? reaction-or-cursor (get query-cache cache-key)))
+                                       (do
+                                         ;(log/info "REMOVE FROM CACHE " cache-key)
+                                         (dissoc query-cache cache-key))
+                                       query-cache)))))]
+      ;(log/debug "CACHING REACTION with KEY: " cache-key)
       ;; when this reaction is no longer being used, remove it from the cache
 
       (when (ratom/reaction? reaction-or-cursor) (ratom/add-on-dispose! reaction-or-cursor on-dispose))
       (when (ratom/cursor? reaction-or-cursor) (set! (.-on-dispose reaction-or-cursor) on-dispose))
-      (swap! (get-subscription-cache app) (fn [query-cache]
-                                  (when ratom/debug-enabled?
-                                    (when (contains? query-cache cache-key)
-                                      (console :warn "subscriptions: Adding a new subscription to the cache while there is an existing subscription in the cache" cache-key)))
-                                  (assoc query-cache cache-key reaction-or-cursor)))
+      (swap! subscription-cache
+        (fn [query-cache]
+          (when ratom/debug-enabled?
+            (when (contains? query-cache cache-key)
+              (console :warn "subscriptions: Adding a new subscription to the cache while there is an existing subscription in the cache" cache-key)))
+          (assoc query-cache cache-key reaction-or-cursor)))
       (trace/merge-trace! {:tags {:reaction (ratom/reagent-id reaction-or-cursor)}})))
+
+  ;(log/debug "Not reactive, not caching " (get-cache-key app query-v))
   reaction-or-cursor)
 
 ;; -- subscribe ---------------------------------------------------------------
@@ -63,8 +68,8 @@
   "Takes a datasource and query and returns a Reaction."
   [get-handler cache-lookup get-subscription-cache get-cache-key
    datasource query]
-  (log/debug "\n\nSUBSCRIBE IMPL--------------------------------------------")
-  (log/debug "subscribe query: " query)
+  ;(log/debug "\n\nSUBSCRIBE IMPL--------------------------------------------")
+  ;(log/debug "subscribe query: " query)
   (assert (vector? query) (str "Queries must be vectors, you passed: " (pr-str query)))
 
   (let [cnt       (count query),
@@ -79,7 +84,7 @@
       (let [cached-reaction (cache-lookup datasource cache-key)]
         (if cached-reaction
           (do (trace/merge-trace! {:tags {:cached? true :reaction (ratom/reagent-id cached-reaction)}})
-              (log/info "HAVE CACHED REACTEION " (or (.-name query-id) query-id))
+              #_(log/info "HAVE CACHED REACTION " (or (.-name query-id) query-id))
               cached-reaction)
           (let [handler-fn (get-handler query-id)]
             ;(log/info "NO CACHED REACTION : " (cond
@@ -98,7 +103,7 @@
                 (let [reaction
                       #?(:cljs (handler-fn datasource handler-args)
                          :clj (try (handler-fn datasource handler-args) (catch clojure.lang.ArityException _ (handler-fn datasource))))]
-                  (log/info "DO NOT HAVE CACHED")
+                  ;(log/info "DO NOT HAVE CACHED")
                   (cache-and-return! get-subscription-cache get-cache-key datasource query reaction))))))))))
 
 ;; -- reg-sub -----------------------------------------------------------------
@@ -308,7 +313,6 @@
            db-ratom-sym (gensym "db-ratom")]
        `(let [~path-val-sym ~?path
               subscription-fn#
-
               (fn ~sub-name
                 ([datasource#]
                  (let [~db-ratom-sym (~get-input-db-signal datasource#)
@@ -319,6 +323,7 @@
                                     :else `(if (fn? ~path-val-sym) (apply ~path-val-sym [~db-ratom-sym]) ~path-val-sym))]
                    ~(when (:ns &env)
                       `(when goog/DEBUG (assert (or (nil? ~path-sym) (vector? ~path-sym))
+
                                           (str "Layer 2 subscription \"" '~(symbol (str (:name (:ns &env))) (name sub-name)) "\" must return a vector path."
                                             " Got: " (pr-str ~path-sym)))))
                    (when ~path-sym (ratom/cursor ~db-ratom-sym ~path-sym))))
@@ -338,3 +343,43 @@
 
           (def ~sub-name (vary-meta (sub-fn ~meta-sub-kw subscription-fn#)
                            assoc ~(keyword (namespace meta-sub-kw) "sub-name") ~(keyword (str *ns*) (str sub-name))))))))
+
+(defmacro defsubraw
+  "Creates a subscription function that takes the datasource ratom and optionally an args map and returns a Reaction
+  or RCursor type."
+  [meta-sub-kw get-input-db-signal sub-name args body]
+  (let [args-sym     (gensym "args")
+        out-sym      (gensym "out")
+        out-sym2     (gensym "out2")
+        f-sym        (gensym "f")
+        db-ratom-sym (gensym "db-ratom")
+        one-arg?     (= 1 (count args))]
+    (assert (or one-arg? (= 2 (count args))) (str "Args to defsubraw must be 2 at most. sub: " sub-name))
+    `(let [~f-sym
+           (fn ~sub-name ~args
+             (ratom/make-reaction
+               (fn []
+                 (let [~out-sym2 ~body]
+                   ~(when (:ns &env)
+                      `(when goog/DEBUG
+                         (assert (not (ratom/reaction? ~out-sym2))
+                           (str "Raw subscription: " '~(symbol (str (:name (:ns &env))) (name sub-name))
+                             " Must not return a Reaction, it is wrapped for you " (pr-str ~out-sym2)))))
+                   ~out-sym2))))
+
+           subscription-fn#
+           (fn ~sub-name
+             ([datasource#]
+
+              (let [~db-ratom-sym (~get-input-db-signal datasource#)
+                    ~out-sym (~f-sym ~db-ratom-sym ~(when-not one-arg? 'nil)
+                               )]
+                ~out-sym))
+
+             ([datasource# ~args-sym]
+              (assert (or (nil? ~args-sym) (map? ~args-sym)))
+              (let [~db-ratom-sym (~get-input-db-signal datasource#)]
+                (~f-sym ~db-ratom-sym ~args-sym))))]
+
+       (def ~sub-name (vary-meta (sub-fn ~meta-sub-kw subscription-fn#)
+                        assoc ~(keyword (namespace meta-sub-kw) "sub-name") ~(keyword (str *ns*) (str sub-name)))))))

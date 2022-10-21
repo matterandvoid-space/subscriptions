@@ -148,6 +148,9 @@
                                     (do
                                       ;(log/debug "entity in first else")
                                       (proto/-entity datasource app id-attr args))
+                                    ;; todo instead of doing this loop
+                                    ;; for better performance pass the list of basic props separate from the join props
+                                    ;; and then just call -entity and use select keys - then only loop over join props
                                     (do
                                       ;(log/debug "entity in 2nd else")
                                       (reduce (fn [acc prop]

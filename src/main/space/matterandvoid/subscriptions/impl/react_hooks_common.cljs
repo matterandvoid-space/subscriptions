@@ -12,28 +12,29 @@
 
 ;; for more on implementation details see https://github.com/reactwg/react-18/discussions/86
 
-(defn use-run-in-reaction [reaction]
-  (let [reaction-key      "reaction"
-        ;reaction-obj      (react/useRef #js{})
-        reaction-obj      (react/useMemo (fn [] #js{}) #js[])]
+(defn use-run-in-reaction [reaction get-snapshot]
+  (let [reaction-key "reaction"
+        reaction-obj (react/useRef #js{})
+        ;reaction-obj      (react/useMemo (fn [] #js{}) #js[])
+        ]
     (react/useCallback
       (fn setup-subscription [listener]
         (ratom/run-in-reaction
-          (fn []
-            (println "RUN REACTION" reaction)
-            (when reaction @reaction))
-          ;(.-current reaction-obj)
-          reaction-obj
+          ;(fn [] (println "RUN REACTION" reaction) (when reaction @reaction))
+          get-snapshot
+          (.-current reaction-obj)
+          ;reaction-obj
           reaction-key
           (fn []
             (println "CALLING LISTENER")
             (listener))
           {:no-cache true})
         (fn cleanup-subscription []
-          (println "CLEANUP sub" reaction-obj)
-          (when (gobj/get reaction-obj reaction-key)
+          (println "CLEANUP sub" (.-current reaction-obj))
+          (when (gobj/get (.-current reaction-obj) reaction-key)
             (println "disposing run-in-reaction reaction")
-            (ratom/dispose! (gobj/get reaction-obj reaction-key)))
+            (ratom/dispose! (gobj/get (.-current reaction-obj) reaction-key))
+            )
 
           ;(when reaction
           ;  (println "disposing MAIN reaction " reaction)
@@ -61,18 +62,23 @@
     (when (not (gobj/containsKey reaction-ref "current"))
       (throw (js/Error (str "use-reaction hook must be passed a reaction inside a React ref."
                          " You passed: " (pr-str reaction-ref))))))
+
   (let [reaction     (.-current reaction-ref)
-        subscribe    (use-run-in-reaction reaction)
-        get-snapshot (react/useCallback (fn [] (ratom/in-reactive-context #js{} (fn [] (when reaction @reaction)))) #js[reaction])]
+        get-snapshot (react/useCallback (fn [] (ratom/in-reactive-context #js{} (fn [] (when reaction @reaction)))) #js[reaction])
+        subscribe    (use-run-in-reaction reaction get-snapshot)]
     (use-sync-external-store subscribe get-snapshot)))
 
 (defn use-reaction
   "Takes a Reagent Reaction and rerenders the UI component when the Reaction's value changes.
    Returns the current value of the Reaction"
   [^clj reaction]
-  (let [subscribe    (use-run-in-reaction reaction)
-        get-snapshot (react/useCallback
+  (let [get-snapshot (react/useCallback
                        (fn []
-                         (ratom/in-reactive-context #js{} (fn [] (when reaction @reaction))))
-                       #js[reaction])]
+                         (when reaction @reaction)
+                         ;(ratom/in-reactive-context #js{} (fn [] (when reaction @reaction)))
+                         )
+                       #js[reaction])
+        subscribe    (use-run-in-reaction reaction get-snapshot)
+        ]
+
     (use-sync-external-store subscribe get-snapshot)))

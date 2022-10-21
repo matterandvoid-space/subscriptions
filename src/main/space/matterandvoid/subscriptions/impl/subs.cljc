@@ -35,12 +35,13 @@
                                                                    :reaction (ratom/reagent-id reaction-or-cursor)}}
 
                                       (println "ON DISPOSE SUBS cache key:  " cache-key)
-                                 (println " cache has key? " (contains? (get-subscription-cache app) cache-key))
-                                 (println "@subscription-cache "  (get-subscription-cache app))
+                                 ;(println " cache has key? " (contains? (get-subscription-cache app) cache-key))
+                                 ;(println "@subscription-cache "  (get-subscription-cache app))
                                  (swap! (get-subscription-cache app)
                                         (fn [query-cache]
                                           (if (and (contains? query-cache cache-key) #_(identical? reaction-or-cursor (get query-cache cache-key)))
-                                            (do (println "REMOVE FROM CACHE " cache-key)
+                                            (do
+                                              (println "REMOVE FROM CACHE " cache-key)
                                               (dissoc query-cache cache-key))
                                             query-cache)))))]
       ;(log/info "CACHING REACTION with KEY: " cache-key)

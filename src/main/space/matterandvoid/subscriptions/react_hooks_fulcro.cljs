@@ -33,16 +33,18 @@
        (set! (.-current ref) (subs/subscribe datasource query)))
 
      (when-not (equal? (.-current last-query) query)
+       (println "QUERIES NOT EQUAL DISPOSING")
        (set! (.-current last-query) query)
-       (ratom/dispose! (.-current ref))
-       (set! (.-current ref) (subs/subscribe datasource query)))
+       ;(ratom/dispose! (.-current ref))
+       ;(set! (.-current ref) (subs/subscribe datasource query))
+       )
 
-     (react/useEffect (fn []
-                        (fn []
-                          (when (.-current ref)
-                            (println "COMPONENT DID UNMOUNT - DISPSE")
-                            (ratom/dispose! (.-current ref)))
-                          )) #js[])
+     ;(react/useEffect (fn []
+     ;                   (fn []
+     ;                     (when (.-current ref)
+     ;                       (println "COMPONENT DID UNMOUNT - DISPSE")
+     ;                       (ratom/dispose! (.-current ref)))
+     ;                     )) #js[])
      (common/use-reaction (.-current ref))
      ))
 

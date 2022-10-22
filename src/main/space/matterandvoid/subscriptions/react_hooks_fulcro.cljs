@@ -69,7 +69,6 @@
          (ratom/in-reactive-context #js{} (fn [] (subs/subscribe datasource query)))))
 
      (when-not (equal? (.-current last-query) query)
-       (println "QUERIES NOT EQUAL DISPOSING" (pr-str (-> query first .-afn .-name)))
        (set! (.-current last-query) query)
        (ratom/dispose! (.-current ref))
        (set! (.-current ref)

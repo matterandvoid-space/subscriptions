@@ -3,10 +3,9 @@
   (:require
     [goog.object :as gobj]
     ["react" :as react]
-    [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
+    [space.matterandvoid.subscriptions.core :as subs]
     [space.matterandvoid.subscriptions.impl.react-hooks-common :as common]
-    [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
-    [space.matterandvoid.subscriptions.core :as subs]))
+    [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]))
 
 ;; All of these subscription hooks use a React Ref to wrap the Reaction.
 ;; The reason for doing so is so that React does not re-create the Reaction object each time the component is rendered.
@@ -28,7 +27,7 @@
   Arguments are a Reagent RAtom `datasource`, and a subscription query vector
   (a vector of a keyword/function and an optional hashmap of arguments).
 
-  The single-arity version takes only a query vector and will use the suscription app-context to read the fulcro app from
+  The single-arity version takes only a query vector and will use the suscription app-context to read the RAtom datasource from
   React context.
 
   The underlying subscription is cached in a React ref so it is not re-created across re-renders.
@@ -38,34 +37,25 @@
   Thus it is expected that the subscription vector is memoized between renders and is invalidated by the calling code
   when necessary (for example when the arguments map changes values) to achieve optimal rendering performance."
   ([datasource query equal?]
-   (when goog/DEBUG (assert (fulcro.app/fulcro-app? datasource)))
+   (when goog/DEBUG (assert (ratom/ratom? datasource)))
 
    (let [last-query (react/useRef query)
          ref        (react/useRef nil)]
      (when-not (.-current ref)
-       (set! (.-current ref) (subs/subscribe datasource query)))
+       (set! (.-current ref) (subs/reactive-subscribe datasource query)))
 
      (when-not (equal? (.-current last-query) query)
        (set! (.-current last-query) query)
        (ratom/dispose! (.-current ref))
-       (set! (.-current ref) (subs/subscribe datasource query)))
+       (set! (.-current ref) (subs/reactive-subscribe datasource query)))
 
-     (common/use-reaction-ref ref)))
+     (common/use-reaction (.-current ref))))
 
   ([datasource query]
    (use-sub datasource query identical?))
 
   ([query]
    (use-sub (react/useContext subs/datasource-context) query identical?)))
-
-(defn use-reaction-ref
-  "Takes a Reagent Reaction inside a React ref and rerenders the UI component when the Reaction's value changes.
-  Returns the current value of the Reaction"
-  [^js ref]
-  (when goog/DEBUG (when (not (gobj/containsKey ref "current"))
-                     (throw (js/Error (str "use-reaction-ref hook must be passed a reaction inside a React ref."
-                                        " You passed: " (pr-str ref))))))
-  (common/use-reaction-ref ref))
 
 (defn use-reaction
   "Takes a Reagent Reaction and rerenders the UI component when the Reaction's value changes.
@@ -78,4 +68,4 @@
    Returns the current value of the Reaction"
   [reaction]
   (let [ref (react/useRef reaction)]
-    (common/use-reaction-ref ref)))
+    (common/use-reaction (.-current ref))))

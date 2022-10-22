@@ -39,7 +39,6 @@
         (reagent.ratom/dispose! (.-reaction a-ratom))))
     (reagent.ratom/dispose! a-ratom)))
 (defn ^boolean reactive-context? [] (reagent.ratom/reactive?))
-(defn in-reactive-context [o f] (binding [reagent.ratom/*ratom-context* o] (f)))
 
 (defn reagent-id
   "Produces an id for reactive Reagent values

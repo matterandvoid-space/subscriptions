@@ -265,8 +265,7 @@
             ::sub-name     ~(keyword (str *ns*) (str fn-name))})))))
 
 (defmacro defsubraw
-  "Creates a subscription function that takes the datasource ratom and optionally an args map and returns a Reaction
-  or RCursor type."
+  "Creates a subscription function that takes the datasource ratom and optionally an args map and returns a Reaction."
   [sub-name args body]
   `(impl/defsubraw ::subscription ~sub-name ~args ~body))
 

@@ -130,7 +130,7 @@
   [datasource app id-attr props args]
   (let [entity (proto/-entity datasource app id-attr args)]
     ;(persistent! (reduce (fn [acc k] (assoc! acc k (get entity k))) (transient {}) props))
-    (reduce (fn [acc prop] (assoc acc prop (get entity prop missing-val))) {} props)))
+    (reduce (fn [acc prop] (assoc acc prop (get entity prop #_missing-val))) {} props)))
 
 (defn sub-entity
   "Registers a subscription that returns a domain entity as a hashmap.

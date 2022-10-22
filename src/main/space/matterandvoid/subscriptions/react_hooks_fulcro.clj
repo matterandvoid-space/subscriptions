@@ -1,5 +1,8 @@
 (ns space.matterandvoid.subscriptions.react-hooks-fulcro
-  (:require [space.matterandvoid.subscriptions.fulcro :as subs]))
+  (:require
+    [com.fulcrologic.fulcro.application :as fulcro.app]
+    [space.matterandvoid.subscriptions.fulcro :as subs]
+    [space.matterandvoid.subscriptions.impl.react-hooks-common :as common]))
 
 (defmacro use-sub-memo
   "Macro that expands expands to `use-sub`, memoizes the subscription vector so that the underlying subscription
@@ -13,36 +16,15 @@
   subscription vector in a react/useMemo call.
   You can also pass ^{:memo your-equality-fn} to change the memoization function used (for example to `=`)."
   ([datasource subscription-vector]
-   (let [sub (when (vector? subscription-vector) (first subscription-vector))
-         args (when (vector? subscription-vector) (second subscription-vector))
-         no-memo-val (-> subscription-vector meta :no-memo)
-         memo-val (-> subscription-vector meta :memo)
-         equal?   (or memo-val 'cljs.core/identical?)]
-     (if (map? args)
-       (let [map-vals (vals args)]
-         (if (true? no-memo-val)
-           `(use-sub ~datasource ~subscription-vector ~equal?)
-           `(let [memo-query# (react/useMemo (fn [] ~[sub args]) (cljs.core/array ~@map-vals))]
-              (use-sub ~datasource memo-query# ~equal?))))
-
-       (cond
-         (symbol? subscription-vector)
-         `(use-sub ~datasource ~subscription-vector ~equal?)
-
-         (nil? args)
-         (if (true? no-memo-val)
-           `(use-sub ~datasource ~subscription-vector ~equal?)
-           `(let [memo-query# (react/useMemo (fn [] [~sub]) (cljs.core/array))]
-              (use-sub ~datasource memo-query# ~equal?)))
-
-         :else
-         (if (true? no-memo-val)
-           `(use-sub ~datasource ~subscription-vector ~equal?)
-           `(let [memo-query# (react/useMemo (fn [] ~[sub args]) (cljs.core/array ~args))]
-              (use-sub ~datasource memo-query# ~equal?)))))))
+   `(do
+      (assert (fulcro.app/fulcro-app? ~datasource)
+        (str "You must pass a Fulcro application to `use-sub-map` as the datasource, you passed: " (pr-str ~datasource)))
+      (common/use-sub-memo subs/reactive-subscribe ~datasource ~subscription-vector)))
 
   ([subscription-vector]
-   `(use-sub-memo (react/useContext subs/datasource-context) ~subscription-vector)))
+   `(let [datasource# (~'react/useContext subs/datasource-context)]
+      (assert (fulcro.app/fulcro-app? datasource#) (str "The datasource from the React context is not a Fulcro application in `use-sub-memo`"))
+      (common/use-sub-memo subs/reactive-subscribe datasource# ~subscription-vector))))
 
 (defmacro use-sub-map
   "A react hook that subscribes to multiple subscriptions, the return value of the hook is the return value of the
@@ -63,10 +45,13 @@
    (assert (map? query-map) "You must pass a map literal to use-sub-map")
    (let [datasource-sym (gensym "datasource")]
      `(let [~datasource-sym (react/useContext subs/datasource-context)]
-        ~(->> query-map
-           (map (fn [[k query]] `[~k (use-sub-memo ~datasource-sym ~query)]))
-           (into {})))))
+        (assert (fulcro.app/fulcro-app? ~datasource-sym)
+          (str "The datasource from the React context is not a Fulcro application in `use-sub-map`"))
+        (common/use-sub-map subs/reactive-subscribe ~datasource-sym ~query-map))))
 
   ([datasource query-map]
    (assert (map? query-map) "You must pass a map literal to use-sub-map")
-   (->> query-map (map (fn [[k query]] `[~k (use-sub-memo ~datasource ~query)])) (into {}))))
+   `(do
+      (assert (fulcro.app/fulcro-app? ~datasource)
+        (str "You must pass a Fulcro application to `use-sub-map` as the datasource, you passed: " (pr-str ~datasource)))
+      (common/use-sub-map subs/reactive-subscribe ~datasource ~query-map))))

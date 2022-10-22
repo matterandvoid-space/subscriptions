@@ -563,6 +563,23 @@ example:
 (<sub db_ [sorted-todos])
 ```
 
+## `defsubraw` macro
+
+For use cases where you need need access to the underlying data RAtom you can use `defsubraw` which has the form of a 
+`defn`. The args vector can take either the single db RAtom and optionally the arguments hashmap provided to subscribe.
+The body you provide will be wrapped inside a `reagent.ratom/make-reaction` call.
+
+For example, here we are attempting to lookup an ref/ident of an entity which is loaded dynamically and thus may be missing:
+
+```clojure
+(defsubraw form-todo
+  [db_]
+  (when-let [ident (:root/new-todo @db_ nil)]
+    (get-in @db_ ident nil)))
+```
+
+For this use case a cursor would not work as the path is not available at first (it is `nil`), so using a Reaction is needed.
+
 ## `deflayer2-sub` macro
 
 For use without a subscription registry. When using a subscription registry see the `reg-layer2-sub` function.
@@ -575,10 +592,6 @@ For convenience you can provide
 - a single keyword
 - a vector path
 - a function which takes your db-atom and an optional arguments hashmap passed to `subscribe` and returns a vector path
-  - to deal with timing issues around dynamic subscription path values being missing, if your path function returns `nil`
-    the cursor will not be cached, thus when it is present then it will be cached.
-    This is to support use cases where the path value in the db is added dynamically, thus you don't want to use the `nil`
-    value but still want to get caching support once it is available.
 
 The function form lets you do things like store the cursor path in the db itself, for example a pointer (ref) to an entity.
 
@@ -587,8 +600,12 @@ Examples:
 ```clojure
 (deflayer2-sub a-sub :some-value)
 (deflayer2-sub my-todo [:todo/id 1234])
-(deflayer2-sub form-todo (fn [db_ args-map] (:root/new-todo-ref @db_ nil)))
+(deflayer2-sub form-todo (fn [db_ args-map] (:root/new-todo-ref @db_)))
 ```
+
+Please note that if any of the values are missing from your app-db the entire app-db is returned by default (get-in {} nil) -> returns the 
+entire hashmap. Thus you have to be aware of this - if a layer2 subscription's path for dynamic paths may be missing (the function
+return value) use a reaction instead.
 
 # Implementation details
 

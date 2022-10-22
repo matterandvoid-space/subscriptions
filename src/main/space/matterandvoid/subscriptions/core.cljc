@@ -61,15 +61,6 @@
   To obtain the current value from the Signal, it must be dereferenced"
   [?app query] (impl/subscribe ?app query))
 
-(defn reactive-subscribe
-  "Given a `query` vector, returns a Reagent `reaction` which will, over
-  time, reactively deliver a stream of values. Also known as a `Signal`.
-
-  To obtain the current value from the Signal, it must be dereferenced
-  The Reaction is created with reagent.ratom/*ratom-context* bound to a fresh Object so the Reaction will be cached."
-  [?app query]
-  (ratom/in-reactive-context (impl/subscribe ?app query)))
-
 (defn <sub
   "Subscribe and deref a subscription, returning its value, not a reaction."
   [?app query] (impl/<sub ?app query))

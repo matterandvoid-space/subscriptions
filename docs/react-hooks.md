@@ -106,6 +106,8 @@ between renders. By default [`identical?`](https://cljs.github.io/api/cljs.core/
 if the query vectors are different, this means that it is expected that your query vector is memoized across renders
 using `useMemo`, or defined statically outside of your function component.
 
+The hook uses code like the following to determine if the query vector has changed since the prior render:
+
 ```clojure
 (when-not (equal? (.-current last-query) query)
   (set! (.-current last-query) query)
@@ -124,7 +126,6 @@ as a cache local to the component in order to not recreate the Reaction with eac
 
 ### Configuring memoization via metadata on the subscription
 
-
 You are able to annotate the subscription argument to `use-sub-memo` and any of the subscriptions in `use-sub-map` with
 metadata to both disable memoizing the subscription vector and to change the equality function used to determine when
 the subscription vector has changed between re-renders.
@@ -140,7 +141,7 @@ To change the equality function pass it via `:memo`
 
 ```clojure
 (let [arguments {:filter current-filter}]
-  (use-sub-memo ^{:memo =}[todo.subscriptions/selected-tab arguments]))
+  (use-sub-memo ^{:memo =} [todo.subscriptions/selected-tab arguments]))
 ```
 
 When using `use-sub-map` you can thus opt-out certain subscriptions from memoization using the same syntax:
@@ -168,16 +169,16 @@ being a subscription literal itself.
 For example, if you change the subscription dynamically:
 
 ```clojure
-(let [[done-sub set-done-sub!] (react/useState [todo.subscriptions/incomplete-todos-count]
-    the-count (use-sub-memo [done-sub])))
+(let [[done-sub set-done-sub!] (react/useState [todo.subscriptions/incomplete-todos-count])
+      the-count (use-sub-memo done-sub)]
 
-;; in render
-(d/button {:on-click (fn []
-                       (set-done-sub!
-                         (if (= done-sub [todo.subscriptions/incomplete-todos-count])
-                           [todo.subscriptions/complete-todos-count]
-                           [todo.subscriptions/incomplete-todos-count])))} 
-  "SWAP Subcription")
+  ;; in render
+  (d/button {:on-click (fn []
+                         (set-done-sub!
+                           (if (= done-sub [todo.subscriptions/incomplete-todos-count])
+                             [todo.subscriptions/complete-todos-count]
+                             [todo.subscriptions/incomplete-todos-count])))} 
+    "SWAP Subcription"))
 ```
 
 The macro will not memoize the subscription vector:
@@ -187,8 +188,9 @@ The macro will not memoize the subscription vector:
 ```
 
 Which means it is up to you to maintain identity of that subscription across re-renders and to memoize it.
-Using state will work, as well as memoizing it if the subscription is entering the component via a prop (but you will then need to determine when it should
-be invalidated, so likely the parent component will memoize it).
+
+Using state will work, as well as memoizing it if the subscription is entering the component via a prop 
+(but you will then need to determine when it should be invalidated, so likely the parent component will memoize it).
 
 ## References:
 - https://beta.reactjs.org/apis/react/useRef#referencing-a-value-with-a-ref

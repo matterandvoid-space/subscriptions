@@ -6,8 +6,8 @@
     ["use-sync-external-store/shim" :refer [useSyncExternalStore]]
     ["use-sync-external-store/shim/with-selector" :refer [useSyncExternalStoreWithSelector]]
     [goog.object :as gobj]
-    [taoensso.timbre :as log]
-    [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]))
+    [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
+    [taoensso.timbre :as log]))
 
 ;; The following was adapted from
 ;; https://github.com/roman01la/hooks/blob/1a98408280892da1abebde206b5ca2444aced1b3/src/hooks/impl.cljs
@@ -28,9 +28,11 @@
 (defn- teardown-batched-updates-listener [^clj ref]
   ;; When the last listener was removed,
   ;; remove batched updates listener from the ref
-  (when (empty? @(.-react-listeners ref))
+  (when (and (.-react-listeners ref) (empty? @(.-react-listeners ref)))
     (set! (.-react-listeners ref) nil)
-    (remove-watch ref ::batched-subscribe)))
+    ;; We do not remove the watch here, instead we dispose the subscription when the component unmounts
+    ;(remove-watch ref ::batched-subscribe)
+    ))
 
 (defn use-batched-subscribe
   "Takes an atom-like ref type and returns a function that subscribes to changes
@@ -45,7 +47,9 @@
       (fn remove-listener []
         (when reaction
           (swap! (.-react-listeners reaction) disj listener)
-          (teardown-batched-updates-listener reaction))))
+          ;; We do not remove the watch here, instead we dispose the subscription when the component unmounts
+          ;(teardown-batched-updates-listener reaction)
+          )))
     #js [reaction]))
 
 (defn use-sync-external-store [subscribe get-snapshot]
@@ -100,23 +104,30 @@
     (use-sync-external-store subscribe get-snapshot)))
 
 (defn use-sub
-  [reactive-subscribe datasource query equal?]
+  [subscribe datasource query equal?]
+  ;; We save every subscription the component uses while mounted and then dispose them all at once.
+  ;; this way if a query changes and a new subscription is used we don't evict that subscription from the cache until the
+  ;; component unmounts.
   (let [last-query (react/useRef query)
-        ref        (react/useRef nil)]
+        ref        (react/useRef nil)
+        subs-log   (react/useRef #js[])]
 
     (when-not (.-current ref)
-      (set! (.-current ref)
-        (reactive-subscribe datasource query)))
+      (let [sub (ratom/in-reactive-context (subscribe datasource query))]
+        (.push (.-current subs-log) sub)
+        (set! (.-current ref) sub)))
 
     (when-not (equal? (.-current last-query) query)
       (set! (.-current last-query) query)
-      (ratom/dispose! (.-current ref))
-      (set! (.-current ref)
-        (reactive-subscribe datasource query)))
+      (let [sub (ratom/in-reactive-context (subscribe datasource query))]
+        (.push (.-current subs-log) sub)
+        (set! (.-current ref) sub)))
 
     (react/useEffect
       (fn mount []
-        (fn unmount [] (when (.-current ref) (ratom/dispose! (.-current ref)))))
+        (fn unmount []
+          (doseq [q (.-current subs-log)]
+            (when q (ratom/dispose! q)))))
       #js[])
 
     (use-reaction (.-current ref))))

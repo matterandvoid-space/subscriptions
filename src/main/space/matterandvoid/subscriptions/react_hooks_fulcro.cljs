@@ -27,7 +27,7 @@
   when necessary (for example when the arguments map changes values) to achieve optimal rendering performance."
   ([datasource query equal?]
    (when goog/DEBUG (assert (fulcro.app/fulcro-app? datasource)))
-   (common/use-sub subs/reactive-subscribe datasource  query equal?))
+   (common/use-sub subs/subscribe datasource query equal?))
 
   ([datasource query]
    (use-sub datasource query identical?))

@@ -24,18 +24,23 @@
   [get-subscription-cache get-cache-key app query-v #?(:cljs ^clj reaction-or-cursor :clj reaction-or-cursor)]
   ;; this prevents memory leaks (caching subscription -> reaction) but still allows
   ;; executing outside of a (reagent.reaction) form, like in event handlers.
+  (log/info "IN CACHE AND RETURN " (get-cache-key app query-v))
+  (when (and (ratom/reactive-context?) (not reaction-or-cursor))
+    (log/info "HAVE RATOM CONTEXT BUT REACTION IS NIL"))
+
+
   (when (and (ratom/reactive-context?) reaction-or-cursor)
-    ;(log/debug " IN REACTIVE CONTEXT CACHING " query-v "key is :" (get-cache-key app query-v))
+    (log/debug " IN REACTIVE CONTEXT CACHING " (get-cache-key app query-v))
     (let [cache-key          (get-cache-key app query-v)
           subscription-cache (get-subscription-cache app)
           on-dispose         (fn []
-                               ;(log/debug "ON DISPOSE SUBS")
+                               (log/debug "ON DISPOSE SUBS")
                                (trace/with-trace {:operation (first query-v)
                                                   :op-type   :sub/dispose
                                                   :tags      {:query-v  query-v
                                                               :reaction (ratom/reagent-id reaction-or-cursor)}}
 
-                                 ;(log/info "ON DISPOSE SUBS cache key:  " cache-key)
+                                 (log/info "ON DISPOSE SUBS cache key:  " cache-key)
                                  ;(println " cache has key? " (contains? (get-subscription-cache app) cache-key))
                                  ;(println "@subscription-cache "  (get-subscription-cache app))
                                  (swap! subscription-cache
@@ -59,7 +64,9 @@
           (assoc query-cache cache-key reaction-or-cursor)))
       (trace/merge-trace! {:tags {:reaction (ratom/reagent-id reaction-or-cursor)}})))
 
-  ;(log/debug "Not reactive, not caching " (get-cache-key app query-v))
+  (when-not (ratom/reactive-context?)
+    (log/info "REACTIVE CONTEXT IS NIL: " #?(:cljs (pr-str reagent.ratom/*ratom-context*))))
+
   reaction-or-cursor)
 
 ;; -- subscribe ---------------------------------------------------------------
@@ -68,8 +75,8 @@
   "Takes a datasource and query and returns a Reaction."
   [get-handler cache-lookup get-subscription-cache get-cache-key
    datasource query]
-  ;(log/debug "\n\nSUBSCRIBE IMPL--------------------------------------------")
-  ;(log/debug "subscribe query: " (get-cache-key datasource query))
+  (log/debug "\n\nSUBSCRIBE IMPL--------------------------------------------")
+  (log/debug "subscribe query: " (get-cache-key datasource query))
   (assert (vector? query) (str "Queries must be vectors, you passed: " (pr-str query)))
 
   (let [cnt       (count query),
@@ -84,9 +91,10 @@
       (let [cached-reaction (cache-lookup datasource cache-key)]
         (if cached-reaction
           (do (trace/merge-trace! {:tags {:cached? true :reaction (ratom/reagent-id cached-reaction)}})
-              ;(log/info "HAVE CACHED REACTION " (or (.-name query-id) query-id))
+              (log/info "HAVE CACHED REACTION " cache-key)
               cached-reaction)
           (let [handler-fn (get-handler query-id)]
+            (log/info "DO NOT HAVE CACHED" cache-key)
             ;(log/info "NO CACHED REACTION : " (cond
             ;                                    #?(:cljs (instance? cljs.core/MetaFn query-id)
             ;                                       :clj  true) (.-name (.-afn query-id))
@@ -103,7 +111,7 @@
                 (let [reaction
                       #?(:cljs (handler-fn datasource handler-args)
                          :clj (try (handler-fn datasource handler-args) (catch clojure.lang.ArityException _ (handler-fn datasource))))]
-                  ;(log/info "DO NOT HAVE CACHED")
+                  ;(log/info "DO NOT HAVE CACHED" cache-key)
                   (cache-and-return! get-subscription-cache get-cache-key datasource query reaction))))))))))
 
 ;; -- reg-sub -----------------------------------------------------------------

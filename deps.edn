@@ -4,7 +4,6 @@
            net.cgrand/macrovich      {:mvn/version "0.2.1"}
            reagent/reagent           {:mvn/version "1.1.1" :scope :provided}
            com.fulcrologic/fulcro    {:mvn/version "3.5.27" :scope :provided}
-
            org.clojure/clojurescript {:mvn/version "1.11.60" :scope :provided}}
  :paths
 

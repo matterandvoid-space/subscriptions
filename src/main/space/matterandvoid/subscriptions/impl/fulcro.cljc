@@ -31,30 +31,9 @@
   @subs-cache_
   (count @subs-cache_)
   (take 3 @subs-cache_)
+  (get @subs-cache_ [:space.matterandvoid.todomvc.todo.subscriptions/complete-todos {:filter "active"}])
   (key (first @subs-cache_))
   (val (first @subs-cache_))
-  (.-watches (val (first @subs-cache_)))
-  (js-keys (val (first @subs-cache_)))
-  (.-watching (val (first @subs-cache_)))
-  (ratom/dispose! (val (first @subs-cache_)))
-  (val (first @subs-cache_))
-  (key (first @subs-cache_))
-  (let [[k v] (first @subs-cache_)]
-    (get @subs-cache_ k))
-  (js-keys (val (first @subs-cache_)))
-  (.on-dispose (val (first @subs-cache_)))
-
-  (let [k (first (keys @subs-cache_))]
-    @(get @subs-cache_ k))
-  ;; now all I need to do is
-  ;; (reset! fulcro-state-atom
-  ;;   (reduce-kv (fn [state k v] (assoc-in state [k] @v) @fulcro-state-atom @subs-cache)
-  ;; store the subscriptions as normalized data
-  ;; to render a component and get the props in the right place
-  ;; you can look up the value
-
-  ;; first version of this (subscribe this [::query args]) in the component
-  ;; will lookup the value in app db for that cached value
   )
 
 ;; here we also have the option of storing the subscription cache in the fulcro app.
@@ -63,32 +42,38 @@
 ;; so there isn't an explosion in the top level keyspace
 ;; it's a tradeoff, it may make more sense to just add integration with fulcro inspect via the
 ;; existing tracing calls.
+
+(defn query-v->sub-name [query-v]
+  (let [f (first query-v)]
+    (if-let [sub-name (-> f meta ::fulcro.subs/sub-name)]
+      sub-name
+      (let [sub-name (random-uuid)]
+        ;; todo this doesn't work because a new function is created
+        ;; during the lifecycle of the app
+        (log/info "SUB NAME MISSING, assigning random one")
+        (alter-meta! f assoc ::fulcro.subs/sub-name sub-name)
+        sub-name))))
+
 (defn get-cache-key [app query-v]
-  ;(println "get cache key  app fulcro app?: " (fulcro.app/fulcro-app? app))
-  ;(println "get cache key  app ratom?  " (ratom/ratom? app))
   (cond
     (keyword? (first query-v))
     query-v
 
-    ;:else
-    ;(into [(hash app) query-v])
-
     (instance? #?(:cljs cljs.core/MetaFn :clj nil) (first query-v))
     (do
-      ;(println "CACH KEY meta fn " (-> query-v first meta ::fulcro.subs/sub-name))
-      (when (nil? (-> query-v first meta ::fulcro.subs/sub-name))
-        (throw
-          #?(:cljs
-             (js/Error. (str "SUB MISSING NAME : " (-> query-v first .-afn .-name)
-                          " meta name: " (-> query-v first meta ::fulcro.subs/sub-name)
-                          ))
-             :clj (Exception. "ERR"))))
+      (let [sub-name (query-v->sub-name query-v)]
+        (when (nil? sub-name)
+          (throw
+            #?(:cljs
+               (js/Error. (str "SUB MISSING NAME : " (-> query-v first .-afn .-name)
+                            " meta name: " (-> query-v first meta ::fulcro.subs/sub-name)))
+               :clj (Exception. "Error - this code should never be reached"))))
 
-      ;(log/info "CACHE HAS sub? "
-      ;  "key: " [(-> query-v first meta ::fulcro.subs/sub-name) (second query-v)]
-      ;  " "
-      ;  (contains? @subs-cache_ [(-> query-v first meta ::fulcro.subs/sub-name) (second query-v)]))
-      [(-> query-v first meta ::fulcro.subs/sub-name) (second query-v)])
+        ;(log/info "CACHE HAS sub? "
+        ;  "key: " [(-> query-v first meta ::fulcro.subs/sub-name) (second query-v)]
+        ;  " "
+        ;  (contains? @subs-cache_ [(-> query-v first meta ::fulcro.subs/sub-name) (second query-v)]))
+        [sub-name (second query-v)]))
 
     (fn? (first query-v))
     (do
@@ -101,13 +86,13 @@
       )
 
     :else
-    query-v
-    ;(hash query-v)
-    ;(hash (into [app] query-v))
-    ))
+    query-v))
 
 (defn get-subscription-cache [app] subs-cache_ #_(atom {}))
-(defn cache-lookup [app cache-key] (when app (get @(get-subscription-cache app) cache-key)))
+(defn cache-lookup [app cache-key]
+  (let [r (when app (get @(get-subscription-cache app) cache-key))]
+    (log/info "CACHE LOOKUP: " cache-key " value: " r)
+    r))
 
 (def app-state-key ::state)
 (def subs-key ::subs)

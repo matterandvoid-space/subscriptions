@@ -47,11 +47,11 @@
      `(let [~datasource-sym (react/useContext subs/datasource-context)]
         (assert (fulcro.app/fulcro-app? ~datasource-sym)
           (str "The datasource from the React context is not a Fulcro application in `use-sub-map`"))
-        (common/use-sub-map subs/reactive-subscribe ~datasource-sym ~query-map))))
+        (common/use-sub-map subs/subscribe ~datasource-sym ~query-map))))
 
   ([datasource query-map]
    (assert (map? query-map) "You must pass a map literal to use-sub-map")
    `(do
       (assert (fulcro.app/fulcro-app? ~datasource)
         (str "You must pass a Fulcro application to `use-sub-map` as the datasource, you passed: " (pr-str ~datasource)))
-      (common/use-sub-map subs/reactive-subscribe ~datasource ~query-map))))
+      (common/use-sub-map subs/subscribe ~datasource ~query-map))))

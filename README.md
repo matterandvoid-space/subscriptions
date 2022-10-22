@@ -1,4 +1,4 @@
-### Derived data flowing - from anywhere - to anywhere.
+# Derived data flowing - from anywhere - to anywhere.
 
 This library extracts the subscriptions half of [re-frame](https://github.com/day8/re-frame) into a standalone library,
 it also makes a few adjustments, the key one being that the data source is an explicit argument you pass to subscriptions.
@@ -19,13 +19,18 @@ wrapped in a `reagent.ratom/atom`.
 In fact that is the library's only dependency from reagent, the `reagent.ratom` namespace. 
 The UI integrations are added on top of this core.
 
-If you haven't used re-frame, subscriptions are a way to apply pure functions over a core data source to arrive at derived data from that source.
-They also allow "subscribing" to a piece of derived data - that is, specifying a callback function to be invoked when the data changes,
-with the intention of committing effects - changing the state of the world - in this library that is usually affecting 
-the state of pixels on a display attached to a computer.
+Subscriptions are a way to apply pure functions over a source of data to arrive at derived data from that source.
+
+When the source data changes any affected subscriptions will "react" and any components using those subscriptions will re-render.
+
+This allows for a very simple one-way data flow for UI data transformations.
 
 The difference from just using function composition is that the layers are cached, and that you can execute code 
 in response to any of these values changing over time.
+
+## Status
+
+API's are slightly unstable as I iterate on the library while using it.
 
 # Usage / Integrations
 
@@ -569,7 +574,7 @@ For use cases where you need need access to the underlying data RAtom you can us
 `defn`. The args vector can take either the single db RAtom and optionally the arguments hashmap provided to subscribe.
 The body you provide will be wrapped inside a `reagent.ratom/make-reaction` call.
 
-For example, here we are attempting to lookup an ref/ident of an entity which is loaded dynamically and thus may be missing:
+For example, here we are attempting to lookup a ref/ident of an entity which is loaded dynamically and thus may be missing:
 
 ```clojure
 (defsubraw form-todo

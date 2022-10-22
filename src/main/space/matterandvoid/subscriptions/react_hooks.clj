@@ -18,12 +18,12 @@
   ([datasource subscription-vector]
    `(do
       (assert (ratom/ratom? ~datasource) (str "You must pass a Reagent Ratom to `use-sub-map` as the datasource, you passed: " (pr-str ~datasource)))
-      (common/use-sub-memo subs/reactive-subscribe ~datasource ~subscription-vector)))
+      (common/use-sub-memo subs/subscribe ~datasource ~subscription-vector)))
 
   ([subscription-vector]
    `(let [datasource# (~'react/useContext subs/datasource-context)]
       (assert (ratom/ratom? datasource#) (str "The datasource from the React context is not a Reagent RAtom in `use-sub-memo`"))
-      (common/use-sub-memo subs/reactive-subscribe datasource# ~subscription-vector))))
+      (common/use-sub-memo subs/subscribe datasource# ~subscription-vector))))
 
 (defmacro use-sub-map
   "A react hook that subscribes to multiple subscriptions, the return value of the hook is the return value of the
@@ -45,10 +45,10 @@
    (let [datasource-sym (gensym "datasource")]
      `(let [~datasource-sym (react/useContext subs/datasource-context)]
         (assert (ratom/ratom? ~datasource-sym) (str "The datasource from the React context is not a Reagent RAtom in `use-sub-map`"))
-        (common/use-sub-map subs/reactive-subscribe ~datasource-sym ~query-map))))
+        (common/use-sub-map subs/subscribe ~datasource-sym ~query-map))))
 
   ([datasource query-map]
    (assert (map? query-map) "You must pass a map literal to use-sub-map")
    `(do
       (assert (ratom/ratom? ~datasource) (str "You must pass a Reagent RAtom to `use-sub-map` as the datasource, you passed: " (pr-str ~datasource)))
-      (common/use-sub-map subs/reactive-subscribe ~datasource ~query-map))))
+      (common/use-sub-map subs/subscribe ~datasource ~query-map))))

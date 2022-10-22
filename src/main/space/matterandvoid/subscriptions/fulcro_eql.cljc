@@ -7,8 +7,7 @@
     [space.matterandvoid.subscriptions.fulcro :as fulcro.subs :refer [<sub reg-sub-raw sub-fn]]
     [space.matterandvoid.subscriptions.impl.eql-protocols :as proto]
     [space.matterandvoid.subscriptions.impl.eql-queries :as impl]
-    [space.matterandvoid.subscriptions.impl.reagent-ratom :refer [cursor]]
-    [space.matterandvoid.subscriptions.reagent-ratom :as ratom]))
+    [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom :refer [cursor]]))
 
 (def query-key impl/query-key)
 (def missing-val impl/missing-val)
@@ -23,35 +22,34 @@
 (def fulcro-data-source
   (reify proto/IDataSource
     (-attribute-subscription-fn [_ id-attr attr]
+      ;; this version uses reactions instead of cursors
+      #_(vary-meta (sub-fn
+                     (fn [?fulcro-app args]
+                       ;; this is to support passing state map to subscriptions instead of the fulcro app, for example in mutations
+                       (cond
+                         (fulcro.app/fulcro-app? ?fulcro-app)
+                         (ratom/make-reaction (fn [] (get-in (fulcro.app/current-state ?fulcro-app) [id-attr (get args id-attr) attr])))
 
-      (vary-meta (sub-fn
-                   (fn [?fulcro-app args]
-                     ;; this is to support passing state map to subscriptions instead of the fulcro app, for example in mutations
-                     (cond
-                       (fulcro.app/fulcro-app? ?fulcro-app)
-                       (ratom/make-reaction (fn [] (get-in (fulcro.app/current-state ?fulcro-app) [id-attr (get args id-attr) attr])))
+                         (ratom/deref? ?fulcro-app)
+                         (ratom/make-reaction (fn [] (get-in @?fulcro-app [id-attr (get args id-attr) attr])))
 
-                       (ratom/deref? ?fulcro-app)
-                       (ratom/make-reaction (fn [] (get-in @?fulcro-app [id-attr (get args id-attr) attr])))
+                         :else
+                         (ratom/make-reaction (fn [] (get-in ?fulcro-app [id-attr (get args id-attr) attr])))))
+                     )
+          assoc ::fulcro.subs/sub-name attr)
+      (fulcro.subs/with-name
+        (fn [?fulcro-app args]
+          ;; this is to support passing state map to subscriptions instead of the fulcro app, for example in mutations
+          (cond
+            (fulcro.app/fulcro-app? ?fulcro-app)
+            (cursor (::fulcro.app/state-atom ?fulcro-app) [id-attr (get args id-attr) attr])
 
-                       :else
-                       (ratom/make-reaction (fn [] (get-in ?fulcro-app [id-attr (get args id-attr) attr])))))
-                   )
-        assoc ::fulcro.subs/sub-name attr
-        )
-      ;(vary-meta (fn [?fulcro-app args]
-      ;   ;; this is to support passing state map to subscriptions instead of the fulcro app, for example in mutations
-      ;   (cond
-      ;     (fulcro.app/fulcro-app? ?fulcro-app)
-      ;     (cursor (::fulcro.app/state-atom ?fulcro-app) [id-attr (get args id-attr) attr])
-      ;
-      ;     (ratom/deref? ?fulcro-app)
-      ;     (cursor ?fulcro-app [id-attr (get args id-attr) attr])
-      ;
-      ;     :else
-      ;     (ratom/make-reaction (fn [] (get-in ?fulcro-app [id-attr (get args id-attr) attr])))))
-      ;  assoc ::fulcro.subs/sub-name attr)
-      )
+            (ratom/deref? ?fulcro-app)
+            (cursor ?fulcro-app [id-attr (get args id-attr) attr])
+
+            :else
+            (ratom/make-reaction (fn [] (get-in ?fulcro-app [id-attr (get args id-attr) attr])))))
+        attr))
     (-ref->attribute [_ ref] (first ref))
     (-ref->id [_ ref]
       ;(log/debug "-ref->id ref" ref)
@@ -82,10 +80,9 @@
 (def get-ident impl/get-ident)
 
 (def ^:private fulcro-form-state-config-sub
-  (vary-meta
+  (fulcro.subs/with-name
     (impl/create-component-subs ::fulcro.subs/sub-name <sub sub-fn fulcro-data-source fs/FormConfig {})
-    assoc
-    ::fulcro.subs/sub-name (keyword `fulcro-form-state-config-sub)))
+    (keyword `fulcro-form-state-config-sub)))
 
 (defn ^:private query-contains-form-config? [component]
   (-> (rc/get-query component)

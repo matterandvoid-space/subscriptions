@@ -25,7 +25,7 @@
   ;; this prevents memory leaks (caching subscription -> reaction) but still allows
   ;; executing outside of a (reagent.reaction) form, like in event handlers.
   (when (and (ratom/reactive-context?) reaction-or-cursor)
-    ;(log/debug " IN REACTIVE CONTEXT CACHING " query-v " key is : " (get-cache-key app query-v))
+    (log/debug " IN REACTIVE CONTEXT CACHING " query-v "key is :" (get-cache-key app query-v))
     (let [cache-key          (get-cache-key app query-v)
           subscription-cache (get-subscription-cache app)
           on-dispose         (fn []
@@ -59,7 +59,7 @@
           (assoc query-cache cache-key reaction-or-cursor)))
       (trace/merge-trace! {:tags {:reaction (ratom/reagent-id reaction-or-cursor)}})))
 
-  ;(log/debug "Not reactive, not caching " (get-cache-key app query-v))
+  (log/debug "Not reactive, not caching " (get-cache-key app query-v))
   reaction-or-cursor)
 
 ;; -- subscribe ---------------------------------------------------------------
@@ -68,8 +68,8 @@
   "Takes a datasource and query and returns a Reaction."
   [get-handler cache-lookup get-subscription-cache get-cache-key
    datasource query]
-  ;(log/debug "\n\nSUBSCRIBE IMPL--------------------------------------------")
-  ;(log/debug "subscribe query: " query)
+  (log/debug "\n\nSUBSCRIBE IMPL--------------------------------------------")
+  (log/debug "subscribe query: " (get-cache-key datasource query))
   (assert (vector? query) (str "Queries must be vectors, you passed: " (pr-str query)))
 
   (let [cnt       (count query),
@@ -84,7 +84,7 @@
       (let [cached-reaction (cache-lookup datasource cache-key)]
         (if cached-reaction
           (do (trace/merge-trace! {:tags {:cached? true :reaction (ratom/reagent-id cached-reaction)}})
-              #_(log/info "HAVE CACHED REACTION " (or (.-name query-id) query-id))
+              (log/info "HAVE CACHED REACTION " (or (.-name query-id) query-id))
               cached-reaction)
           (let [handler-fn (get-handler query-id)]
             ;(log/info "NO CACHED REACTION : " (cond
@@ -103,7 +103,7 @@
                 (let [reaction
                       #?(:cljs (handler-fn datasource handler-args)
                          :clj (try (handler-fn datasource handler-args) (catch clojure.lang.ArityException _ (handler-fn datasource))))]
-                  ;(log/info "DO NOT HAVE CACHED")
+                  (log/info "DO NOT HAVE CACHED")
                   (cache-and-return! get-subscription-cache get-cache-key datasource query reaction))))))))))
 
 ;; -- reg-sub -----------------------------------------------------------------

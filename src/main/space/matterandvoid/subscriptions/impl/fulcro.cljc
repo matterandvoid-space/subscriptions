@@ -94,11 +94,8 @@
     (do
       ;(println "CACH KEY Fn " (pr-str (-> query-v first .-name)) " fn: " (-> query-v first meta ::fulcro.subs/sub-name) )
       #?(:cljs
-         (throw
-           (js/Error. (str "SUB FN MISSING NAME : " (-> query-v first)
-
-                        ))))
-      query-v
+         (throw (js/Error. (str "SUB FN MISSING NAME : " (-> query-v first))))
+         :clj query-v)
       ;(into [(hash app) query-v])
       ;[(-> query-v first hash) (second query-v)]
       )

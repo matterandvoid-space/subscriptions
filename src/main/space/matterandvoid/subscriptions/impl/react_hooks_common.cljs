@@ -37,13 +37,15 @@
   [^clj reaction]
   (react/useCallback
     (fn add-listener [listener]
-      (setup-batched-updates-listener reaction)
-      (swap! (.-react-listeners reaction) conj listener)
+      (when reaction
+        (log/info "Adding listeners in use batched subscribe " (pr-str reaction))
+        (setup-batched-updates-listener reaction)
+        (swap! (.-react-listeners reaction) conj listener))
       (fn remove-listener []
-        (swap! (.-react-listeners reaction) disj listener)
-        (teardown-batched-updates-listener reaction)))
+        (when reaction
+          (swap! (.-react-listeners reaction) disj listener)
+          (teardown-batched-updates-listener reaction))))
     #js [reaction]))
-
 
 (defn use-sync-external-store [subscribe get-snapshot]
   ;; https://reactjs.org/docs/hooks-reference.html#usesyncexternalstore
@@ -55,13 +57,13 @@
     identity ;; selector, not using, just returning the value itself
     =)) ;; value equality check
 
-(defn use-run-in-reaction [reaction get-snapshot]
+(defn use-run-in-reaction [reaction]
   (let [reaction-key "reaction"
         reaction-obj (react/useRef #js{})]
     (react/useCallback
       (fn setup-subscription [listener]
         (ratom/run-in-reaction
-          get-snapshot
+          (fn [] (when reaction @reaction))
           (.-current reaction-obj)
           ;reaction-obj
           reaction-key
@@ -84,31 +86,32 @@
     (when (not (gobj/containsKey reaction-ref "current"))
       (throw (js/Error (str "use-reaction hook must be passed a reaction inside a React ref."
                          " You passed: " (pr-str reaction-ref))))))
-
   (let [reaction     (.-current reaction-ref)
-        get-snapshot (react/useCallback (fn [] (ratom/in-reactive-context #js{} (fn [] (when reaction @reaction)))) #js[reaction])
-        subscribe    (use-run-in-reaction reaction get-snapshot)]
+        get-snapshot (react/useCallback (fn [] (ratom/in-reactive-context #js{} (fn [] (when reaction @reaction))))
+                       #js[reaction])
+        subscribe    (use-run-in-reaction reaction)]
     (use-sync-external-store subscribe get-snapshot)))
 
-(defn use-reaction-old
+(defn use-reaction2
   "Takes a Reagent Reaction and rerenders the UI component when the Reaction's value changes.
    Returns the current value of the Reaction"
   [^clj reaction]
-  (let [get-snapshot (react/useCallback (fn [] (when reaction @reaction)) #js[reaction])
-        subscribe    (use-run-in-reaction reaction get-snapshot)]
+  (let [get-snapshot (react/useCallback (fn [] (ratom/in-reactive-context #js{} (fn [] (when reaction @reaction))))
+                       #js[reaction])
+        subscribe    (use-run-in-reaction reaction)]
     (use-sync-external-store subscribe get-snapshot)))
 
 (defn use-reaction
   "Takes Reagent's Reaction or RCursor, subscribes the UI component to changes in the Reaction and returns current state value
   of the Reaction"
   [^clj reaction]
-  (assert (or (ratom/reaction? reaction) (ratom/cursor? reaction))
+  (assert (or (ratom/reaction? reaction) (ratom/cursor? reaction) (nil? reaction))
     "reaction should be an instance of reagent.ratom/Reaction or reagent.ratom/RCursor")
   (let [subscribe    (use-batched-subscribe reaction)
         get-snapshot (react/useCallback (fn []
                                           ;; Mocking ratom context
                                           ;; This makes sure that watchers added to the `reaction`
                                           ;; will be triggered when the `reaction` gets updated.
-                                          (ratom/in-reactive-context #js {} (fn [] @reaction)))
+                                          (ratom/in-reactive-context #js {} (fn [] (when reaction @reaction))))
                        #js [reaction])]
     (use-sync-external-store subscribe get-snapshot)))

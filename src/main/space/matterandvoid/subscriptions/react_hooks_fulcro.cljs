@@ -66,16 +66,18 @@
 
      (when-not (.-current ref)
        (set! (.-current ref)
-         (subs/subscribe datasource query)))
+         (ratom/in-reactive-context #js{} (fn [] (subs/subscribe datasource query)))))
 
      (when-not (equal? (.-current last-query) query)
-       (println "QUERIES NOT EQUAL DISPOSING")
+       (println "QUERIES NOT EQUAL DISPOSING" (pr-str (-> query first .-afn .-name)))
        (set! (.-current last-query) query)
        (ratom/dispose! (.-current ref))
-       (set! (.-current ref) (subs/subscribe datasource query)))
+       (set! (.-current ref)
+         (ratom/in-reactive-context #js{} (fn [] (subs/subscribe datasource query)))))
 
      (react/useEffect
-       (fn mount [] (fn unmount [] (when (.-current ref) (ratom/dispose! (.-current ref)))))
+       (fn mount []
+         (fn unmount [] (when (.-current ref) (ratom/dispose! (.-current ref)))))
        #js[])
 
      (common/use-reaction (.-current ref))))

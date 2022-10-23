@@ -159,6 +159,9 @@
   [meta-fn-key f]
   (subs/sub-fn meta-fn-key f))
 
+(defn make-sub-fn [meta-sub-kw query-id sub-args]
+  (subs/make-sub-fn get-input-db-signal meta-sub-kw subscribe query-id sub-args))
+
 #?(:clj
    (defmacro deflayer2-sub
      "Takes a symbol for a subscription name and a way to derive a path in your fulcro app db. Returns a function subscription

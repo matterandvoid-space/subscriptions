@@ -115,33 +115,8 @@
   [f sub-name]
   (vary-meta f assoc ::sub-name sub-name))
 
-(defn make-sub-fn
-  [query-id sub-args]
-  (let [[inputs-fn compute-fn] (impl/parse-reg-sub-args sub-args)
-        subscription-fn
-        (fn sub-fn
-          ([datasource]
-           (let [input-subscriptions (inputs-fn datasource)]
-             (ratom/make-reaction
-               (fn [] (compute-fn (impl/deref-input-signals input-subscriptions query-id))))))
-
-          ([datasource sub-args]
-           (let [input-subscriptions (inputs-fn datasource sub-args)]
-             (ratom/make-reaction
-               (fn [] (let [inputs (impl/deref-input-signals input-subscriptions query-id)]
-                        (compute-fn inputs sub-args)))))))]
-    (with-meta
-      (fn sub-fn
-        ([datasource] (deref (subscription-fn datasource)))
-        ([datasource args] (deref (subscription-fn datasource args))))
-      {::subscription subscription-fn
-       ::sub-name     query-id})))
-
-
-;(defn make-layer2-sub-fn
-;  "Returns a function that "
-;  [get-input-db-signal meta-sub-kw sub-name path]
-;  (impl.subs/make-layer2-sub-fn get-input-db-signal meta-sub-kw sub-name path))
+(defn make-sub-fn [query-id sub-args]
+  (impl/make-sub-fn ::subscription query-id sub-args))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; reactive refresh of components

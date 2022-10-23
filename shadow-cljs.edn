@@ -10,8 +10,9 @@
   {:target    :browser-test
    :test-dir  "public/test/js"
    :ns-regexp "-test$"
-   :devtools  {:http-port 8022
-               :http-root "public/test/js"}}
+   ;:ns-regexp "space.matterandvoid.subscriptions.fulcro-eql-fn-vars-test"
+   :devtools {:http-port 8022
+              :http-root "public/test/js"}}
 
   :ci-tests
   {:target           :karma

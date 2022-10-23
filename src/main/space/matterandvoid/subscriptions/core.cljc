@@ -143,7 +143,8 @@
               (fn ~fn-name
                 ([datasource#] (deref (subscription-fn# datasource#)))
                 ([datasource# args#] (deref (subscription-fn# datasource# args#))))
-              {::subscription subscription-fn#}))))))
+              {::subscription subscription-fn#
+               ::sub-name     ~(keyword (str *ns*) (str fn-name))}))))))
 
 #?(:clj
    (defmacro deflayer2-sub
@@ -175,5 +176,9 @@
    derefs its output. The returned function can be used in subscriptions."
   [f]
   (impl/sub-fn ::subscription f))
+
+(defn with-name
+  [f sub-name]
+  (vary-meta f assoc ::sub-name sub-name))
 
 #?(:cljs (def datasource-context (react/createContext nil)))

@@ -4,12 +4,12 @@
     [com.fulcrologic.fulcro.algorithms.form-state :as fs]
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [com.fulcrologic.fulcro.raw.components :as rc]
-    [space.matterandvoid.subscriptions.fulcro :refer [<sub]]
+    [space.matterandvoid.subscriptions.fulcro :as subs :refer [<sub]]
     [space.matterandvoid.subscriptions.fulcro-eql :as sut]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
     [taoensso.timbre :as log]))
 
-(log/set-level! :debug)
+(log/set-level! :trace)
 #?(:cljs (enable-console-print!))
 (set! *print-namespace-maps* false)
 
@@ -31,29 +31,32 @@
                                 {:list/items (sut/get-query list-member-comp)}
                                 {:list/members (sut/get-query list-member-comp)}]}))
 ;(def comment-comp2 (sut/nc {:query [:comment/id :comment/text {:comment/author (sut/get-query user-comp)}] :name  ::comment :ident :comment/id}))
-(def user-sub (sut/create-component-subs user-comp nil))
+(def user-sub (subs/with-name (sut/create-component-subs user-comp nil) `user-sub))
 ;(def comment2-sub (sut/create-component-subs comment-comp2 {:comment/author user-sub}))
-(def bot-sub (sut/create-component-subs bot-comp nil))
-(def human-sub (sut/create-component-subs human-comp nil))
-(def comment-sub (sut/create-component-subs comment-comp nil))
-(def todo-sub (sut/create-component-subs todo-comp {:todo/comment  comment-sub
-                                                    :todo/comments comment-sub
-                                                    :todo/author   {:bot/id bot-sub :user/id user-sub}}))
-(def list-sub (sut/create-component-subs list-comp {:list/items   {:comment/id comment-sub :todo/id todo-sub}
-                                                    :list/members {:comment/id comment-sub :todo/id todo-sub}}))
+(def bot-sub (subs/with-name (sut/create-component-subs bot-comp nil) `bot-sub))
+(def human-sub (subs/with-name (sut/create-component-subs human-comp nil) `human-sub))
+(def comment-sub (subs/with-name (sut/create-component-subs comment-comp nil) `comment-sub))
+;; could allow this syntax:
+;(defcomponent-sub comment-sub comment-comp nil)
+(def todo-sub (subs/with-name (sut/create-component-subs todo-comp {:todo/comment  comment-sub
+                                                     :todo/comments comment-sub
+                                                     :todo/author   {:bot/id bot-sub :user/id user-sub}}) `todo-sub))
+(def list-sub (subs/with-name (sut/create-component-subs list-comp {:list/items   {:comment/id comment-sub :todo/id todo-sub}
+                                                     :list/members {:comment/id comment-sub :todo/id todo-sub}})
+                `list-sub))
 
 (def todo-with-form-component
   (sut/nc
     {:query       [:todo/id :todo/text fs/form-config-join], :name ::todo-with-form, :ident :todo/id,
      :form-fields #{:todo/text}}))
 
-(def todo-with-form-sub (sut/create-component-subs todo-with-form-component {}))
+(def todo-with-form-sub (subs/with-name (sut/create-component-subs todo-with-form-component {}) `todo-with-form-sub))
 
 (comment
   (sut/eql-query-keys-by-type (sut/get-query todo-comp) {:todo/comment  comment-sub
                                                          :todo/comments comment-sub
                                                          :todo/author   {:bot/id bot-sub :user/id user-sub}})
-  (def todo-sub (sut/create-component-subs todo-comp nil)))
+  (def todo-sub (subs/with-name (sut/create-component-subs todo-comp nil) `todo-sub)))
 
 ;(def list-sub (sut/create-component-subs list-comp nil))
 ;(run! sut/register-component-subs! [user-comp bot-comp comment-comp todo-comp list-comp human-comp])

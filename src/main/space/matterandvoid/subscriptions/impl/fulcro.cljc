@@ -42,15 +42,15 @@
 ;; it's a tradeoff, it may make more sense to just add integration with fulcro inspect via the
 ;; existing tracing calls.
 
-(defn sub-missing-name! [sub-fn]
+(defn sub-missing-name! [sub-fn query]
   (throw (#?(:cljs js/Error. :clj Exception.)
-           (str "Subscription function does not have a name and cannot be cached!"
-             (or (-> sub-fn meta ::fulcro.subs/sub-name))))))
+           (str "Subscription function does not have a name and cannot be cached! "
+             (or (-> sub-fn meta ::fulcro.subs/sub-name) (pr-str query))))))
 
-(defn sub-fn->sub-name [sub-fn]
+(defn sub-fn->sub-name [sub-fn query]
   (if-let [sub-name (-> sub-fn meta ::fulcro.subs/sub-name)]
     sub-name
-    (sub-missing-name! sub-fn)))
+    (sub-missing-name! sub-fn query)))
 
 (defn get-cache-key [_app [query-key :as query-v]]
   (cond
@@ -58,12 +58,12 @@
     query-v
 
     (instance? #?(:cljs cljs.core/MetaFn :clj nil) query-key)
-    (let [sub-name (sub-fn->sub-name query-key)]
+    (let [sub-name (sub-fn->sub-name query-key query-v)]
       [sub-name (second query-v)])
 
     (fn? query-key)
-    #?(:cljs (sub-missing-name! query-key)
-       :clj  [(sub-fn->sub-name query-key) (second query-v)])
+    #?(:cljs (sub-missing-name! query-key query-v)
+       :clj  [(sub-fn->sub-name query-key query-v) (second query-v)])
 
     :else
     query-v))

@@ -9,7 +9,9 @@
 (log/set-level! :debug)
 (sut/reg-sub :hello (fn [db] (:hello db)))
 
-(def layer-2-sub-w-args (fn [db {:keys [path]}] (ratom/cursor db path)))
+(def layer-2-sub-w-args
+  (sut/with-name
+    (fn [db {:keys [path]}] (ratom/cursor db path)) `layer-2-sub-w-args))
 (sut/defregsub sub2 :-> :sub2)
 (sut/defsub sub2' :-> :sub2)
 (sut/defsub layer3-def1 :<- [sub2'] (fn [num] (* 10 num)))
@@ -65,13 +67,14 @@
 
 (defonce db (ratom/atom {:sub2 500 :hello "hello"}))
 
-(def layer-2-sub2 (fn [& args] (ratom/cursor db [:sub2])))
+(def layer-2-sub2 (sut/with-name (fn [& args] (ratom/cursor db [:sub2])) `layer-2-sub2))
 
-(def layer-2-sub3 (let [sub-fn
-                        (fn [& args] (ratom/cursor db [:sub2]))]
-                    (with-meta (fn [& args] @(sub-fn)) {:subscription sub-fn})))
+(def layer-2-sub3 (sut/with-name (let [sub-fn
+                         (fn [& args] (ratom/cursor db [:sub2]))]
+                     (with-meta (fn [& args] @(sub-fn)) {:subscription sub-fn}))
+                    `layer-2-sub3))
 
-(def layer-2-sub4 (sut/sub-fn (fn [& args] (ratom/cursor db [:sub2]))))
+(def layer-2-sub4 (sut/with-name (sut/sub-fn (fn [& args] (ratom/cursor db [:sub2]))) `layer-2-sub4))
 
 (deftest basic-test
   (is (= 500 (sut/<sub db [::sub-2-accessor])))

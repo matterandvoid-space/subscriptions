@@ -24,32 +24,32 @@
   [get-subscription-cache get-cache-key app query-v #?(:cljs ^clj reaction-or-cursor :clj reaction-or-cursor)]
   ;; this prevents memory leaks (caching subscription -> reaction) but still allows
   ;; executing outside of a (reagent.reaction) form, like in event handlers.
-  (log/trace "IN CACHE AND RETURN " (get-cache-key app query-v))
+  (log/debug "IN CACHE AND RETURN " (get-cache-key app query-v))
   (when (and (ratom/reactive-context?) (not reaction-or-cursor))
-    (log/trace "HAVE RATOM CONTEXT BUT REACTION IS NIL"))
+    (log/debug "HAVE RATOM CONTEXT BUT REACTION IS NIL"))
 
 
   (when (and (ratom/reactive-context?) reaction-or-cursor)
-    (log/trace " IN REACTIVE CONTEXT CACHING " (get-cache-key app query-v))
+    (log/debug " IN REACTIVE CONTEXT CACHING " (get-cache-key app query-v))
     (let [cache-key          (get-cache-key app query-v)
           subscription-cache (get-subscription-cache app)
           on-dispose         (fn []
-                               (log/trace "ON DISPOSE SUBS")
+                               (log/debug "ON DISPOSE SUBS")
                                (trace/with-trace {:operation (first query-v)
                                                   :op-type   :sub/dispose
                                                   :tags      {:query-v  query-v
                                                               :reaction (ratom/reagent-id reaction-or-cursor)}}
 
-                                 (log/trace "ON DISPOSE SUBS cache key:  " cache-key)
+                                 (log/debug "ON DISPOSE SUBS cache key:  " cache-key)
                                  (swap! subscription-cache
                                    (fn [query-cache]
                                      (if (and (contains? query-cache cache-key)
                                            (identical? reaction-or-cursor (get query-cache cache-key)))
                                        (do
-                                         (log/trace "REMOVE FROM CACHE " cache-key)
+                                         (log/debug "REMOVE FROM CACHE " cache-key)
                                          (dissoc query-cache cache-key))
                                        query-cache)))))]
-      (log/trace "CACHING REACTION with KEY: " cache-key)
+      (log/debug "CACHING REACTION with KEY: " cache-key)
       ;; when this reaction is no longer being used, remove it from the cache
 
       (when (ratom/reaction? reaction-or-cursor) (ratom/add-on-dispose! reaction-or-cursor on-dispose))
@@ -63,7 +63,7 @@
       (trace/merge-trace! {:tags {:reaction (ratom/reagent-id reaction-or-cursor)}})))
 
   (when-not (ratom/reactive-context?)
-    (log/trace "REACTIVE CONTEXT IS NIL: " #?(:cljs (pr-str reagent.ratom/*ratom-context*))))
+    (log/debug "REACTIVE CONTEXT IS NIL: " #?(:cljs (pr-str reagent.ratom/*ratom-context*))))
 
   reaction-or-cursor)
 
@@ -73,11 +73,11 @@
   "Takes a datasource and query and returns a Reaction."
   [get-handler cache-lookup get-subscription-cache get-cache-key
    datasource query]
-  (log/trace "\n\nSUBSCRIBE IMPL--------------------------------------------")
-  (log/trace "subscribe query: " (get-cache-key datasource query))
+  (log/debug "\n\nSUBSCRIBE IMPL--------------------------------------------")
+  (log/debug "subscribe query: " (get-cache-key datasource query))
   (assert (vector? query) (str "Queries must be vectors, you passed: " (pr-str query)))
 
-  (let [cnt       (count query),
+  (let [cnt       (count query)
         query-id  (first query)
         cache-key (get-cache-key datasource query)]
     (assert (or (= 1 cnt) (= 2 cnt)) (str "Query must contain only one map for subscription " query-id))
@@ -89,11 +89,11 @@
       (let [cached-reaction (cache-lookup datasource cache-key)]
         (if cached-reaction
           (do (trace/merge-trace! {:tags {:cached? true :reaction (ratom/reagent-id cached-reaction)}})
-              (log/trace "HAVE CACHED REACTION " cache-key)
+              (log/debug "HAVE CACHED REACTION " cache-key)
               cached-reaction)
           (let [handler-fn (get-handler query-id)]
-            (log/trace "DO NOT HAVE CACHED" cache-key)
-            (assert (fn? handler-fn) (str "Subscription handler for the following query is missing\n\n" (pr-str query-id) "\n"))
+            (log/debug "DO NOT HAVE CACHED" cache-key)
+            (assert (fn? handler-fn) (str "Subscription handler for the following query is missing:\n\n" (pr-str query-id) "\n"))
             (trace/merge-trace! {:tags {:cached? false}})
             (if (nil? handler-fn)
               (do (trace/merge-trace! {:error true})

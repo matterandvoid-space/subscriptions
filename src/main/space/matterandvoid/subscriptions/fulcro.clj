@@ -261,7 +261,6 @@
              ([datasource#] (deref (subscription-fn# datasource#)))
              ([datasource# args#] (deref (subscription-fn# datasource# args#))))
            {::subscription subscription-fn#
-            :other         ~(keyword (str *ns*) (str fn-name))
             ::sub-name     ~(keyword (str *ns*) (str fn-name))})))))
 
 (defmacro defsubraw

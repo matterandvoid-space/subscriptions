@@ -79,12 +79,6 @@
     get-input-db-signal register-handler!
     query-id path-vec-or-fn))
 
-(defn sub-fn
-  "Takes a function that returns either a Reaction or RCursor. Returns a function that when invoked delegates to `f` and
-   derefs its output. The returned function can be used in subscriptions."
-  [meta-fn-key f]
-  (subs/sub-fn meta-fn-key f))
-
 #?(:clj
    (defmacro deflayer2-sub
      "Only supports use cases where your datasource is a hashmap.
@@ -144,4 +138,11 @@
 
 (def deref-input-signals subs/deref-input-signals)
 
+(defn sub-fn
+  "Takes a function that returns either a Reaction or RCursor. Returns a function that when invoked delegates to `f` and
+   derefs its output. The returned function can be used in subscriptions."
+  [meta-fn-key f]
+  (subs/sub-fn meta-fn-key f))
 
+(defn make-sub-fn [meta-sub-kw query-id sub-args]
+  (subs/make-sub-fn get-input-db-signal meta-sub-kw subscribe query-id sub-args))

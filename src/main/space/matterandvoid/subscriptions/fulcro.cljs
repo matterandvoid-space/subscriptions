@@ -7,6 +7,7 @@
     [com.fulcrologic.fulcro.components :as c]
     [com.fulcrologic.fulcro.rendering.ident-optimized-render :as ident-optimized-render]
     [space.matterandvoid.subscriptions.impl.fulcro :as impl]
+    [space.matterandvoid.subscriptions.impl.subs :as impl.subs]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [goog.object :as g]
     ["react" :as react]))
@@ -86,12 +87,8 @@
   ([registry query-id] (impl/clear-handlers registry query-id)))
 
 (defn reg-sub-raw
-  "This is a low level, advanced function.  You should probably be
-  using `reg-sub` instead.
-
-  Some explanation is available in the docs at
-  <a href=\"http://day8.github.io/re-frame/flow-mechanics/\" target=\"_blank\">http://day8.github.io/re-frame/flow-mechanics/</a>"
-  {:api-docs/heading "Subscriptions"}
+  "Registers a function with the subscription id `query-id`. The function takes the source data RAtom and optional
+  args map and is expected to return a Reagent Reaction or Cursor."
   [query-id handler-fn] (impl/reg-sub-raw query-id handler-fn))
 
 (defn clear-subscription-cache!
@@ -117,6 +114,9 @@
 (defn with-name
   [f sub-name]
   (vary-meta f assoc ::sub-name sub-name))
+
+(defn make-sub-fn [query-id sub-args]
+  (impl/make-sub-fn ::subscription query-id sub-args))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; reactive refresh of components

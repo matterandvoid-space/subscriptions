@@ -6,6 +6,12 @@
     [space.matterandvoid.subscriptions.impl.trace :as trace :include-macros true]
     [taoensso.timbre :as log]))
 
+#?(:clj
+   (defmacro lenient-call
+     "Deal with arity stricness on JVM"
+     [f datasource args]
+     `(try (~f ~datasource ~args) (catch clojure.lang.ArityException ~'_ (~f ~datasource)))))
+
 (defn- error [& args] #?(:cljs (js/Error. (apply str args)) :clj (Exception. ^String (apply str args))))
 
 ;; -- cache -------------------------------------------------------------------
@@ -102,7 +108,7 @@
                 (assert (or (nil? handler-args) (map? handler-args)))
                 (let [reaction
                       #?(:cljs (handler-fn datasource handler-args)
-                         :clj (try (handler-fn datasource handler-args) (catch clojure.lang.ArityException _ (handler-fn datasource))))]
+                         :clj (lenient-call handler-fn datasource handler-args))]
                   (cache-and-return! get-subscription-cache get-cache-key datasource query reaction))))))))))
 
 ;; -- reg-sub -----------------------------------------------------------------
@@ -277,6 +283,10 @@
       ([db_] (handler-fn db_))
       ([db_ args] (handler-fn db_ args)))))
 
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+; subscription function helpers
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
 (defn sub-fn
   "Takes a function that returns either a Reaction or RCursor. Returns a function that when invoked delegates to `f` and
    derefs its output. The returned function can be used in subscriptions."
@@ -287,6 +297,56 @@
       ([datasource] (deref (f datasource)))
       ([datasource args] (deref (f datasource args))))
     {meta-sub-kw f}))
+
+(defn make-sub-fn
+  [get-input-db-signal meta-sub-kw subscribe query-id sub-args]
+  (let [[inputs-fn compute-fn] (parse-reg-sub-args get-input-db-signal subscribe "space.matteranvoid.subscriptions: " sub-args)
+        subscription-fn
+        (fn sub-fn
+          ([datasource]
+           (let [input-subscriptions (inputs-fn datasource)]
+             (ratom/make-reaction
+               (fn [] (compute-fn (deref-input-signals input-subscriptions query-id))))))
+
+          ([datasource sub-args]
+           (let [input-subscriptions (inputs-fn datasource sub-args)]
+             (ratom/make-reaction
+               (fn [] (let [inputs (deref-input-signals input-subscriptions query-id)]
+                        #?(:clj  (lenient-call compute-fn inputs sub-args)
+                           :cljs (compute-fn inputs sub-args))))))))]
+    (with-meta
+      (fn sub-fn
+        ([datasource] (deref (subscription-fn datasource)))
+        ([datasource args] (deref (subscription-fn datasource args))))
+      {meta-sub-kw                                  subscription-fn
+       (keyword (namespace meta-sub-kw) "sub-name") query-id})))
+
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+; deflayer2-sub
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+(defn make-layer2-sub-fn*
+  [get-input-db-signal sub-name path]
+  (fn layer2-sub-fn
+    ([datasource]
+     (layer2-sub-fn datasource nil))
+
+    ([datasource args]
+     (assert (or (nil? args) (map? args)))
+     (let [db-ratom (get-input-db-signal datasource)
+           path'    (cond
+                      (keyword? path) [path]
+                      (fn? path) (path db-ratom args)
+                      :else path)]
+       (assert (vector? path')
+         (str "Layer 2 subscription \"" sub-name "\" must return a vector path." " Got: " (pr-str path')))
+       (ratom/cursor db-ratom path')))))
+
+(defn make-layer2-sub-fn
+  [get-input-db-signal meta-sub-kw sub-name path]
+  (vary-meta
+    (sub-fn meta-sub-kw (make-layer2-sub-fn* get-input-db-signal sub-name path))
+    assoc (keyword (namespace meta-sub-kw) "sub-name") sub-name))
 
 #?(:clj
    (defmacro deflayer2-sub
@@ -305,80 +365,42 @@
 
      (deflayer2-sub my-subscription (fn [db-atom sub-args-map] [:a-key (:some-val sub-args-map])))
      "
-     [meta-sub-kw get-input-db-signal sub-name ?path]
-     (let [args-sym     (gensym "args")
-           path-sym     (gensym "path")
-           path-val-sym (gensym "path")
-           db-ratom-sym (gensym "db-ratom")]
-       `(let [~path-val-sym ~?path
-              subscription-fn#
-              (fn ~sub-name
-                ([datasource#]
-                 (let [~db-ratom-sym (~get-input-db-signal datasource#)
+     [meta-sub-kw get-input-db-signal def-sub-name ?path]
+     (let [sub-name' (keyword (str *ns*) (name def-sub-name))
+           path      (cond
+                       (keyword? ?path) [?path]
+                       (vector? ?path) ?path
+                       :else ?path)]
+       `(def ~def-sub-name (make-layer2-sub-fn ~get-input-db-signal ~meta-sub-kw ~sub-name' ~path)))))
 
-                       ~path-sym ~(cond
-                                    (keyword? ?path) [?path]
-                                    (vector? ?path) ?path
-                                    :else `(if (fn? ~path-val-sym) (apply ~path-val-sym [~db-ratom-sym]) ~path-val-sym))]
-                   ~(when (:ns &env)
-                      `(when goog/DEBUG (assert (or (nil? ~path-sym) (vector? ~path-sym))
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+; defsubraw
+;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-                                          (str "Layer 2 subscription \"" '~(symbol (str (:name (:ns &env))) (name sub-name)) "\" must return a vector path."
-                                            " Got: " (pr-str ~path-sym)))))
-                   (when ~path-sym (ratom/cursor ~db-ratom-sym ~path-sym))))
+(defn make-raw-sub [get-input-db-signal meta-sub-kw full-name sub-f]
+  (let [subscription-fn
+        (fn sub-fn
+          ([datasource]
+           (sub-f (get-input-db-signal datasource)))
+          ([datasource args]
+           (assert (or (nil? args) (map? args) (str "Invalid args passed to " full-name)))
+           (sub-f (get-input-db-signal datasource) args)))]
 
-                ([datasource# ~args-sym]
-                 (assert (or (nil? ~args-sym) (map? ~args-sym)))
-                 (let [~db-ratom-sym (~get-input-db-signal datasource#)
-                       ~path-sym ~(cond
-                                    (keyword? ?path) [?path]
-                                    (vector? ?path) ?path
-                                    :else `(if (fn? ~path-val-sym) (apply ~path-val-sym [~db-ratom-sym ~args-sym]) ~path-val-sym))]
-                   ~(when (:ns &env)
-                      `(when goog/DEBUG (assert (or (nil? ~path-sym) (vector? ~path-sym))
-                                          (str "Layer 2 subscription \"" '~(symbol (str (:name (:ns &env))) (name sub-name)) "\" must return a vector path."
-                                            " Got: " (pr-str ~path-sym)))))
-                   (when ~path-sym (ratom/cursor ~db-ratom-sym ~path-sym)))))]
-
-          (def ~sub-name (vary-meta (sub-fn ~meta-sub-kw subscription-fn#)
-                           assoc ~(keyword (namespace meta-sub-kw) "sub-name") ~(keyword (str *ns*) (str sub-name))))))))
+    (vary-meta
+      (sub-fn meta-sub-kw subscription-fn)
+      assoc (keyword (namespace meta-sub-kw) "sub-name") (keyword full-name))))
 
 (defmacro defsubraw
   "Creates a subscription function that takes the datasource ratom and optionally an args map and returns a Reaction
   or RCursor type."
   [meta-sub-kw get-input-db-signal sub-name args body]
-  (let [args-sym       (gensym "args")
-        datasource-sym (gensym "out")
-        out-sym        (gensym "out2")
-        f-sym          (gensym sub-name)
-        db-ratom-sym   (gensym "db-ratom")
-        full-name      (symbol (str *ns*) (name sub-name))
-        one-arg?       (= 1 (count args))]
-    (assert (or one-arg? (= 2 (count args))) (str "Args to defsubraw must be 2 at most. sub: " sub-name))
-    `(let [~f-sym
-           (fn ~sub-name ~args
-             (ratom/make-reaction
-               (fn []
-                 (let [~out-sym ~body]
-                   ~(when (:ns &env)
-                      `(when goog/DEBUG
-                         (assert (not (ratom/reaction? ~out-sym))
-                           (str "Raw subscription: " '~full-name " Must not return a Reaction, it is wrapped for you " (pr-str ~out-sym)))))
-                   ~out-sym))))
-
-           subscription-fn#
-           (fn ~sub-name
-             ([~datasource-sym]
-              ~(if one-arg?
-                 `(~f-sym (~get-input-db-signal ~datasource-sym))
-                 `(~f-sym (~get-input-db-signal ~datasource-sym '~nil))))
-
-             ([datasource# ~args-sym]
-              (assert (or (nil? ~args-sym) (map? ~args-sym) (str "Invalid args passed to " '~full-name)))
-              (let [~db-ratom-sym (~get-input-db-signal datasource#)]
-                ~(if one-arg?
-                   `(~f-sym ~db-ratom-sym)
-                   `(~f-sym ~db-ratom-sym ~args-sym)))))]
-
-       (def ~sub-name (vary-meta (sub-fn ~meta-sub-kw subscription-fn#)
-                        assoc ~(keyword (namespace meta-sub-kw) "sub-name") ~(keyword full-name))))))
+  (let [out-sym   (gensym "out")
+        full-name (symbol (str *ns*) (name sub-name))
+        sub-f     `(fn ~sub-name ~args
+                     (ratom/make-reaction
+                       (fn []
+                         (let [~out-sym ~body]
+                           (assert (not (ratom/reaction? ~out-sym))
+                             (str "Raw subscription: " '~full-name " Must not return a Reaction, it is wrapped for you " (pr-str ~out-sym)))
+                           ~out-sym))))]
+    `(def ~sub-name (make-raw-sub ~get-input-db-signal ~meta-sub-kw '~full-name ~sub-f))))

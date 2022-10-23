@@ -112,39 +112,16 @@
             ([app#] (deref (subscribe app# [~sub-kw])))
             ([app# args#] (deref (subscribe app# [~sub-kw args#]))))))))
 
+(defn make-sub-fn [query-id sub-args]
+  (impl/make-sub-fn ::subscription query-id sub-args))
+
 #?(:clj
    (defmacro defsub
-     "Has the same function signature as `reg-sub`.
+     "Has the same function signature as `reg-sub` without a keyword name argument.
      Returns a subscription function and creates a function which invokes subscribe and deref on the registered subscription
      with the args map passed in."
      [fn-name & args]
-     (let [compute-fn' (gensym "compute-fn")
-           inputs'     (gensym "inputs")
-           sub-args'   (gensym "sub-args")]
-       `(let [[inputs-fn# ~compute-fn'] (impl/parse-reg-sub-args ~(vec args))
-              subscription-fn#
-              (fn ~fn-name
-                ([datasource#]
-                 (let [input-subscriptions# (inputs-fn# datasource#)]
-                   (ratom/make-reaction
-                     (fn [] (~compute-fn' (impl/deref-input-signals input-subscriptions# (str *ns* "/" '~fn-name)))))))
-
-                ([datasource# ~sub-args']
-                 (let [input-subscriptions# (inputs-fn# datasource# ~sub-args')]
-                   (ratom/make-reaction
-                     (fn [] (let [~inputs' (impl/deref-input-signals input-subscriptions# (str *ns* "/" '~fn-name))]
-                              ~(if (:ns &env)
-                                 `(~compute-fn' ~inputs' ~sub-args')
-                                 `(try (~compute-fn' ~inputs' ~sub-args')
-                                       (catch clojure.lang.ArityException ~'_
-                                         (~compute-fn' ~inputs'))))))))))]
-          (def ~fn-name
-            (with-meta
-              (fn ~fn-name
-                ([datasource#] (deref (subscription-fn# datasource#)))
-                ([datasource# args#] (deref (subscription-fn# datasource# args#))))
-              {::subscription subscription-fn#
-               ::sub-name     ~(keyword (str *ns*) (str fn-name))}))))))
+     `(def ~fn-name (make-sub-fn ~(keyword (str *ns*) (str fn-name)) ~(vec args)))))
 
 #?(:clj
    (defmacro deflayer2-sub

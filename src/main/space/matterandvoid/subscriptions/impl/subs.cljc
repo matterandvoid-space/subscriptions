@@ -6,6 +6,12 @@
     [space.matterandvoid.subscriptions.impl.trace :as trace :include-macros true]
     [taoensso.timbre :as log]))
 
+#?(:clj
+   (defmacro lenient-call
+     "Deal with arity stricness on JVM"
+     [f datasource args]
+     `(try (~f ~datasource ~args) (catch clojure.lang.ArityException ~'_ (~f ~datasource)))))
+
 (defn- error [& args] #?(:cljs (js/Error. (apply str args)) :clj (Exception. ^String (apply str args))))
 
 ;; -- cache -------------------------------------------------------------------
@@ -102,7 +108,7 @@
                 (assert (or (nil? handler-args) (map? handler-args)))
                 (let [reaction
                       #?(:cljs (handler-fn datasource handler-args)
-                         :clj (try (handler-fn datasource handler-args) (catch clojure.lang.ArityException _ (handler-fn datasource))))]
+                         :clj (lenient-call handler-fn datasource handler-args))]
                   (cache-and-return! get-subscription-cache get-cache-key datasource query reaction))))))))))
 
 ;; -- reg-sub -----------------------------------------------------------------
@@ -306,7 +312,8 @@
            (let [input-subscriptions (inputs-fn datasource sub-args)]
              (ratom/make-reaction
                (fn [] (let [inputs (deref-input-signals input-subscriptions query-id)]
-                        (compute-fn inputs sub-args)))))))]
+                        #?(:clj  (lenient-call compute-fn inputs sub-args)
+                           :cljs (compute-fn inputs sub-args))))))))]
     (with-meta
       (fn sub-fn
         ([datasource] (deref (subscription-fn datasource)))
@@ -332,8 +339,8 @@
                       (fn? path) (path db-ratom args)
                       :else path)]
        (assert (vector? path')
-         (str "Layer 2 subscription \"" sub-name "\" must return a vector path." " Got: " (pr-str path)))
-       (ratom/cursor db-ratom path)))))
+         (str "Layer 2 subscription \"" sub-name "\" must return a vector path." " Got: " (pr-str path')))
+       (ratom/cursor db-ratom path')))))
 
 (defn make-layer2-sub-fn
   [get-input-db-signal meta-sub-kw sub-name path]

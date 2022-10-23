@@ -57,7 +57,8 @@
     (or (symbol? query-key) (keyword? query-key))
     query-v
 
-    (instance? #?(:cljs cljs.core/MetaFn :clj nil) query-key)
+    #?(:cljs (instance? cljs.core/MetaFn query-key)
+       :clj false)
     (let [sub-name (sub-fn->sub-name query-key query-v)]
       [sub-name (second query-v)])
 

@@ -289,3 +289,7 @@
    derefs its output. The returned function can be used in subscriptions."
   [f]
   (impl/sub-fn ::subscription f))
+
+(defn with-name
+  [f sub-name]
+  (vary-meta f assoc ::sub-name sub-name))

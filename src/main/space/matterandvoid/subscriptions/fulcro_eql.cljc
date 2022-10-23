@@ -4,11 +4,10 @@
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [com.fulcrologic.fulcro.raw.components :as rc]
     [edn-query-language.core :as eql]
-    [space.matterandvoid.subscriptions.fulcro :refer [<sub reg-sub-raw sub-fn]]
+    [space.matterandvoid.subscriptions.fulcro :as fulcro.subs :refer [<sub reg-sub-raw sub-fn]]
     [space.matterandvoid.subscriptions.impl.eql-protocols :as proto]
     [space.matterandvoid.subscriptions.impl.eql-queries :as impl]
-    [space.matterandvoid.subscriptions.impl.reagent-ratom :refer [cursor]]
-    [space.matterandvoid.subscriptions.reagent-ratom :as ratom]))
+    [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom :refer [cursor]]))
 
 (def query-key impl/query-key)
 (def missing-val impl/missing-val)
@@ -23,17 +22,34 @@
 (def fulcro-data-source
   (reify proto/IDataSource
     (-attribute-subscription-fn [_ id-attr attr]
-      (fn [?fulcro-app args]
-        ;; this is to support passing state map to subscriptions instead of the fulcro app, for example in mutations
-        (cond
-          (fulcro.app/fulcro-app? ?fulcro-app)
-          (cursor (::fulcro.app/state-atom ?fulcro-app) [id-attr (get args id-attr) attr])
+      ;; this version uses reactions instead of cursors
+      #_(vary-meta (sub-fn
+                     (fn [?fulcro-app args]
+                       ;; this is to support passing state map to subscriptions instead of the fulcro app, for example in mutations
+                       (cond
+                         (fulcro.app/fulcro-app? ?fulcro-app)
+                         (ratom/make-reaction (fn [] (get-in (fulcro.app/current-state ?fulcro-app) [id-attr (get args id-attr) attr])))
 
-          (ratom/deref? ?fulcro-app)
-          (cursor ?fulcro-app [id-attr (get args id-attr) attr])
+                         (ratom/deref? ?fulcro-app)
+                         (ratom/make-reaction (fn [] (get-in @?fulcro-app [id-attr (get args id-attr) attr])))
 
-          :else
-          (ratom/make-reaction (fn [] (get-in ?fulcro-app [id-attr (get args id-attr) attr]))))))
+                         :else
+                         (ratom/make-reaction (fn [] (get-in ?fulcro-app [id-attr (get args id-attr) attr])))))
+                     )
+          assoc ::fulcro.subs/sub-name attr)
+      (fulcro.subs/with-name
+        (fn [?fulcro-app args]
+          ;; this is to support passing state map to subscriptions instead of the fulcro app, for example in mutations
+          (cond
+            (fulcro.app/fulcro-app? ?fulcro-app)
+            (cursor (::fulcro.app/state-atom ?fulcro-app) [id-attr (get args id-attr) attr])
+
+            (ratom/deref? ?fulcro-app)
+            (cursor ?fulcro-app [id-attr (get args id-attr) attr])
+
+            :else
+            (ratom/make-reaction (fn [] (get-in ?fulcro-app [id-attr (get args id-attr) attr])))))
+        attr))
     (-ref->attribute [_ ref] (first ref))
     (-ref->id [_ ref]
       ;(log/debug "-ref->id ref" ref)
@@ -63,7 +79,10 @@
 (def class->registry-key impl/class->registry-key)
 (def get-ident impl/get-ident)
 
-(def ^:private fulcro-form-state-config-sub (impl/create-component-subs <sub sub-fn fulcro-data-source fs/FormConfig {}))
+(def ^:private fulcro-form-state-config-sub
+  (fulcro.subs/with-name
+    (impl/create-component-subs ::fulcro.subs/sub-name <sub sub-fn fulcro-data-source fs/FormConfig {})
+    (keyword `fulcro-form-state-config-sub)))
 
 (defn ^:private query-contains-form-config? [component]
   (-> (rc/get-query component)
@@ -101,7 +120,7 @@
   a subscription will be created for you for form-state/config."
   [component sub-joins-map]
   (let [sub-joins-map (cond-> sub-joins-map (query-contains-form-config? component) (assoc ::fs/config fulcro-form-state-config-sub))]
-    (impl/create-component-subs <sub sub-fn fulcro-data-source component sub-joins-map)))
+    (impl/create-component-subs ::fulcro.subs/sub-name <sub sub-fn fulcro-data-source component sub-joins-map)))
 
 (defn register-component-subs!
   "Registers subscriptions that will fulfill the given fulcro component's query.

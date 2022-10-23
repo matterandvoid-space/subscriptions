@@ -114,6 +114,10 @@
   [f]
   (impl/sub-fn ::subscription f))
 
+(defn with-name
+  [f sub-name]
+  (vary-meta f assoc ::sub-name sub-name))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; reactive refresh of components
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

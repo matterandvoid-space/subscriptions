@@ -297,7 +297,7 @@
            :todo/id       :todo-1}
           (<sub db_ [::todo {:todo/id :todo-1 sut/query-key ['* :todo/text]}]))))
   (testing "entity subscription with no query returns all attributes"
-    (is (= {:list/items   [{:todo/comments :space.matterandvoid.subscriptions.impl.eql-queries/missing,
+    (is (= {:list/items   [{:todo/comments sut/missing-val
                             :todo/author   {:user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3] [:user/id :user-5]],
                                             :user/name    "user 2",
                                             :user/id      :user-2},

@@ -38,7 +38,17 @@
   [f]
   (reify clojure.lang.IDeref (deref [_] (f))))
 (defn run-in-reaction [f obj key run opts] (f))
-(defn in-reactive-context [_ f] (f))
+
+(defmacro in-reactive-context
+  "Macro that emits the `body` form with the reagent.ratom/*ratom-context* dynamically bound either to a fresh object
+   or to the provided object `obj`."
+  ([obj body]
+   (if (:ns &env)
+     `(cljs.core/binding [reagent.ratom/*ratom-context* ~obj] ~body)
+     body))
+  ([body]
+   `(in-reactive-context ~(if (:ns &env) `(cljs.core/js-obj) `(Object.))
+      ~body)))
 
 (defn add-on-dispose!
   "On JVM Clojure, use an atom to register `f` to be invoked when `dispose!` is

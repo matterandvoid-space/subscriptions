@@ -1,4 +1,4 @@
-### Derived data flowing - from anywhere - to anywhere.
+# Derived data flowing - from anywhere - to anywhere.
 
 This library extracts the subscriptions half of [re-frame](https://github.com/day8/re-frame) into a standalone library,
 it also makes a few adjustments, the key one being that the data source is an explicit argument you pass to subscriptions.
@@ -19,13 +19,18 @@ wrapped in a `reagent.ratom/atom`.
 In fact that is the library's only dependency from reagent, the `reagent.ratom` namespace. 
 The UI integrations are added on top of this core.
 
-If you haven't used re-frame, subscriptions are a way to apply pure functions over a core data source to arrive at derived data from that source.
-They also allow "subscribing" to a piece of derived data - that is, specifying a callback function to be invoked when the data changes,
-with the intention of committing effects - changing the state of the world - in this library that is usually affecting 
-the state of pixels on a display attached to a computer.
+Subscriptions are a way to apply pure functions over a source of data to arrive at derived data from that source.
+
+When the source data changes any affected subscriptions will "react" and any components using those subscriptions will re-render.
+
+This allows for a very simple one-way data flow for UI data transformations.
 
 The difference from just using function composition is that the layers are cached, and that you can execute code 
 in response to any of these values changing over time.
+
+## Status
+
+API's are slightly unstable as I iterate on the library while using it.
 
 # Usage / Integrations
 
@@ -155,22 +160,31 @@ I haven't used datascript much so there may be better/more efficient integration
 
 ## Use with React hooks
 
-There are four react hooks in the `space.matterandvoid.subscriptions.react-hook` namespace 
+There are react hooks in the `space.matterandvoid.subscriptions.react-hooks` namespace 
 
 - `use-sub`, which takes one subscription vector 
-- `use-sub-map` which takes a hashmap of keywords to subscription vectors intended to be destructured.
+- `use-sub-memo`, a macro which takes one subscription vector and wraps your subscrition vector in `react/useMemo` before subscribing.
+- `use-sub-map` a macro which takes a hashmap of keywords to subscription vectors intended to be destructured.
 - `use-reaction` which takes a Reagent Reaction, the output of the hook is the return value of the Reaction.
-- `use-reaction-ref` which takes a React Ref which contains a Reagent Reaction, the output of the hook is the return value of the reaction.
+- `use-reaction-ref` which takes a React Ref which contains a Reagent Reaction, the output of the hook is the return value of the Reaction.
+- `use-reaction-in-ref` which takes a Reagent Reaction and wraps it in a React Ref to avoid being recreated each render,
+   the output of the hook is the return value of the Reaction.
 
-The same hooks for fulcro use are in `space.matterandvoid.subscriptions.react-hook-fulcro`
+The same hooks for fulcro use are in `space.matterandvoid.subscriptions.react-hooks-fulcro`
 
 These hooks are all implemented via [useSyncExternalStore](https://beta.reactjs.org/apis/react/useSyncExternalStore) allowing
 them to be used in React's concurrent rendering mode.
 
-See the examples directory in the source for working code.
+When using subscriptions in hooks you need to be aware of memoization, see the document [docs/react-hooks.md](docs/react-hooks.md) for more details.
+
+Also see the examples directory in the source for working code.
 
 ```clojure 
-(require [space.matterandvoid.subscriptions.react-hook :refer [reg-sub use-sub use-sub-map use-reaction]])
+(:ns sample
+ (:require 
+   [space.matterandvoid.subscriptions.core :refer [defsub]]
+   [space.matterandvoid.subscriptions.react-hooks :refer [use-sub-map use-reaction-in-ref]]))
+ 
 (defonce db_ (ratom/atom {}))
 
 (defn make-todo [id text] {:todo/id id :todo/text text})
@@ -178,8 +192,8 @@ See the examples directory in the source for working code.
 (def todo2 (make-todo #uuid"b13319dd-3200-40ec-b8ba-559e404f9aa5" "todo2"))
 (swap! db_ assoc :todos [todo1 todo2])
 
-(reg-sub ::all-todos :-> :todos)
-(reg-sub ::sorted-todos :<- [::all-todos] :-> (partial sort-by :todo/text))
+(defsub all-todos :-> :todos)
+(defsub sorted-todos :<- [all-todos] (partial sort-by :todo/text))
 
 ;; lifted from helix.core
 (defn $ [type & args]
@@ -188,15 +202,15 @@ See the examples directory in the source for working code.
       (apply react/createElement type' (clj->js ?p) ?c)
       (apply react/createElement type' nil args))))
 
-(defn a-react-hook-component []
+(defn a-react-hooks-component []
   (let [{:keys [my-todos] :as the-subs} 
-           (use-sub-map db_ {:my-todos [::all-todos] 
-                             :sorted-todo-list [::sorted-todos]})
+           (use-sub-map db_ {:my-todos [all-todos] 
+                             :sorted-todo-list [sorted-todos]})
           
          ;; this is contrived, but you could imagine passing in subs as a prop
          ;; or other dynamic possibilities
-         some-subs [[::sorted-todos] [:all-todos]]
-         list-of-lists (use-reaction (make-reaction (fn [] (mapv <sub some-subs)))]
+         some-subs [[sorted-todos] [all-todos]]
+         list-of-lists (use-reaction-in-ref (make-reaction (fn [] (mapv <sub some-subs)))]
     ($ :div
       ($ :button #js{:onClick #(swap! db_ update :todos conj (make-todo (random-uuid) "another todo"))}
        "Add a todo")
@@ -217,7 +231,7 @@ Here is an example using [helix](https://github.com/lilactown/helix) for react r
   (:require
     [space.matterandvoid.subscriptions.core :as subs :refer [defsub]]
     [space.matterandvoid.subscriptions.reagent-ratom :as ratom]
-    [space.matterandvoid.subscriptions.react-hook :as subs.hooks]
+    [space.matterandvoid.subscriptions.react-hooks :as subs.hooks]
     [helix.core :as hc]))
 
 (def my-datasource (ratom/atom {:a-number 500}))
@@ -474,28 +488,35 @@ The library uses the following convention to allow subscribing to functions whil
             (fn [] (+ 10 (inc (<sub db_ [a-fn-sub])) (<sub db_ [a-layer-2-fn])))))]
     (with-meta 
       (fn layer-3-sub-fn [db_ ] @(sub-fn db_))
-      {:space.matterandvoid.subscriptions.core/subscription sub-fn})))
+      {:space.matterandvoid.subscriptions.core/subscription sub-fn
+       :space.matterandvoid.subscriptions.core/sub-name `layer-3-sub-fn})))
 ```
 
 When subscribe is called and a function is passed in the subscription vector the library will first look for a function under
 the `:space.matterandvoid.subscriptions.core/subscription` key in the metadata of the function to get the subscription function instead of using the function itself.
 If there is not a function in the metadata under the `:space.matterandvoid.subscriptions.core/subscription` key, then the function itself is used.
 
-This is a bit noisy to write by hand, so the library provides to helpers: you can either use the `sub-fn` function helper, or use the `defsub` macro which produces this output for you.
+This is a bit noisy to write by hand, so the library provides to helpers: you can either use the `sub-fn` function helper,
+or use the `defsub` macro which produces this output for you.
 
 These are equivalent to the above definition:
 
 ```clojure
 (def layer-3-sub-fn
-  (sub-fn (fn [db_]
-            (make-reaction 
-              (fn []
-                (+ 10 (inc (<sub db_ [a-fn-sub])) (<sub db_ [a-layer-2-fn])))))))
+  (vary-meta
+    (sub-fn (fn [db_]
+              (make-reaction 
+                (fn []
+                  (+ 10 (inc (<sub db_ [a-fn-sub])) (<sub db_ [a-layer-2-fn]))))))
+    assoc :space.matterandvoid.subscriptions.core/sub-name `layer-3-sub-fn))
 
 (defsub layer-3-sub-fn :<- [a-fn-sub] :<- [a-layer-2-fn]
   (fn [[num1 num2]] 
     (+ 10 (inc num1) num2)))
 ```
+
+In order to be properly cached a subscription function must include its name under the `:space.matterandvoid.subscriptions.core/sub-name` 
+key in its metadata. The key should be the fully qualified name of the subscription function - either a symbol or a keyword.
 
 The main benefits of using functions directly (as explained in the `repose` documentation) are proper module placement for code splitting
 and much better editor and IDE integration.
@@ -503,7 +524,7 @@ The functions will be analyzed correctly and can be moved to the modules that th
 where all subscriptions will have to be in a common module.
 IDE features like jump to definition work as expected instead of having to have special re-frame aware tooling.
 
-They are just functions, so you can just invoke them and get values, no need to use subscribe.
+Also, they are just functions, so you can just invoke them and get values, no need to use subscribe.
 
 You are free to mix and match using the registry (`reg-sub` etc.) and not (subscribing directly to functions).
 The registry is used to associate subscription keywords with handler functions and once the handler function is retrieved there is no difference in execution.
@@ -554,6 +575,23 @@ example:
 (<sub db_ [sorted-todos])
 ```
 
+## `defsubraw` macro
+
+For use cases where you need need access to the underlying data RAtom you can use `defsubraw` which has the form of a 
+`defn`. The args vector can take either the single db RAtom and optionally the arguments hashmap provided to subscribe.
+The body you provide will be wrapped inside a `reagent.ratom/make-reaction` call.
+
+For example, here we are attempting to lookup a ref/ident of an entity which is loaded dynamically and thus may be missing:
+
+```clojure
+(defsubraw form-todo
+  [db_]
+  (when-let [ident (:root/new-todo @db_ nil)]
+    (get-in @db_ ident nil)))
+```
+
+For this use case a cursor would not work as the path is not available at first (it is `nil`), so using a Reaction is needed.
+
 ## `deflayer2-sub` macro
 
 For use without a subscription registry. When using a subscription registry see the `reg-layer2-sub` function.
@@ -566,10 +604,6 @@ For convenience you can provide
 - a single keyword
 - a vector path
 - a function which takes your db-atom and an optional arguments hashmap passed to `subscribe` and returns a vector path
-  - to deal with timing issues around dynamic subscription path values being missing, if your path function returns `nil`
-    the cursor will not be cached, thus when it is present then it will be cached.
-    This is to support use cases where the path value in the db is added dynamically, thus you don't want to use the `nil`
-    value but still want to get caching support once it is available.
 
 The function form lets you do things like store the cursor path in the db itself, for example a pointer (ref) to an entity.
 
@@ -578,8 +612,12 @@ Examples:
 ```clojure
 (deflayer2-sub a-sub :some-value)
 (deflayer2-sub my-todo [:todo/id 1234])
-(deflayer2-sub form-todo (fn [db_ args-map] (:root/new-todo-ref @db_ nil)))
+(deflayer2-sub form-todo (fn [db_ args-map] (:root/new-todo-ref @db_)))
 ```
+
+Please note that if any of the values are missing from your app-db the entire app-db is returned by default (get-in {} nil) -> returns the 
+entire hashmap. Thus you have to be aware of this - if a layer2 subscription's path for dynamic paths may be missing (the function
+return value) use a reaction instead.
 
 # Implementation details
 

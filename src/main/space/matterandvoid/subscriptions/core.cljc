@@ -143,7 +143,8 @@
               (fn ~fn-name
                 ([datasource#] (deref (subscription-fn# datasource#)))
                 ([datasource# args#] (deref (subscription-fn# datasource# args#))))
-              {::subscription subscription-fn#}))))))
+              {::subscription subscription-fn#
+               ::sub-name     ~(keyword (str *ns*) (str fn-name))}))))))
 
 #?(:clj
    (defmacro deflayer2-sub
@@ -164,10 +165,20 @@
      "
      [sub-name ?path] `(impl/deflayer2-sub ::subscription ~sub-name ~?path)))
 
+#?(:clj
+   (defmacro defsubraw
+     "Creates a subscription function that takes the datasource ratom and optionally an args map and returns a Reaction"
+     [sub-name args body]
+     `(impl/defsubraw ::subscription ~sub-name ~args ~body)))
+
 (defn sub-fn
   "Takes a function that returns either a Reaction or RCursor. Returns a function that when invoked delegates to `f` and
    derefs its output. The returned function can be used in subscriptions."
   [f]
   (impl/sub-fn ::subscription f))
+
+(defn with-name
+  [f sub-name]
+  (vary-meta f assoc ::sub-name sub-name))
 
 #?(:cljs (def datasource-context (react/createContext nil)))

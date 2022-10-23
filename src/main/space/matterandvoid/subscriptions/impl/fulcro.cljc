@@ -1,5 +1,6 @@
 (ns space.matterandvoid.subscriptions.impl.fulcro
   (:require
+    [space.matterandvoid.subscriptions.fulcro :as-alias fulcro.subs]
     [com.fulcrologic.fulcro.algorithms.tx-processing :as ftx]
     [com.fulcrologic.fulcro.algorithms.normalized-state :refer [dissoc-in]]
     [com.fulcrologic.fulcro.application :as fulcro.app]
@@ -26,18 +27,12 @@
 ;; for other proxy interfaces (other than fulcro storage) this has to be an atom of a map.
 ;; this is here for now just to inspect it at the repl
 (defonce subs-cache_ (atom {}))
-(comment @subs-cache_
-  (let [k (first (keys @subs-cache_))]
-    @(get @subs-cache_ k))
-  ;; now all I need to do is
-  ;; (reset! fulcro-state-atom
-  ;;   (reduce-kv (fn [state k v] (assoc-in state [k] @v) @fulcro-state-atom @subs-cache)
-  ;; store the subscriptions as normalized data
-  ;; to render a component and get the props in the right place
-  ;; you can look up the value
-
-  ;; first version of this (subscribe this [::query args]) in the component
-  ;; will lookup the value in app db for that cached value
+(comment
+  @subs-cache_
+  (count @subs-cache_)
+  (take 3 @subs-cache_)
+  (key (first @subs-cache_))
+  (val (first @subs-cache_))
   )
 
 ;; here we also have the option of storing the subscription cache in the fulcro app.
@@ -46,8 +41,33 @@
 ;; so there isn't an explosion in the top level keyspace
 ;; it's a tradeoff, it may make more sense to just add integration with fulcro inspect via the
 ;; existing tracing calls.
-(defn get-cache-key [app query-v]
-  (if (keyword? (first query-v)) query-v (into [(hash app)] query-v)))
+
+(defn sub-missing-name! [sub-fn query]
+  (throw (#?(:cljs js/Error. :clj Exception.)
+           (str "Subscription function does not have a name and cannot be cached! "
+             (or (-> sub-fn meta ::fulcro.subs/sub-name) (pr-str query))))))
+
+(defn sub-fn->sub-name [sub-fn query]
+  (if-let [sub-name (-> sub-fn meta ::fulcro.subs/sub-name)]
+    sub-name
+    (sub-missing-name! sub-fn query)))
+
+(defn get-cache-key [_app [query-key :as query-v]]
+  (cond
+    (or (symbol? query-key) (keyword? query-key))
+    query-v
+
+    #?(:cljs (instance? cljs.core/MetaFn query-key)
+       :clj false)
+    (let [sub-name (sub-fn->sub-name query-key query-v)]
+      [sub-name (second query-v)])
+
+    (fn? query-key)
+    #?(:cljs (sub-missing-name! query-key query-v)
+       :clj  [(sub-fn->sub-name query-key query-v) (second query-v)])
+
+    :else
+    query-v))
 
 (defn get-subscription-cache [app] subs-cache_ #_(atom {}))
 (defn cache-lookup [app cache-key] (when app (get @(get-subscription-cache app) cache-key)))
@@ -75,12 +95,8 @@
 (defn register-handler!
   "Returns `handler-fn` after associng it in the map."
   [id handler-fn]
-  ;(log/info "Registering handler: " id)
   (swap! handler-registry_ assoc-in (subs-state-path subs-key id)
-    (fn [& args]
-      ;(log/info "Calling handler with args: " args)
-      ;(js/console.log "-------------------------------Calling handler with args: " args)
-      (apply handler-fn args)))
+    (fn [& args] (apply handler-fn args)))
   handler-fn)
 
 (defn clear-handlers
@@ -161,6 +177,12 @@
      [meta-sub-kw sub-name ?path]
      `(subs/deflayer2-sub ~meta-sub-kw get-input-db-signal ~sub-name ~?path)))
 
+#?(:clj
+   (defmacro defsubraw
+     "Creates a subscription function that takes the datasource ratom and optionally an args map and
+     returns the subscription value. The return value is wrapped in a Reaction for you, so you do not need to."
+     [meta-sub-kw sub-name args body]
+     `(subs/defsubraw ~meta-sub-kw get-input-db-signal ~sub-name ~args ~body)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; reactive refresh of components

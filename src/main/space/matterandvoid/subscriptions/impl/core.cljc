@@ -1,5 +1,6 @@
 (ns space.matterandvoid.subscriptions.impl.core
   (:require
+    [space.matterandvoid.subscriptions.core :as-alias core.subs]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
     [space.matterandvoid.subscriptions.impl.subs :as subs]
     [taoensso.timbre :as log]))
@@ -7,7 +8,33 @@
 (defn get-input-db-signal [ratom] ratom)
 (defonce subs-cache_ (atom {}))
 (defn get-subscription-cache [_app] subs-cache_)
-(defn get-cache-key [datasource query-v] (if (keyword? (first query-v)) query-v (into [(hash datasource)] query-v)))
+
+(defn sub-missing-name! [sub-fn]
+  (throw (#?(:cljs js/Error. :clj Exception.)
+           (str "Subscription function does not have a name and cannot be cached!"
+             (or (-> sub-fn meta ::core.subs/sub-name))))))
+
+(defn sub-fn->sub-name [sub-fn]
+  (if-let [sub-name (-> sub-fn meta ::core.subs/sub-name)]
+    sub-name
+    (sub-missing-name! sub-fn)))
+
+(defn get-cache-key [_app [query-key :as query-v]]
+  (cond
+    (or (symbol? query-key) (keyword? query-key))
+    query-v
+
+    #?(:cljs (instance? cljs.core/MetaFn query-key)
+       :clj false)
+    [(sub-fn->sub-name query-key) (second query-v)]
+
+    (fn? query-key)
+    #?(:cljs (sub-missing-name! query-key)
+       :clj  [(sub-fn->sub-name query-key) (second query-v)])
+
+    :else
+    query-v))
+
 (defn cache-lookup [datasource cache-key] (when datasource (get @(get-subscription-cache datasource) cache-key)))
 (defn subs-state-path [k] [k])
 (defonce handler-registry_ (atom {}))
@@ -77,6 +104,13 @@
      "
      [meta-sub-kw sub-name ?path]
      `(subs/deflayer2-sub ~meta-sub-kw get-input-db-signal ~sub-name ~?path)))
+
+#?(:clj
+   (defmacro defsubraw
+     "Creates a subscription function that takes the datasource ratom and optionally an args map and
+     returns the subscription value. The return value is wrapped in a Reaction for you, so you do not need to."
+     [meta-sub-kw sub-name args body]
+     `(subs/defsubraw ~meta-sub-kw get-input-db-signal ~sub-name ~args ~body)))
 
 (defn subscribe
   "Given a `query` vector, returns a Reagent `reaction` which will, over

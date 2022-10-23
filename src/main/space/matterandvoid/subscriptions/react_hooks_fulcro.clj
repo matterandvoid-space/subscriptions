@@ -19,12 +19,12 @@
    `(do
       (assert (fulcro.app/fulcro-app? ~datasource)
         (str "You must pass a Fulcro application to `use-sub-map` as the datasource, you passed: " (pr-str ~datasource)))
-      (common/use-sub-memo subs/reactive-subscribe ~datasource ~subscription-vector)))
+      (common/use-sub-memo subs/subscribe ~datasource ~subscription-vector)))
 
   ([subscription-vector]
    `(let [datasource# (~'react/useContext subs/datasource-context)]
       (assert (fulcro.app/fulcro-app? datasource#) (str "The datasource from the React context is not a Fulcro application in `use-sub-memo`"))
-      (common/use-sub-memo subs/reactive-subscribe datasource# ~subscription-vector))))
+      (common/use-sub-memo subs/subscribe datasource# ~subscription-vector))))
 
 (defmacro use-sub-map
   "A react hook that subscribes to multiple subscriptions, the return value of the hook is the return value of the

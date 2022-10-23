@@ -488,28 +488,35 @@ The library uses the following convention to allow subscribing to functions whil
             (fn [] (+ 10 (inc (<sub db_ [a-fn-sub])) (<sub db_ [a-layer-2-fn])))))]
     (with-meta 
       (fn layer-3-sub-fn [db_ ] @(sub-fn db_))
-      {:space.matterandvoid.subscriptions.core/subscription sub-fn})))
+      {:space.matterandvoid.subscriptions.core/subscription sub-fn
+       :space.matterandvoid.subscriptions.core/sub-name `layer-3-sub-fn})))
 ```
 
 When subscribe is called and a function is passed in the subscription vector the library will first look for a function under
 the `:space.matterandvoid.subscriptions.core/subscription` key in the metadata of the function to get the subscription function instead of using the function itself.
 If there is not a function in the metadata under the `:space.matterandvoid.subscriptions.core/subscription` key, then the function itself is used.
 
-This is a bit noisy to write by hand, so the library provides to helpers: you can either use the `sub-fn` function helper, or use the `defsub` macro which produces this output for you.
+This is a bit noisy to write by hand, so the library provides to helpers: you can either use the `sub-fn` function helper,
+or use the `defsub` macro which produces this output for you.
 
 These are equivalent to the above definition:
 
 ```clojure
 (def layer-3-sub-fn
-  (sub-fn (fn [db_]
-            (make-reaction 
-              (fn []
-                (+ 10 (inc (<sub db_ [a-fn-sub])) (<sub db_ [a-layer-2-fn])))))))
+  (vary-meta
+    (sub-fn (fn [db_]
+              (make-reaction 
+                (fn []
+                  (+ 10 (inc (<sub db_ [a-fn-sub])) (<sub db_ [a-layer-2-fn]))))))
+    assoc :space.matterandvoid.subscriptions.core/sub-name `layer-3-sub-fn))
 
 (defsub layer-3-sub-fn :<- [a-fn-sub] :<- [a-layer-2-fn]
   (fn [[num1 num2]] 
     (+ 10 (inc num1) num2)))
 ```
+
+In order to be properly cached a subscription function must include its name under the `:space.matterandvoid.subscriptions.core/sub-name` 
+key in its metadata. The key should be the fully qualified name of the subscription function - either a symbol or a keyword.
 
 The main benefits of using functions directly (as explained in the `repose` documentation) are proper module placement for code splitting
 and much better editor and IDE integration.
@@ -517,7 +524,7 @@ The functions will be analyzed correctly and can be moved to the modules that th
 where all subscriptions will have to be in a common module.
 IDE features like jump to definition work as expected instead of having to have special re-frame aware tooling.
 
-They are just functions, so you can just invoke them and get values, no need to use subscribe.
+Also, they are just functions, so you can just invoke them and get values, no need to use subscribe.
 
 You are free to mix and match using the registry (`reg-sub` etc.) and not (subscribing directly to functions).
 The registry is used to associate subscription keywords with handler functions and once the handler function is retrieved there is no difference in execution.

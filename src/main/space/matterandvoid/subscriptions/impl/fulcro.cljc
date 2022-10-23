@@ -31,7 +31,6 @@
   @subs-cache_
   (count @subs-cache_)
   (take 3 @subs-cache_)
-  (get @subs-cache_ [:space.matterandvoid.todomvc.todo.subscriptions/complete-todos {:filter "active"}])
   (key (first @subs-cache_))
   (val (first @subs-cache_))
   )
@@ -43,56 +42,34 @@
 ;; it's a tradeoff, it may make more sense to just add integration with fulcro inspect via the
 ;; existing tracing calls.
 
-(defn query-v->sub-name [query-v]
-  (let [f (first query-v)]
-    (if-let [sub-name (-> f meta ::fulcro.subs/sub-name)]
-      sub-name
-      (let [sub-name (random-uuid)]
-        ;; todo this doesn't work because a new function is created
-        ;; during the lifecycle of the app
-        (log/info "SUB NAME MISSING, assigning random one")
-        (alter-meta! f assoc ::fulcro.subs/sub-name sub-name)
-        sub-name))))
+(defn sub-missing-name! [sub-fn]
+  (throw (#?(:cljs js/Error. :clj Exception.)
+           (str "Subscription function does not have a name and cannot be cached!"
+             (or (-> sub-fn meta ::fulcro.subs/sub-name))))))
 
-(defn get-cache-key [app query-v]
+(defn sub-fn->sub-name [sub-fn]
+  (if-let [sub-name (-> sub-fn meta ::fulcro.subs/sub-name)]
+    sub-name
+    (sub-missing-name! sub-fn)))
+
+(defn get-cache-key [_app [query-key :as query-v]]
   (cond
-    (keyword? (first query-v))
+    (or (symbol? query-key) (keyword? query-key))
     query-v
 
-    (instance? #?(:cljs cljs.core/MetaFn :clj nil) (first query-v))
-    (do
-      (let [sub-name (query-v->sub-name query-v)]
-        (when (nil? sub-name)
-          (throw
-            #?(:cljs
-               (js/Error. (str "SUB MISSING NAME : " (-> query-v first .-afn .-name)
-                            " meta name: " (-> query-v first meta ::fulcro.subs/sub-name)))
-               :clj (Exception. "Error - this code should never be reached"))))
+    (instance? #?(:cljs cljs.core/MetaFn :clj nil) query-key)
+    (let [sub-name (sub-fn->sub-name query-key)]
+      [sub-name (second query-v)])
 
-        ;(log/info "CACHE HAS sub? "
-        ;  "key: " [(-> query-v first meta ::fulcro.subs/sub-name) (second query-v)]
-        ;  " "
-        ;  (contains? @subs-cache_ [(-> query-v first meta ::fulcro.subs/sub-name) (second query-v)]))
-        [sub-name (second query-v)]))
-
-    (fn? (first query-v))
-    (do
-      ;(println "CACH KEY Fn " (pr-str (-> query-v first .-name)) " fn: " (-> query-v first meta ::fulcro.subs/sub-name) )
-      #?(:cljs
-         (throw (js/Error. (str "SUB FN MISSING NAME : " (-> query-v first))))
-         :clj query-v)
-      ;(into [(hash app) query-v])
-      ;[(-> query-v first hash) (second query-v)]
-      )
+    (fn? query-key)
+    #?(:cljs (sub-missing-name! query-key)
+       :clj  [(sub-fn->sub-name query-key) (second query-v)])
 
     :else
     query-v))
 
 (defn get-subscription-cache [app] subs-cache_ #_(atom {}))
-(defn cache-lookup [app cache-key]
-  (let [r (when app (get @(get-subscription-cache app) cache-key))]
-    (log/info "CACHE LOOKUP: " cache-key " value: " r)
-    r))
+(defn cache-lookup [app cache-key] (when app (get @(get-subscription-cache app) cache-key)))
 
 (def app-state-key ::state)
 (def subs-key ::subs)
@@ -117,12 +94,8 @@
 (defn register-handler!
   "Returns `handler-fn` after associng it in the map."
   [id handler-fn]
-  ;(log/info "Registering handler: " id)
   (swap! handler-registry_ assoc-in (subs-state-path subs-key id)
-    (fn [& args]
-      ;(log/info "Calling handler with args: " args)
-      ;(js/console.log "-------------------------------Calling handler with args: " args)
-      (apply handler-fn args)))
+    (fn [& args] (apply handler-fn args)))
   handler-fn)
 
 (defn clear-handlers

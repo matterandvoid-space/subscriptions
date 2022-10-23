@@ -288,8 +288,56 @@
       ([datasource args] (deref (f datasource args))))
     {meta-sub-kw f}))
 
+(defn make-layer2-sub-fn*
+  [get-input-db-signal sub-name path]
+  (fn layer2-sub-fn
+    ([datasource]
+     (layer2-sub-fn datasource nil))
+
+    ([datasource args]
+     (assert (or (nil? args) (map? args)))
+     (let [db-ratom (get-input-db-signal datasource)
+           path'    (cond
+                      (keyword? path) [path]
+                      (fn? path) (path db-ratom args)
+                      :else path)]
+       (assert (vector? path')
+         (str "Layer 2 subscription \"" sub-name "\" must return a vector path." " Got: " (pr-str path)))
+       (ratom/cursor db-ratom path)))))
+
+(defn make-layer2-sub-fn
+  [get-input-db-signal meta-sub-kw sub-name path]
+  (vary-meta
+    (sub-fn meta-sub-kw (make-layer2-sub-fn* get-input-db-signal sub-name path))
+    assoc (keyword (namespace meta-sub-kw) "sub-name") sub-name))
+
 #?(:clj
    (defmacro deflayer2-sub
+     "Only supports use cases where your datasource is a hashmap.
+
+     Takes a symbol for a subscription name and a way to derive a path in your datasource hashmap. Returns a function subscription
+     which itself returns a Reagent RCursor.
+     Supports a vector path, a single keyword, or a function which takes the RAtom datasource and the arguments map passed to subscribe and
+     must return a path vector to use as an RCursor path.
+
+     Examples:
+
+     (deflayer2-sub my-subscription :a-path-in-your-db)
+
+     (deflayer2-sub my-subscription [:a-path-in-your-db])
+
+     (deflayer2-sub my-subscription (fn [db-atom sub-args-map] [:a-key (:some-val sub-args-map])))
+     "
+     [meta-sub-kw get-input-db-signal def-sub-name ?path]
+     (let [sub-name' (keyword (str *ns*) (name def-sub-name))
+           path      (cond
+                       (keyword? ?path) [?path]
+                       (vector? ?path) ?path
+                       :else ?path)]
+       `(def ~def-sub-name (make-layer2-sub-fn ~get-input-db-signal ~meta-sub-kw ~sub-name' ~path)))))
+
+#?(:clj
+   (defmacro deflayer2-sub-orig
      "Only supports use cases where your datasource is a hashmap.
 
      Takes a symbol for a subscription name and a way to derive a path in your datasource hashmap. Returns a function subscription

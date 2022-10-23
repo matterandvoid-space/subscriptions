@@ -229,7 +229,7 @@
          ([app#] (deref (subscribe app# [~sub-kw])))
          ([app# args#] (deref (subscribe app# [~sub-kw args#])))))))
 
-(defmacro defsub
+(defmacro defsub-orig
   "Has the same function signature as `reg-sub`.
   Returns a subscription function and creates a function which invokes subscribe and deref on the registered subscription
   with the args map passed in."
@@ -262,6 +262,13 @@
              ([datasource# args#] (deref (subscription-fn# datasource# args#))))
            {::subscription subscription-fn#
             ::sub-name     ~(keyword (str *ns*) (str fn-name))})))))
+
+(defmacro defsub
+  "Has the same function signature as `reg-sub`.
+  Returns a subscription function and creates a function which invokes subscribe and deref on the registered subscription
+  with the args map passed in."
+  [fn-name & args]
+  `(def ~fn-name (make-sub-fn ~(keyword (str *ns*) (str fn-name)) ~(vec args))))
 
 (defmacro defsubraw
   "Creates a subscription function that takes the datasource ratom and optionally an args map and returns a Reaction."

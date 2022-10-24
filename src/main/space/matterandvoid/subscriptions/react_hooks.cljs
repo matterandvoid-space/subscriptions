@@ -7,19 +7,6 @@
     [space.matterandvoid.subscriptions.impl.react-hooks-common :as common]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]))
 
-;; All of these subscription hooks use a React Ref to wrap the Reaction.
-;; The reason for doing so is so that React does not re-create the Reaction object each time the component is rendered.
-;;
-;; This is safe because the ref's value never changes for the lifetime of the component (per use of use-reaction)
-;; Thus the caution to not read .current from a ref during rendering doesn't apply because we know it never changes.
-;;
-;; The guideline exists for refs whose underlying value will change between renders, but we are just using it
-;; as a cache local to the component in order to not recreate the Reaction with each render.
-;;
-;; References:
-;; - https://beta.reactjs.org/apis/react/useRef#referencing-a-value-with-a-ref
-;; - https://beta.reactjs.org/apis/react/useRef#avoiding-recreating-the-ref-contents
-
 (defn use-sub
   "A react hook that subscribes to a subscription, the return value of the hook is the return value of the
   subscription which will cause the consuming React function component to update when the subscription's value updates.
@@ -38,18 +25,7 @@
   when necessary (for example when the arguments map changes values) to achieve optimal rendering performance."
   ([datasource query equal?]
    (when goog/DEBUG (assert (ratom/ratom? datasource)))
-
-   (let [last-query (react/useRef query)
-         ref        (react/useRef nil)]
-     (when-not (.-current ref)
-       (set! (.-current ref) (subs/reactive-subscribe datasource query)))
-
-     (when-not (equal? (.-current last-query) query)
-       (set! (.-current last-query) query)
-       (ratom/dispose! (.-current ref))
-       (set! (.-current ref) (subs/reactive-subscribe datasource query)))
-
-     (common/use-reaction (.-current ref))))
+   (common/use-sub subs/subscribe datasource query equal?))
 
   ([datasource query]
    (use-sub datasource query identical?))

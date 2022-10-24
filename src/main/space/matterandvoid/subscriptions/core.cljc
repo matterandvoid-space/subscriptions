@@ -156,6 +156,7 @@
 
 (defn with-name
   [f sub-name]
+  (assert (fn? f) "with-name can only be called on a function")
   (vary-meta f assoc ::sub-name sub-name))
 
 #?(:cljs (def datasource-context (react/createContext nil)))

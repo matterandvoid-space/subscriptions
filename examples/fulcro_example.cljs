@@ -10,6 +10,7 @@
     [com.fulcrologic.fulcro.mutations :as mut :refer [defmutation]]
     [com.fulcrologic.fulcro.dom :as dom]
     [space.matterandvoid.subscriptions.fulcro :as subs :refer [defregsub reg-sub]]
+    [space.matterandvoid.subscriptions.fulcro-components :refer [with-reactive-subscriptions]]
     [goog.object :as g]
     [taoensso.timbre :as log]))
 
@@ -172,7 +173,7 @@
 
 (defonce root (react-dom/createRoot (js/document.getElementById "app")))
 (defonce fulcro-app
-  (subs/with-reactive-subscriptions (fulcro.app/fulcro-app {:render-root! (fn [component] (.render root component))})))
+  (with-reactive-subscriptions (fulcro.app/fulcro-app {:render-root! (fn [component] (.render root component))})))
 
 (comment (fulcro.app/current-state fulcro-app))
 

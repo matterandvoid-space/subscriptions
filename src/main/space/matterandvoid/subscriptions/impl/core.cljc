@@ -7,6 +7,7 @@
 
 (defn get-input-db-signal [ratom] ratom)
 (defonce subs-cache_ (atom {}))
+(comment (count @subs-cache_))
 (defn get-subscription-cache [_app] subs-cache_)
 
 (defn sub-missing-name! [sub-fn]

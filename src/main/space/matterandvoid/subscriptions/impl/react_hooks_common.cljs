@@ -62,7 +62,7 @@
     identity ;; selector, not using, just returning the value itself
     =)) ;; value equality check
 
-(defn use-run-in-reaction [reaction]
+(defn use-run-in-reaction [reaction cleanup?]
   (let [reaction-key "reaction"
         reaction-obj (react/useRef #js{})]
     (react/useCallback
@@ -75,24 +75,29 @@
           listener
           {:no-cache true})
         (fn cleanup-subscription []
-          ;(log/debug "CLEANUP sub" (.-current reaction-obj))
-          (when (gobj/get (.-current reaction-obj) reaction-key)
-            ;(log/debug "disposing run-in-reaction reaction")
+          (when (and cleanup? (gobj/get (.-current reaction-obj) reaction-key))
+            (log/debug "disposing run-in-reaction reaction")
             (ratom/dispose! (gobj/get (.-current reaction-obj) reaction-key)))))
       #js [reaction])))
 
 ;; Public API
 
-(defn use-reaction2
+(defn use-reaction
   "Takes a Reagent Reaction and rerenders the UI component when the Reaction's value changes.
    Returns the current value of the Reaction"
-  [^clj reaction]
-  (let [get-snapshot (react/useCallback (fn [] (ratom/in-reactive-context (when reaction @reaction)))
-                       #js[reaction])
-        subscribe    (use-run-in-reaction reaction)]
-    (use-sync-external-store subscribe get-snapshot)))
+  ([^clj reaction]
+   (use-reaction reaction true))
 
-(defn use-reaction
+  ([^clj reaction cleanup?]
+   (assert (or (ratom/reaction? reaction) (ratom/cursor? reaction) (nil? reaction))
+     "reaction should be an instance of reagent.ratom/Reaction or reagent.ratom/RCursor")
+   (let [get-snapshot (react/useCallback (fn [] (ratom/in-reactive-context (when reaction @reaction)))
+                        #js[reaction])
+         subscribe    (use-run-in-reaction reaction cleanup?)]
+     (use-sync-external-store subscribe get-snapshot))))
+
+;; this version does not work when watching Cursors
+(defn use-reaction2
   "Takes Reagent's Reaction or RCursor, subscribes the UI component to changes in the Reaction and returns current state value
   of the Reaction"
   [^clj reaction]
@@ -102,6 +107,19 @@
         get-snapshot (react/useCallback (fn [] (ratom/in-reactive-context (when reaction @reaction)))
                        #js [reaction])]
     (use-sync-external-store subscribe get-snapshot)))
+
+;; The subscription hook uses a React Ref to wrap the Reaction.
+;; The reason for doing so is so that React does not re-create the Reaction object each time the component is rendered.
+;;
+;; This is safe because the ref's value never changes for the lifetime of the component (per use of use-reaction)
+;; Thus the caution to not read .current from a ref during rendering doesn't apply because we know it never changes.
+;;
+;; The guideline exists for refs whose underlying value will change between renders, but we are just using it
+;; as a cache local to the component in order to not recreate the Reaction with each render.
+;;
+;; References:
+;; - https://beta.reactjs.org/apis/react/useRef#referencing-a-value-with-a-ref
+;; - https://beta.reactjs.org/apis/react/useRef#avoiding-recreating-the-ref-contents
 
 (defn use-sub
   [subscribe datasource query equal?]
@@ -130,4 +148,4 @@
             (when q (ratom/dispose! q)))))
       #js[])
 
-    (use-reaction (.-current ref))))
+    (use-reaction (.-current ref) false)))

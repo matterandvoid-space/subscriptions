@@ -1,5 +1,4 @@
 (ns space.matterandvoid.subscriptions.fulcro-components
-  (:require-macros [space.matterandvoid.subscriptions.fulcro])
   (:require
     [com.fulcrologic.fulcro.algorithms.indexing :as fulcro.index]
     [com.fulcrologic.fulcro.algorithm :as-alias fulcro.algo]

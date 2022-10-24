@@ -4,8 +4,8 @@
     ["react" :as react]
     [space.matterandvoid.subscriptions.impl.core :as impl]
     [space.matterandvoid.subscriptions.reagent-ratom :as ratom :refer [make-reaction cursor]]
-    [space.matterandvoid.subscriptions.core :as subs :refer [subscribe reg-layer2-sub reg-sub <sub]]
-    [space.matterandvoid.subscriptions.react-hooks :refer [use-sub use-sub-map use-reaction use-reaction-ref]]))
+    [space.matterandvoid.subscriptions.core :as subs :refer [subscribe reg-layer2-sub reg-sub <sub deflayer2-sub]]
+    [space.matterandvoid.subscriptions.react-hooks :refer [use-sub use-sub-memo use-sub-map use-reaction]]))
 
 (def my-atom (ratom/atom {:a {:nested {:2-nested 500}}}))
 (def my-cursor (ratom/cursor my-atom [:a :nested]))
@@ -25,6 +25,7 @@
                           :level1          {:level2 {:level3 500}}
                           :another-num     100}))
 (defonce lvl2-cursor_ (ratom/cursor db_ [:level1 :level2]))
+(deflayer2-sub lvl2-cursor*_ [:level1 :level2])
 
 (comment (deref lvl2-cursor_)
   (swap! db_ update-in [:level1 :level2 :level3] inc)
@@ -34,9 +35,7 @@
 (reg-sub :a-string :-> :a-string)
 (reg-sub :another-num :-> :another-num)
 
-(defn a-fn-sub [db_]
-  (println "in a-fn-sub" @db_)
-  (make-reaction (fn [] (:a-number @db_))))
+(deflayer2-sub a-fn-sub :a-number)
 
 (reg-sub :test-sub1 :<- [a-fn-sub]
   (fn [a-number] (println "IN TEST-sub1" a-number) (inc a-number)))
@@ -48,15 +47,22 @@
   (cursor db_ [:level1 :level2 :level3])
   )
 
-(defn a-layer-2-fn [db_ args]
-  (println " CREATING CURSOR " a-layer-2-fn)
-  (cursor db_ [:level1 :level2 :level3]))
+(def a-layer-2-fn
+  (subs/with-name
+    (fn [db_ args]
+      (println " CREATING CURSOR " a-layer-2-fn)
+      (cursor db_ [:level1 :level2 :level3]))
+    `a-layer-2-fn))
 
-(defn layer-3-sub-fn [db_]
-  (make-reaction
-    (fn []
-      (println "IN TEST-sub1" (<sub db_ [a-fn-sub]))
-      (+ 10 (inc (<sub db_ [a-fn-sub])) (<sub db_ [a-layer-2-fn])))))
+(def
+  layer-3-sub-fn
+  (subs/with-name
+    (fn [db_]
+      (make-reaction
+        (fn []
+          (println "IN TEST-sub1" (<sub db_ [a-fn-sub]))
+          (+ 10 (inc (<sub db_ [a-fn-sub])) (<sub db_ [a-layer-2-fn])))))
+    `layer-3-sub-fn))
 
 (reg-sub ::layer3-regular :<- [:a-number]
   (fn [n] (println "layer 3 regular") (+ 3 n)))
@@ -125,7 +131,10 @@
 (def cursor-hook
   (react/memo
     (fn [] cursor-hook
-      (let [cursor2 (use-reaction lvl2-cursor_)]
+      (let [
+            cursor2 (use-reaction lvl2-cursor_)
+            ;cursor2 (use-sub-memo db_ [lvl2-cursor*_])
+            ]
         (println "Rendering hook3 cursor-hook3")
         ($ "div"
           "use selector reaction: "
@@ -135,7 +144,7 @@
           ($ "div" "cursor3" ($ "pre" (pr-str cursor2))))))))
 
 (defn second-hook []
-  (let [show-comp? (use-sub db_ [:show-comp?])
+  (let [show-comp? (use-sub-memo db_ [:show-comp?])
         {:keys [my-number my-str show-comp?] :as args} (use-sub-map db_ {:my-number  [:a-number]
                                                                          :number2    [:another-num]
                                                                          :my-str     [:a-string]
@@ -145,7 +154,6 @@
     ($ "div"
       ($ "div" "str is: " ($ :p {:style {:overflowWrap "break-word"}} my-str))
       ($ cursor-hook)
-      ;($ cursor-hook2)
       ($ "hr")
       ($ "button" {:onClick (fn [] (swap! db_ update-in [:show-component?] not))} "Hide cursor component")
       (when show-comp? ($ cursor-hook))
@@ -157,23 +165,25 @@
       ($ "h4" "num 2: " (:number2 args))
       ($ "h4" "twice num 1: " (:twice-num1 args))
       ($ "h4" "twice num 2: " (:twice args))
-      (str "my number is : " my-number))))
+      (str "my number is : " my-number)
+      )))
 
 (comment (subscribe db_ [`lvl2-cursor2 {:key :level2}]))
+
 (defn layer-3sub-component []
-  (let [layer3-sub' (use-sub db_ [layer-3-sub-fn])]
+  (let [layer3-sub' (use-sub-memo db_ [layer-3-sub-fn])]
     (println "DRAW layer 3 sub component")
     ($ :div {:style {:padding 10 :border "1px dashed red"}}
       ($ :h3 (str "layer3 function sub 3: " layer3-sub')))))
 
 (defn first-hook []
   (let [[the-count set-count] (react/useState 0)
-        cursor-sub     (use-sub db_ [::lvl2-cursor2])
-        cursor-sub2    (use-sub db_ [`lvl2-cursor2 {:key :level2}])
-        level3-sub     (use-sub db_ [:plus-level3])
-        layer3-regular (use-sub db_ [::layer3-regular])
-        show-comp?     (use-sub db_ [:show-comp?])
-        sub-val        (use-sub db_ [:a-number])]
+        cursor-sub     (use-sub-memo db_ [::lvl2-cursor2])
+        cursor-sub2    (use-sub-memo db_ [`lvl2-cursor2 {:key :level2}])
+        level3-sub     (use-sub-memo db_ [:plus-level3])
+        layer3-regular (use-sub-memo db_ [::layer3-regular])
+        show-comp?     (use-sub-memo db_ [:show-comp?])
+        sub-val        (use-sub-memo db_ [:a-number])]
     (react/useEffect (fn [] (println "IN EFFECT") js/undefined) #js[the-count])
     (println "DRAW FIRST HOOK")
     ($ :div {:style {:padding 10 :border "1px dashed"}}
@@ -196,18 +206,28 @@
         (str "count is " the-count)))))
 
 (defn my-react-comp [props]
-  ($ first-hook)
+  (let [[show-first? set-show-first!] (react/useState true)]
+    (if show-first?
+      ($ :div
+        ($ :button {:onClick (fn [] (set-show-first! not))} "TOGGLE PAGE")
+        ($ :p "hello")
+        ($ first-hook))
+      ($ :div
+        ($ :p "Go back: ")
+        ($ :button {:onClick (fn [] (set-show-first! not))} "TOGGLE PAGE")
+        )
+      ))
   ;(dom/div nil (first-hook))
   #_(react/createElement "div" nil (first-hook)))
 
 (defonce root (react-dom/createRoot (js/document.getElementById "app")))
 (defn ^:export init []
-  (.render root (my-react-comp nil))
+  (.render root ($ my-react-comp nil))
 
   ;(react-dom/render (my-react-comp nil) js/app)
   )
 
 (defn ^:dev/after-load refresh []
-  (.render root (my-react-comp nil))
+  (.render root ($ my-react-comp nil))
   ;(react-dom/render (my-react-comp nil) js/app)
   )

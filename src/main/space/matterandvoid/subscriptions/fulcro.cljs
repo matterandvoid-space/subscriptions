@@ -4,7 +4,6 @@
     [com.fulcrologic.fulcro.algorithm :as-alias fulcro.algo]
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [com.fulcrologic.fulcro.components :as c]
-    [com.fulcrologic.fulcro.rendering.ident-optimized-render :as ident-optimized-render]
     [space.matterandvoid.subscriptions.impl.fulcro :as impl]
     [space.matterandvoid.subscriptions.impl.subs :as impl.subs]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]

@@ -66,6 +66,11 @@ Example:
 ## Use with fulcro class components
 
 ```clojure 
+(ns some.example
+  (:require 
+    [space.matterandvoid.subscriptions.fulcro :as subs :refer [defregsub reg-sub]]
+    [space.matterandvoid.subscriptions.fulcro-components :refer [with-reactive-subscriptions]]))
+    
 (defonce fulcro-app (subs/with-reactive-subscriptions (fulcro.app/fulcro-app {})))
 
 (defregsub list-idents (fn [db {:keys [list-id]}] (get db list-id)))
@@ -122,16 +127,16 @@ Example:
 (fulcro.app/mount! fulcro-app Root js/app)
 ```
 
-the `subs/with-reactive-subscriptions` call assoc'es the ::fulcro.app/state-atom to be a reagent.ratom/atom. 
+the `subs/with-reactive-subscriptions` call assoc'es the `::fulcro.app/state-atom` to be a `reagent.ratom/atom`. 
 It also assigns the rendering algorithm used by the app to use the ident-optimized render. 
 The intention of this library is that all derived data is computed using subscriptions
 and rendered with their values - this way there are never any stale components on screen - just like in re-frame.
 
 ## Use with fulcro hooks components
 
-See the `space.matterandvoid.subscriptions.react-hook-fulcro` namespace
+See the `space.matterandvoid.subscriptions.react-hooks-fulcro` namespace and the doc on [react hooks](docs/react-hooks.md) usage.
 
-# Subscriptions support passing the fulcro application of state map as a datasource
+# Subscriptions support passing the fulcro application state map as a datasource
 
 Subscriptions compute derived data and a common place to make use of that derived data is in mutations.
 

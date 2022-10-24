@@ -1,6 +1,5 @@
 (ns space.matterandvoid.subscriptions.impl.fulcro
   (:require
-    [space.matterandvoid.subscriptions.fulcro :as-alias fulcro.subs]
     [com.fulcrologic.fulcro.algorithms.tx-processing :as ftx]
     [com.fulcrologic.fulcro.algorithms.normalized-state :refer [dissoc-in]]
     [com.fulcrologic.fulcro.application :as fulcro.app]
@@ -42,13 +41,15 @@
 ;; it's a tradeoff, it may make more sense to just add integration with fulcro inspect via the
 ;; existing tracing calls.
 
+(def sub-meta-name-kw* :space.matterandvoid.subscriptions.fulcro/sub-name)
+
 (defn sub-missing-name! [sub-fn query]
   (throw (#?(:cljs js/Error. :clj Exception.)
            (str "Subscription function does not have a name and cannot be cached! "
-             (or (-> sub-fn meta ::fulcro.subs/sub-name) (pr-str query))))))
+             (or (-> sub-fn meta sub-meta-name-kw*) (pr-str query))))))
 
 (defn sub-fn->sub-name [sub-fn query]
-  (if-let [sub-name (-> sub-fn meta ::fulcro.subs/sub-name)]
+  (if-let [sub-name (-> sub-fn meta sub-meta-name-kw*)]
     sub-name
     (sub-missing-name! sub-fn query)))
 

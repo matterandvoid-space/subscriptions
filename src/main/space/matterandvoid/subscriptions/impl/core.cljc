@@ -1,6 +1,5 @@
 (ns space.matterandvoid.subscriptions.impl.core
   (:require
-    [space.matterandvoid.subscriptions.core :as-alias core.subs]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
     [space.matterandvoid.subscriptions.impl.subs :as subs]
     [taoensso.timbre :as log]))
@@ -9,14 +8,15 @@
 (defonce subs-cache_ (atom {}))
 (comment (count @subs-cache_))
 (defn get-subscription-cache [_app] subs-cache_)
+(def sub-meta-name-kw* :space.matterandvoid.subscriptions.core/sub-name )
 
 (defn sub-missing-name! [sub-fn]
   (throw (#?(:cljs js/Error. :clj Exception.)
            (str "Subscription function does not have a name and cannot be cached!"
-             (or (-> sub-fn meta ::core.subs/sub-name))))))
+             (or (-> sub-fn meta sub-meta-name-kw*))))))
 
 (defn sub-fn->sub-name [sub-fn]
-  (if-let [sub-name (-> sub-fn meta ::core.subs/sub-name)]
+  (if-let [sub-name (-> sub-fn meta  sub-meta-name-kw*)]
     sub-name
     (sub-missing-name! sub-fn)))
 

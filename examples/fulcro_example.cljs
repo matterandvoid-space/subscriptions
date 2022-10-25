@@ -8,6 +8,7 @@
     [com.fulcrologic.fulcro.algorithms.form-state :as fs]
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [com.fulcrologic.fulcro.components :as c :refer [defsc]]
+    [com.fulcrologic.fulcro.raw.components :as rc]
     [com.fulcrologic.fulcro.mutations :as mut :refer [defmutation]]
     [com.fulcrologic.fulcro.dom :as dom]
     [space.matterandvoid.subscriptions.fulcro :as subs :refer [defregsub reg-sub]]
@@ -193,20 +194,60 @@
 ;; add mutation
 
 (defsc Todo2 [this props]
-  {:query         [:todo/id :todo/text :todo/state :todo/completed-at]
-   :ident         :todo/id})
+  {:query [:todo/id :todo/text :todo/state :todo/completed-at]
+   :ident :todo/id})
+
+(def todolist (f.eql/nc {:query [{:todo-list/todos (c/get-query Todo2)} :todo-list/id]
+                         :ident :todo-list/id
+                         :name  ::TODOList2}))
+
 (def todo-sub (f.eql/create-component-subs Todo {}))
 (def todo2-sub (f.eql/create-component-subs Todo2 {}))
+(def todolist-sub (f.eql/create-component-subs todolist {:todo-list/todos todo2-sub}))
+(def todo-list-id #uuid"042dcb63-ee9b-4bfc-a64b-50ce55bc720d")
+(defn make-todo-list [id app]
+  {:todo-list/id id
+   :todo-list/todos (:root/todos (fulcro.app/current-state app)) })
+
+(defn db->tree
+  [c ident fulcro-app]
+  (fdn/db->tree (if (map? c) c (c/get-query c)) ident (fulcro.app/current-state fulcro-app)))
+
+(set! *print-namespace-maps* false)
 (comment
+  (make-todo-list todo-list-id fulcro-app)
+  (swap! (::fulcro.app/state-atom fulcro-app) assoc-in [:todo-list/id todo-list-id] (make-todo-list todo-list-id fulcro-app))
+
+  (db->tree todolist [:todo-list/id todo-list-id] fulcro-app)
+
+  ;; todolist bench
+  ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+  (fdn/db->tree (c/get-query todolist) [:todo-list/id todo-list-id] (fulcro.app/current-state fulcro-app))
+  (time (fdn/db->tree (c/get-query todolist) [:todo-list/id todo-list-id] (fulcro.app/current-state fulcro-app)))
+  (simple-benchmark [q (c/get-query todolist)
+                     args [:todo-list/id todo-list-id]
+                     s (fulcro.app/current-state fulcro-app)]
+    (fdn/db->tree q args s)
+    100)
+  (simple-benchmark [sub-args {:todo-list/id todo-list-id f.eql/query-key (c/get-query todolist)}]
+    (todolist-sub fulcro-app sub-args) 100)
+  (time (todolist-sub fulcro-app {:todo-list/id todo-list-id f.eql/query-key (c/get-query todolist)}))
+
+
+  (todolist-sub fulcro-app {:todo-list/id todo-list-id f.eql/query-key (c/get-query todolist)})
+  (simple-benchmark [sub-args {:todo-list/id todo-list-id f.eql/query-key (c/get-query todolist)}] (todolist-sub fulcro-app sub-args) 100)
+
+
   ;; todo for component sub functions you should assert the first arg is a fulcro app?
+
   (todo2-sub fulcro-app {:todo/id #uuid"61e38c15-30d3-48fc-bc73-ab30c5b6ae78"})
+  (todolist-sub fulcro-app {:root/list-id #uuid"61e38c15-30d3-48fc-bc73-ab30c5b6ae78"})
 
   (fdn/db->tree (c/get-query Todo) [:todo/id #uuid"61e38c15-30d3-48fc-bc73-ab30c5b6ae78"]
     (fulcro.app/current-state fulcro-app))
 
   (let [todo (first (get-in (fulcro.app/current-state fulcro-app) [:root/todos]))]
     (apply hash-map todo)
-
     )
   (simple-benchmark [q (c/get-query Todo)
                      todo (first (get-in (fulcro.app/current-state fulcro-app) [:root/todos]))
@@ -225,11 +266,11 @@
   (todo2-sub
     fulcro-app
     {:todo/id        #uuid"61e38c15-30d3-48fc-bc73-ab30c5b6ae78"
-     f.eql/query-key (c/get-query Todo) })
+     f.eql/query-key (c/get-query Todo)})
   (simple-benchmark [q (c/get-query Todo)
                      ident [:todo/id #uuid"61e38c15-30d3-48fc-bc73-ab30c5b6ae78"]
                      state (fulcro.app/current-state fulcro-app)
-                     args {:todo/id #uuid"61e38c15-30d3-48fc-bc73-ab30c5b6ae78"
+                     args {:todo/id        #uuid"61e38c15-30d3-48fc-bc73-ab30c5b6ae78"
                            f.eql/query-key q}]
     (todo-sub fulcro-app args)
     1000)

@@ -315,25 +315,36 @@
   (=
     (<sub app [list-sub {:list/id :list-1 sut/query-key (rc/get-query list-comp)}])
     (fdn/db->tree (rc/get-query list-comp) [:list/id :list-1] (fulcro.app/current-state app)))
-
   (log/set-level! :error)
-
   (<sub app [todo-sub {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]}])
 
-  (simple-benchmark [args {:list/id :list-1 sut/query-key (rc/get-query list-comp)}] (<sub app [list-sub args]) 1000)
+  (<sub (fulcro.app/current-state app) [todo-sub {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]}])
+  (todo-sub (fulcro.app/current-state app) {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]})
 
   (simple-benchmark [args {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]}
                      sub-args [todo-sub args]]
     (<sub app sub-args) 1000)
 
-  (simple-benchmark [args {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]} ]
-    (todo-sub app args) 1000)
+  (simple-benchmark [args {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]} s (fulcro.app/current-state app)]
+    (todo-sub s args) 10000)
+
+  ;; full todo query
+  (simple-benchmark [args {:todo/id :todo-1 sut/query-key (rc/get-query todo-comp)} s (fulcro.app/current-state app)]
+    (todo-sub s args) 10000)
+
+  (simple-benchmark [q (rc/get-query todo-comp)
+                     ident [:todo/id :todo-1]
+                     state (fulcro.app/current-state app)]
+    (fdn/db->tree q ident state)
+    10000)
+
+  (todo-sub app {:todo/id :todo-1 sut/query-key ['* :todo/text]})
 
   (simple-benchmark [q [:todo/id :todo/text]
                      ident [:todo/id :todo-1]
                      state (fulcro.app/current-state app)]
     (fdn/db->tree q ident state)
-     1000)
+     10000)
 
   (simple-benchmark [q (rc/get-query list-comp)
                      ident [:list/id :list-1]

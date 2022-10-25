@@ -3,6 +3,7 @@
     ["react-dom/client" :as react-dom]
     ["react" :as react]
     [com.fulcrologic.fulcro.algorithms.merge :as merge]
+    [com.fulcrologic.fulcro.algorithms.denormalize :as fdn]
     [com.fulcrologic.fulcro.algorithms.normalized-state :as nstate]
     [com.fulcrologic.fulcro.algorithms.form-state :as fs]
     [com.fulcrologic.fulcro.application :as fulcro.app]
@@ -10,6 +11,7 @@
     [com.fulcrologic.fulcro.mutations :as mut :refer [defmutation]]
     [com.fulcrologic.fulcro.dom :as dom]
     [space.matterandvoid.subscriptions.fulcro :as subs :refer [defregsub reg-sub]]
+    [space.matterandvoid.subscriptions.fulcro-eql :as f.eql]
     [space.matterandvoid.subscriptions.fulcro-components :refer [with-reactive-subscriptions]]
     [goog.object :as g]
     [taoensso.timbre :as log]))
@@ -17,7 +19,6 @@
 ;; Subscriptions
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-(subs/set-memoize-fn! identity)
 (defregsub all-todos :-> #(-> % :todo/id vals))
 (defregsub complete-todos :<- [::all-todos] :-> #(filter (comp #{:complete} :todo/state) %))
 (defregsub incomplete-todos :<- [::all-todos] :-> #(filter (comp #{:incomplete} :todo/state) %))
@@ -99,6 +100,7 @@
 
 (def ui-todo (c/computed-factory Todo {:keyfn :todo/id}))
 
+
 (defsc TodosTotal [this {:keys [list-id]}] {}
   (dom/h3 "Total todos: " (todos-total this {:list-id list-id})))
 
@@ -179,7 +181,6 @@
 
 (defn ^:export init [] (fulcro.app/mount! fulcro-app Root js/app))
 
-
 (defn ^:dev/after-load refresh []
   (subs/clear-subscription-cache! fulcro-app)
   (fulcro.app/force-root-render! fulcro-app)
@@ -187,7 +188,58 @@
   ;(fulcro.app/mount! fulcro-app Root js/app {:initialize-state? false})
   )
 
-
 ;; todo:
 ;; add input form instead of merge-comp in the repl
 ;; add mutation
+
+(defsc Todo2 [this props]
+  {:query         [:todo/id :todo/text :todo/state :todo/completed-at]
+   :ident         :todo/id})
+(def todo-sub (f.eql/create-component-subs Todo {}))
+(def todo2-sub (f.eql/create-component-subs Todo2 {}))
+(comment
+  ;; todo for component sub functions you should assert the first arg is a fulcro app?
+  (todo2-sub fulcro-app {:todo/id #uuid"61e38c15-30d3-48fc-bc73-ab30c5b6ae78"})
+
+  (fdn/db->tree (c/get-query Todo) [:todo/id #uuid"61e38c15-30d3-48fc-bc73-ab30c5b6ae78"]
+    (fulcro.app/current-state fulcro-app))
+
+  (let [todo (first (get-in (fulcro.app/current-state fulcro-app) [:root/todos]))]
+    (apply hash-map todo)
+
+    )
+  (simple-benchmark [q (c/get-query Todo)
+                     todo (first (get-in (fulcro.app/current-state fulcro-app) [:root/todos]))
+                     state (fulcro.app/current-state fulcro-app)
+                     args (assoc (apply hash-map todo) f.eql/query-key q)]
+    (todo-sub fulcro-app args)
+    1000)
+
+  (simple-benchmark [q (c/get-query Todo)
+                     todo (first (get-in (fulcro.app/current-state fulcro-app) [:root/todos]))
+                     state (fulcro.app/current-state fulcro-app)
+                     args (assoc (apply hash-map todo) f.eql/query-key q)]
+    (fdn/db->tree q todo state)
+    1000)
+
+  (todo2-sub
+    fulcro-app
+    {:todo/id        #uuid"61e38c15-30d3-48fc-bc73-ab30c5b6ae78"
+     f.eql/query-key (c/get-query Todo) })
+  (simple-benchmark [q (c/get-query Todo)
+                     ident [:todo/id #uuid"61e38c15-30d3-48fc-bc73-ab30c5b6ae78"]
+                     state (fulcro.app/current-state fulcro-app)
+                     args {:todo/id #uuid"61e38c15-30d3-48fc-bc73-ab30c5b6ae78"
+                           f.eql/query-key q}]
+    (todo-sub fulcro-app args)
+    1000)
+  (simple-benchmark [q (c/get-query Todo)
+                     ident [:todo/id #uuid"61e38c15-30d3-48fc-bc73-ab30c5b6ae78"]
+                     state (fulcro.app/current-state fulcro-app)]
+    (fdn/db->tree q ident state)
+    1000)
+
+  (todo-sub fulcro-app {:todo/id #uuid"61e38c15-30d3-48fc-bc73-ab30c5b6ae78"})
+  (fulcro.app/current-state fulcro-app)
+  ;(simple-benchmark [])
+  )

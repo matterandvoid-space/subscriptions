@@ -7,7 +7,8 @@
     [space.matterandvoid.subscriptions.fulcro :as subs :refer [<sub]]
     [space.matterandvoid.subscriptions.fulcro-eql :as sut]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
-    [taoensso.timbre :as log]))
+    [taoensso.timbre :as log]
+    [com.fulcrologic.fulcro.algorithms.denormalize :as fdn]))
 
 (log/set-level! :trace)
 #?(:cljs (enable-console-print!))
@@ -267,7 +268,84 @@
         (todo-with-form-sub app {:todo/id      :todo-with-form
                                  sut/query-key (rc/get-query todo-with-form-component)}))))
 
+;#?(:cljs
+;   (deftest perf-test
+;     (testing "timing of db->tree"
+;       (simple-benchmark []
+;         (<sub app [list-sub {:list/id :list-1}])
+;         100
+;         ))))
+
+
 (comment
+
+  (set! *print-namespace-maps* false)
+
+
+  (fdn/db->tree (rc/get-query list-comp) [:list/id :list-1] (fulcro.app/current-state app))
+  #:list{:id :list-1,
+         :name "first list",
+         :items [#:todo{:id :todo-2,
+                        :text "todo 2",
+                        :author #:user{:id :user-2,
+                                       :name "user 2",
+                                       :friends [#:user{:id :user-2, :name "user 2", :friends []}
+                                                 #:user{:id :user-1, :name "user 1", :friends []}
+                                                 #:user{:id :user-3,
+                                                        :name "user 3",
+                                                        :friends [#:user{:id :user-4, :name "user 4", :friends []}]}]}}
+                 #:comment{:id :comment-1,
+                           :text "FIRST COMMENT",
+                           :sub-comments [#:comment{:id :comment-2, :text "SECOND COMMENT"}]}],
+         :members [#:comment{:id :comment-1,
+                             :text "FIRST COMMENT",
+                             :sub-comments [#:comment{:id :comment-2, :text "SECOND COMMENT"}]}
+                   #:todo{:id :todo-2,
+                          :text "todo 2",
+                          :author #:user{:id :user-2,
+                                         :name "user 2",
+                                         :friends [#:user{:id :user-2, :name "user 2", :friends []}
+                                                   #:user{:id :user-1, :name "user 1", :friends []}
+                                                   #:user{:id :user-3,
+                                                          :name "user 3",
+                                                          :friends [#:user{:id :user-4, :name "user 4", :friends []}]}]}}]}
+
+  ;; sub
+
+  (=
+    (<sub app [list-sub {:list/id :list-1 sut/query-key (rc/get-query list-comp)}])
+    (fdn/db->tree (rc/get-query list-comp) [:list/id :list-1] (fulcro.app/current-state app)))
+
+  (log/set-level! :error)
+
+  (<sub app [todo-sub {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]}])
+
+  (simple-benchmark [args {:list/id :list-1 sut/query-key (rc/get-query list-comp)}] (<sub app [list-sub args]) 1000)
+
+  (simple-benchmark [args {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]}
+                     sub-args [todo-sub args]]
+    (<sub app sub-args) 1000)
+
+  (simple-benchmark [args {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]} ]
+    (todo-sub app args) 1000)
+
+  (simple-benchmark [q [:todo/id :todo/text]
+                     ident [:todo/id :todo-1]
+                     state (fulcro.app/current-state app)]
+    (fdn/db->tree q ident state)
+     1000)
+
+  (simple-benchmark [q (rc/get-query list-comp)
+                     ident [:list/id :list-1]
+                     state (fulcro.app/current-state app)]
+    (fdn/db->tree  q ident state)
+    1000)
+
+  (simple-benchmark [q (rc/get-query list-comp)
+                     ident [:list/id :list-1]
+                     state (fulcro.app/current-state app)]
+    (fdn/db->tree  q ident state)
+    1000)
   (<sub app [list-sub {:list/id :list-1 sut/query-key [{:list/items list-member-q}
                                                        {:list/members {:comment/id [:comment/id :comment/text] :todo/id [:todo/id :todo/text]}}]}])
   (<sub app [todo-sub {:todo/id :todo-1 sut/query-key [:todo/id :todo/author]}])

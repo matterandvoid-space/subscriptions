@@ -2,7 +2,9 @@
  {:aliases [:dev :test]}
 
  :dev-http
- {8099 "public/hooks-example"}
+ {8077 "public/hooks-example"
+  8078 "public/fulcro-example"
+  8079 "public/reagent-datascript-example"}
 
  :builds
 

@@ -1,6 +1,7 @@
 (ns space.matterandvoid.subscriptions.fulcro-eql-test
   (:require
     [space.matterandvoid.subscriptions.fulcro-eql :as sut]
+    [com.fulcrologic.fulcro.algorithms.denormalize :as fdn]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
     [space.matterandvoid.subscriptions.fulcro :as subs :refer [<sub defsub]]
     [com.fulcrologic.fulcro.application :as fulcro.app]
@@ -239,6 +240,7 @@
            :list/name    "first list",
            :list/id      :list-1}
           (<sub app [::list {:list/id :list-1}])))))
+
 
 (comment
   (<sub app [::list {:list/id :list-1 sut/query-key [{:list/items list-member-q}

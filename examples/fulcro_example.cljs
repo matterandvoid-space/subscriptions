@@ -231,6 +231,10 @@
     100)
   (simple-benchmark [sub-args {:todo-list/id todo-list-id f.eql/query-key (c/get-query todolist)}]
     (todolist-sub fulcro-app sub-args) 100)
+  (let [x (transient [])
+        s (count x)
+        ]
+    (reduce))
   (time (todolist-sub fulcro-app {:todo-list/id todo-list-id f.eql/query-key (c/get-query todolist)}))
 
 

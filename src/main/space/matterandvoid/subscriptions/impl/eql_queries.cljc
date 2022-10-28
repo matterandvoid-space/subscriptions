@@ -275,7 +275,7 @@
             :else (throw (error "Union Invalid join: for join prop " join-prop, " value: " refs))))))))
 
 (def set-conj (fnil conj #{}))
-(def inc' (fnil inc 0))
+(def inc0 (fnil inc 0))
 
 (defn sub-recur-join
   [<sub datasource id-attr recur-prop recur-sub-fn_]
@@ -389,7 +389,7 @@
                       to-one?
                       (let [ref-id (proto/-ref->id datasource refs-to-expand)
                             args'  (-> args
-                                     (update ::depth inc')
+                                     (update ::depth inc0)
                                      (update ::entity-history set-conj entity-db-id)
                                      (assoc query-key recur-query, id-attr ref-id))]
                         (if seen-entity-id?
@@ -408,14 +408,14 @@
                                   (xform-fn
                                     (<sub app [entity-sub
                                                (-> args
-                                                 (update ::depth inc')
+                                                 (update ::depth inc0)
                                                  (update ::entity-history set-conj entity-db-id)
                                                  (assoc query-key parent-query id-attr (proto/-ref->id datasource join-ref)))])))
                             refs-to-expand)
                           (when stop (mapv (fn [join-ref]
                                              (xform-fn
                                                (<sub app [entity-sub (-> args
-                                                                       (update ::depth inc')
+                                                                       (update ::depth inc0)
                                                                        (update ::entity-history set-conj entity-db-id)
                                                                        (assoc query-key nil id-attr (proto/-ref->id datasource join-ref)))])))
                                        stop)))))))

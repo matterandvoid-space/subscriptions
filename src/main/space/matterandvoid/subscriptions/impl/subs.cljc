@@ -384,7 +384,8 @@
            (sub-f (get-input-db-signal datasource)))
           ([datasource args]
            (assert (or (nil? args) (map? args) (str "Invalid args passed to " full-name)))
-           (sub-f (get-input-db-signal datasource) args)))]
+           #?(:clj  (lenient-call sub-f (get-input-db-signal datasource) args)
+              :cljs (sub-f (get-input-db-signal datasource) args))))]
 
     (vary-meta
       (sub-fn meta-sub-kw subscription-fn)

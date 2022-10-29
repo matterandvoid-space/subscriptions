@@ -17,6 +17,8 @@
 (sut/defsub layer3-def1 :<- [sub2'] (fn [num] (* 10 num)))
 (sut/defsub layer3-def2 :<- [sub2'] :-> #(* 10 %))
 
+(sut/defsubraw raw-layer2 [db_] (:sub2 @db_))
+
 (sut/reg-layer2-sub ::sub-2-accessor [:sub2])
 (sut/reg-layer2-sub ::sub-2-accessor-5 (fn [_db _args] [:sub2]))
 (sut/deflayer2-sub sub-2-accessor-2 [:sub2])
@@ -70,14 +72,18 @@
 (def layer-2-sub2 (sut/with-name (fn [& args] (ratom/cursor db [:sub2])) `layer-2-sub2))
 
 (def layer-2-sub3 (sut/with-name (let [sub-fn
-                         (fn [& args] (ratom/cursor db [:sub2]))]
-                     (with-meta (fn [& args] @(sub-fn)) {:subscription sub-fn}))
+                                       (fn [& args] (ratom/cursor db [:sub2]))]
+                                   (with-meta (fn [& args] @(sub-fn)) {:subscription sub-fn}))
                     `layer-2-sub3))
 
 (def layer-2-sub4 (sut/with-name (sut/sub-fn (fn [& args] (ratom/cursor db [:sub2]))) `layer-2-sub4))
 
 (deftest basic-test
   (is (= 500 (sut/<sub db [::sub-2-accessor])))
+  (is (= 500 (sut/<sub db [raw-layer2])))
+  (is (= 500 (sut/<sub db [raw-layer2 {}])))
+  (is (= 500 (raw-layer2 db)))
+  (is (= 500 (raw-layer2 db {})))
   (is (= 500 (sut/<sub db [::sub-2-accessor-5])))
   (is (= 500 (sut/<sub db [sub-2-accessor-2])))
   (is (= 500 (sut/<sub db [sub-2-accessor-2 {}])))

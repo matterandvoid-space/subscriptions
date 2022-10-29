@@ -32,32 +32,29 @@
                                 {:list/items (sut/get-query list-member-comp)}
                                 {:list/members (sut/get-query list-member-comp)}]}))
 ;(def comment-comp2 (sut/nc {:query [:comment/id :comment/text {:comment/author (sut/get-query user-comp)}] :name  ::comment :ident :comment/id}))
-(def user-sub (subs/with-name (sut/create-component-subs user-comp nil) `user-sub))
+(def user-sub (sut/create-component-subs user-comp nil))
 ;(def comment2-sub (sut/create-component-subs comment-comp2 {:comment/author user-sub}))
-(def bot-sub (subs/with-name (sut/create-component-subs bot-comp nil) `bot-sub))
-(def human-sub (subs/with-name (sut/create-component-subs human-comp nil) `human-sub))
-(def comment-sub (subs/with-name (sut/create-component-subs comment-comp nil) `comment-sub))
-;; could allow this syntax:
-;(defcomponent-sub comment-sub comment-comp nil)
-(def todo-sub (subs/with-name (sut/create-component-subs todo-comp {:todo/comment  comment-sub
-                                                     :todo/comments comment-sub
-                                                     :todo/author   {:bot/id bot-sub :user/id user-sub}}) `todo-sub))
-(def list-sub (subs/with-name (sut/create-component-subs list-comp {:list/items   {:comment/id comment-sub :todo/id todo-sub}
-                                                     :list/members {:comment/id comment-sub :todo/id todo-sub}})
-                `list-sub))
+(def bot-sub (sut/create-component-subs bot-comp nil))
+(def human-sub (sut/create-component-subs human-comp nil))
+(def comment-sub (sut/create-component-subs comment-comp nil))
+(def todo-sub (sut/create-component-subs todo-comp {:todo/comment  comment-sub
+                                                    :todo/comments comment-sub
+                                                    :todo/author   {:bot/id bot-sub :user/id user-sub}}))
+(def list-sub (sut/create-component-subs list-comp {:list/items   {:comment/id comment-sub :todo/id todo-sub}
+                                                    :list/members {:comment/id comment-sub :todo/id todo-sub}}))
 
 (def todo-with-form-component
   (sut/nc
     {:query       [:todo/id :todo/text fs/form-config-join], :name ::todo-with-form, :ident :todo/id,
      :form-fields #{:todo/text}}))
 
-(def todo-with-form-sub (subs/with-name (sut/create-component-subs todo-with-form-component {}) `todo-with-form-sub))
+(def todo-with-form-sub (sut/create-component-subs todo-with-form-component {}))
 
 (comment
   (sut/eql-query-keys-by-type (sut/get-query todo-comp) {:todo/comment  comment-sub
                                                          :todo/comments comment-sub
                                                          :todo/author   {:bot/id bot-sub :user/id user-sub}})
-  (def todo-sub (subs/with-name (sut/create-component-subs todo-comp nil) `todo-sub)))
+  (def todo-sub (sut/create-component-subs todo-comp nil)))
 
 ;(def list-sub (sut/create-component-subs list-comp nil))
 ;(run! sut/register-component-subs! [user-comp bot-comp comment-comp todo-comp list-comp human-comp])
@@ -263,7 +260,7 @@
   (is (=
         {:todo/id    :todo-with-form,
          :todo/text  "todo with-form",
-         ::fs/config {::fs/id         [:todo/id :todo-with-form], ::fs/fields #{:todo/text}, ::fs/complete? nil, ::fs/subforms {},
+         ::fs/config {::fs/id             [:todo/id :todo-with-form], ::fs/fields #{:todo/text}, ::fs/complete? nil, ::fs/subforms {},
                       ::fs/pristine-state {:todo/text "todo with-form"}}}
         (todo-with-form-sub app {:todo/id      :todo-with-form
                                  sut/query-key (rc/get-query todo-with-form-component)}))))
@@ -295,18 +292,18 @@
                      ident [:todo/id :todo-1]
                      state (fulcro.app/current-state app)]
     (fdn/db->tree q ident state)
-     10000)
+    10000)
 
   (simple-benchmark [q (rc/get-query list-comp)
                      ident [:list/id :list-1]
                      state (fulcro.app/current-state app)]
-    (fdn/db->tree  q ident state)
+    (fdn/db->tree q ident state)
     1000)
 
   (simple-benchmark [q (rc/get-query list-comp)
                      ident [:list/id :list-1]
                      state (fulcro.app/current-state app)]
-    (fdn/db->tree  q ident state)
+    (fdn/db->tree q ident state)
     1000)
   (<sub app [list-sub {:list/id :list-1 sut/query-key [{:list/items list-member-q}
                                                        {:list/members {:comment/id [:comment/id :comment/text] :todo/id [:todo/id :todo/text]}}]}])

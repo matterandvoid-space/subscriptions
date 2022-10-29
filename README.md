@@ -736,10 +736,11 @@ bb dev
 
 Open the shadow-cljs builds page and then open the page that hosts the tests or an example app.
 
-Run the clojure tests:
+Run the tests:
 
 ```bash
 bb clj-test
+bb cljs-test
 ```
 
 

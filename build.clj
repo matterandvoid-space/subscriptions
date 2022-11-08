@@ -24,7 +24,7 @@
 
 (defn install [opts]
   (-> opts
-    (assoc :lib lib :version version :src-dirs ["src/main"] :src-pom "template/pom.xml")
+    (assoc :lib lib :version version :src-dirs ["src/main" "src/clj-kondo"] :src-pom "template/pom.xml")
     (bb/install)))
 
 (defn deploy "Deploy the JAR to Clojars." [opts]

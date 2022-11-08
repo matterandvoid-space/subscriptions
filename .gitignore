@@ -19,3 +19,5 @@ resources
 public
 .idea
 target
+.clj-kondo
+.lsp

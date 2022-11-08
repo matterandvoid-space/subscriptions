@@ -19,7 +19,7 @@
 (defn jar [opts]
   (-> opts
     (bb/clean)
-    (assoc :lib lib :version version :src-dirs ["src/main"] :src-pom "template/pom.xml")
+    (assoc :lib lib :version version :src-dirs ["src/main" "src/clj-kondo"] :src-pom "template/pom.xml")
     (bb/jar)))
 
 (defn install [opts]

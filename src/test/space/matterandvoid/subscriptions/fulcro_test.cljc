@@ -31,6 +31,12 @@
 
 (sut/reg-layer2-sub ::sub-2-accessor-5 (fn [_db _args] [:first]))
 
+(sut/defsubraw raw-layer2 [db_]
+  (comment ;sub raw should support multiple forms in the body
+    )
+  (+ 1 2)
+  (:first @db_))
+
 (sut/reg-sub ::second :<- [::first]
   (fn [args]
     ;(println "secodn args: " args)
@@ -66,6 +72,12 @@
         out6 (sut/<sub (fulcro.app/current-state app) [::fifth])
         a    (sut/<sub app [::a])]
     (is (= out1 500))
+
+    (is (= 500 (sut/<sub app [raw-layer2])))
+    (is (= 500 (sut/<sub app [raw-layer2 {}])))
+    (is (= 500 (raw-layer2 app)))
+    (is (= 500 (raw-layer2 app {})))
+
     (is (= 500 (sut/<sub app [::sub-2-accessor-5])))
     (is (= 500 (sut/<sub app [acc1])))
     (is (= 500 (sut/<sub app [acc1 nil])))

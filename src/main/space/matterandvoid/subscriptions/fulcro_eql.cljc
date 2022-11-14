@@ -14,10 +14,19 @@
 (def walk-fn-key impl/walk-fn-key)
 (def xform-fn-key impl/xform-fn-key)
 
-(defn ->db [fulcro-app-or-db]
-  (cond-> fulcro-app-or-db
-    (fulcro.app/fulcro-app? fulcro-app-or-db)
-    (fulcro.app/current-state)))
+(defn ->db
+  "Subscriptions support passing: a fulcro app, the fulcro state atom, or the state hashmap itself.
+  This function returns the state hashmap for any of these inputs."
+  [?fulcro-app]
+  (cond
+    (fulcro.app/fulcro-app? ?fulcro-app)
+    (fulcro.app/current-state ?fulcro-app)
+
+    (ratom/deref? ?fulcro-app)
+    (deref ?fulcro-app)
+
+    :else
+    ?fulcro-app))
 
 (def fulcro-data-source
   (reify proto/IDataSource

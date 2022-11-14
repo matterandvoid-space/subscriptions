@@ -400,7 +400,7 @@
         sub-f     `(fn ~sub-name ~args
                      (ratom/make-reaction
                        (fn []
-                         (let [~out-sym ~body]
+                         (let [~out-sym (do ~@body)]
                            (assert (not (ratom/reaction? ~out-sym))
                              (str "Raw subscription: " '~full-name " Must not return a Reaction, it is wrapped for you " (pr-str ~out-sym)))
                            ~out-sym))))]

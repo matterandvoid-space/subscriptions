@@ -145,7 +145,7 @@
 #?(:clj
    (defmacro defsubraw
      "Creates a subscription function that takes the datasource ratom and optionally an args map and returns a Reaction"
-     [sub-name args body]
+     [sub-name args & body]
      `(impl/defsubraw ::subscription ~sub-name ~args ~body)))
 
 (defn sub-fn

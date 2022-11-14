@@ -235,6 +235,8 @@
                       :text     "todo 1"}]
       (is (= out1 (<sub app [todo-sub {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]}])))
       (is (= out1 (todo-sub app {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]})))
+      (is (= out1 (todo-sub (fulcro.app/current-state app) {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]})))
+      (is (= out1 (todo-sub (::fulcro.app/state-atom app) {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]})))
       (is (= out2 (<sub app [todo-sub {:todo/id :todo-1 sut/query-key ['* :todo/text]}])))
       (is (= out2 (todo-sub app {:todo/id :todo-1 sut/query-key ['* :todo/text]})))))
 

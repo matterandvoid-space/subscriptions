@@ -21,7 +21,7 @@
       (common/use-sub-memo subs/subscribe ~datasource ~subscription-vector)))
 
   ([subscription-vector]
-   `(let [datasource# (~'react/useContext subs/datasource-context)]
+   `(let [datasource# (use-context subs/datasource-context)]
       (assert (ratom/ratom? datasource#) (str "The datasource from the React context is not a Reagent RAtom in `use-sub-memo`"))
       (common/use-sub-memo subs/subscribe datasource# ~subscription-vector))))
 
@@ -43,7 +43,7 @@
   ([query-map]
    (assert (map? query-map) "You must pass a map literal to use-sub-map")
    (let [datasource-sym (gensym "datasource")]
-     `(let [~datasource-sym (react/useContext subs/datasource-context)]
+     `(let [~datasource-sym (use-context subs/datasource-context)]
         (assert (ratom/ratom? ~datasource-sym) (str "The datasource from the React context is not a Reagent RAtom in `use-sub-map`"))
         (common/use-sub-map subs/subscribe ~datasource-sym ~query-map))))
 

@@ -21,7 +21,7 @@
       (let [map-vals (vals args)]
         (if (true? no-memo-val)
           `(use-sub ~subscribe ~datasource ~subscription-vector ~equal?)
-          `(let [memo-query# (react/useMemo (fn [] ~[sub args]) (cljs.core/array ~@map-vals))]
+          `(let [memo-query# (use-memo (fn [] ~[sub args]) (cljs.core/array ~@map-vals))]
              (use-sub ~subscribe ~datasource memo-query# ~equal?))))
 
       (cond
@@ -31,13 +31,13 @@
         (nil? args)
         (if (true? no-memo-val)
           `(use-sub ~subscribe ~datasource ~subscription-vector ~equal?)
-          `(let [memo-query# (react/useMemo (fn [] [~sub]) (cljs.core/array))]
+          `(let [memo-query# (use-memo (fn [] [~sub]) (cljs.core/array))]
              (use-sub ~subscribe ~datasource memo-query# ~equal?)))
 
         :else
         (if (true? no-memo-val)
           `(use-sub ~subscribe ~datasource ~subscription-vector ~equal?)
-          `(let [memo-query# (react/useMemo (fn [] ~[sub args]) (cljs.core/array ~args))]
+          `(let [memo-query# (use-memo (fn [] ~[sub args]) (cljs.core/array ~args))]
              (use-sub ~subscribe ~datasource memo-query# ~equal?)))))))
 
 (defmacro use-sub-map

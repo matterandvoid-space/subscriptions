@@ -9,6 +9,8 @@
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [taoensso.timbre :as log]))
 
+(defn use-memo [f deps] (react/useMemo f deps))
+
 ;; The following was adapted from
 ;; https://github.com/roman01la/hooks/blob/1a98408280892da1abebde206b5ca2444aced1b3/src/hooks/impl.cljs
 

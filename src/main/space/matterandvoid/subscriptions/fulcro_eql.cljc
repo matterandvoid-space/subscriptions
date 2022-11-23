@@ -115,9 +115,11 @@
                                                          (ratom/deref? fulcro-app) (deref fulcro-app)
                                                          :else fulcro-app)
                                    component-query (rc/get-query component state-map)]
-                               (mapv (fn [[id-attr id-value]]
-                                       (component-eql-sub fulcro-app {query-key component-query, id-attr id-value}))
-                                     idents)))))]
+                               (filterv some?
+                                 (map (fn [[id-attr id-value]]
+                                         (when id-value
+                                           (component-eql-sub fulcro-app {query-key component-query, id-attr id-value})))
+                                       idents))))))]
     (fulcro.subs/with-name
       (sub-fn sub)
       sub-cache-name)))
@@ -130,9 +132,10 @@
   You do not need to provide a subscription function for recursive joins.
   You do not need to provide a subscription for Fulcro's form-state config join if you component includes that join in its query,
   a subscription will be created for you for form-state/config."
-  [component sub-joins-map]
-  (let [sub-joins-map (cond-> sub-joins-map (query-contains-form-config? component) (assoc ::fs/config fulcro-form-state-config-sub))]
-    (impl/create-component-subs ::fulcro.subs/sub-name <sub sub-fn fulcro-data-source component sub-joins-map)))
+  ([component] (create-component-subs component {}))
+  ([component sub-joins-map]
+   (let [sub-joins-map (cond-> sub-joins-map (query-contains-form-config? component) (assoc ::fs/config fulcro-form-state-config-sub))]
+     (impl/create-component-subs ::fulcro.subs/sub-name <sub sub-fn fulcro-data-source component sub-joins-map))))
 
 (defn register-component-subs!
   "Registers subscriptions that will fulfill the given fulcro component's query.

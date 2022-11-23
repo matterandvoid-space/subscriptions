@@ -70,7 +70,8 @@
   the `sub-joins-map` argument is a hashmap whose keys are the join properties of the component and whose value is a
   subscription function for normal joins, and a nested hashmap for unions of the union key to subscription.
   You do not need to provide a subscription function for recursive joins."
-  [c sub-joins-map] (impl/create-component-subs ::subs/sub-name <sub sub-fn xtdb-data-source c sub-joins-map))
+  ([component] (create-component-subs component {}))
+  ([component sub-joins-map] (impl/create-component-subs ::subs/sub-name <sub sub-fn xtdb-data-source component sub-joins-map)))
 
 (defn register-component-subs!
   "Registers subscriptions that will fulfill the given fulcro component's query.

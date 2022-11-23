@@ -7,6 +7,8 @@
     [space.matterandvoid.subscriptions.impl.react-hooks-common :as common]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]))
 
+(defn use-context [c] (react/useContext c))
+
 (defn use-sub
   "A react hook that subscribes to a subscription, the return value of the hook is the return value of the
   subscription which will cause the consuming React function component to update when the subscription's value updates.

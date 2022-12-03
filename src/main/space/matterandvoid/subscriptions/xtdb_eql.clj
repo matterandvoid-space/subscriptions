@@ -26,6 +26,8 @@
       (db? v) v
       :else (throw (Exception. (str "Unsupported value passed to ->db: " (pr-str node-or-db)))))))
 
+(defn map->id-ref [m] (first (filter (fn [[k]] (= (name k) "id")) m)))
+
 (def xtdb-data-source
   (reify proto/IDataSource
     (-attribute-subscription-fn [this id-attr attr]
@@ -34,7 +36,7 @@
           (fn []
             (impl/missing-id-check! id-attr attr args)
             (proto/-attr this db_ id-attr attr args)))))
-    (-ref->attribute [_ ref] :xt/id)
+    (-ref->attribute [_ ref] (if (map? ref) (first (map->id-ref ref)) :xt/id))
     (-ref->id [_ ref]
       (cond (eql/ident? ref)
             (second ref)

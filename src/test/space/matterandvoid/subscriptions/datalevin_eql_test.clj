@@ -213,6 +213,15 @@
                                              {:user/name "user 2", :user/id :user-2, :user/friends #{(ent [:user/id :user-2]) (ent [:user/id :user-3]) (ent [:user/id :user-1]) (ent [:user/id :user-5])}}]}]}
             out)))))
 
+(deftest xform-test
+  (testing "transform an attribute"
+    (is
+      {:user/name "USER 1", :user/id :user-1}
+      (<sub db_ [::user {'upper-case-name (fn [e] (update e :user/name str/upper-case))
+                         'uppercase       str/upper-case
+                         :user/id         :user-1
+                         sut/query-key    [(list :user/name {sut/xform-fn-key 'uppercase}) :user/id]}]))))
+
 (comment
   (<sub db_ [::list {:list/id :list-1 sut/query-key [{:list/items list-member-q}
                                                      {:list/members {:comment/id [:comment/id :comment/text] :todo/id [:todo/id :todo/text]}}]}])

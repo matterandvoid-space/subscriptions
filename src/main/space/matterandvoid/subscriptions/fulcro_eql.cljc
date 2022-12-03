@@ -61,16 +61,13 @@
         attr))
     (-ref->attribute [_ ref] (first ref))
     (-ref->id [_ ref]
-      ;(log/debug "-ref->id ref" ref)
       (cond (eql/ident? ref) (second ref)
             (map? ref) (let [id-key (first (filter (comp #(= % "id") name) (keys ref)))]
                          (get ref id-key))
             :else ref))
     (-entity-id [_ _ id-attr args] (get args id-attr))
     (-entity [_ fulcro-app id-attr args]
-      ;(log/info "-entity for id attr: " id-attr)
       (when (eql/ident? [id-attr (get args id-attr)])
-        ;(log/info "IDENT" [id-attr (get args id-attr)])
         (get-in (->db fulcro-app) [id-attr (get args id-attr)])))
     (-attr [_ fulcro-app id-attr attr args]
       (get-in (->db fulcro-app) [id-attr (get args id-attr) attr]))))
@@ -117,9 +114,9 @@
                                    component-query (rc/get-query component state-map)]
                                (filterv some?
                                  (map (fn [[id-attr id-value]]
-                                         (when id-value
-                                           (component-eql-sub fulcro-app {query-key component-query, id-attr id-value})))
-                                       idents))))))]
+                                        (when id-value
+                                          (component-eql-sub fulcro-app {query-key component-query, id-attr id-value})))
+                                   idents))))))]
     (fulcro.subs/with-name
       (sub-fn sub)
       sub-cache-name)))

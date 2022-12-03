@@ -180,9 +180,8 @@
       (is (=
             {:todo/id       :todo-3,
              :todo/comments [{:comment/sub-comments [[:comment/id :comment-2]], :comment/id :comment-1, :comment/text "FIRST COMMENT" :comment/author [:user/id :user-1]}
-                             {:comment/sub-comments sut/missing-val,
-                              :comment/id           :comment-3,
-                              :comment/text         "THIRD COMMENT"}]}
+                             {:comment/id   :comment-3,
+                              :comment/text "THIRD COMMENT"}]}
             (<sub app [todo-sub {:todo/id :todo-3 sut/query-key [:todo/id {:todo/comments ['*]}]}]))))))
 
 (deftest recursive-join-queries
@@ -228,11 +227,10 @@
 (deftest queries-test
   (testing "props"
     (let [out1 {:todo/id :todo-1 :todo/text "todo 1"}
-          out2 #:todo{:comment  [:comment/id :comment-1],
-                      :comments sut/missing-val
-                      :author   [:bot/id :bot-1],
-                      :id       :todo-1,
-                      :text     "todo 1"}]
+          out2 #:todo{:comment [:comment/id :comment-1],
+                      :author  [:bot/id :bot-1],
+                      :id      :todo-1,
+                      :text    "todo 1"}]
       (is (= out1 (<sub app [todo-sub {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]}])))
       (is (= out1 (todo-sub app {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]})))
       (is (= out1 (todo-sub (fulcro.app/current-state app) {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]})))
@@ -242,18 +240,14 @@
 
   (testing "entity subscription with no query returns all attributes"
     (is (=
-          {:list/items   [{:todo/comments sut/missing-val
-                           :todo/author   {:user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3]], :user/name "user 2", :user/id :user-2},
-                           :todo/comment  sut/missing-val
-                           :todo/text     "todo 2",
-                           :todo/id       :todo-2}
+          {:list/items   [{:todo/author {:user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3]], :user/name "user 2", :user/id :user-2},
+                           :todo/text   "todo 2",
+                           :todo/id     :todo-2}
                           {:comment/sub-comments [[:comment/id :comment-2]], :comment/id :comment-1, :comment/text "FIRST COMMENT"}],
            :list/members [{:comment/sub-comments [[:comment/id :comment-2]], :comment/id :comment-1, :comment/text "FIRST COMMENT"}
-                          {:todo/comments sut/missing-val
-                           :todo/author   {:user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3]], :user/name "user 2", :user/id :user-2},
-                           :todo/comment  sut/missing-val
-                           :todo/text     "todo 2",
-                           :todo/id       :todo-2}],
+                          {:todo/author {:user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3]], :user/name "user 2", :user/id :user-2},
+                           :todo/text   "todo 2",
+                           :todo/id     :todo-2}],
            :list/name    "first list",
            :list/id      :list-1}
           (<sub app [list-sub {:list/id :list-1}])))))
@@ -262,7 +256,7 @@
   (is (=
         {:todo/id    :todo-with-form,
          :todo/text  "todo with-form",
-         ::fs/config {::fs/id             [:todo/id :todo-with-form], ::fs/fields #{:todo/text}, ::fs/complete? nil, ::fs/subforms {},
+         ::fs/config {::fs/id             [:todo/id :todo-with-form], ::fs/fields #{:todo/text}, ::fs/subforms {},
                       ::fs/pristine-state {:todo/text "todo with-form"}}}
         (todo-with-form-sub app {:todo/id      :todo-with-form
                                  sut/query-key (rc/get-query todo-with-form-component)}))))

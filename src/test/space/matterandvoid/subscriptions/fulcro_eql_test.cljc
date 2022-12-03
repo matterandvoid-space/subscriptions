@@ -4,8 +4,6 @@
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
     [space.matterandvoid.subscriptions.fulcro :as subs :refer [<sub defsub]]
     [com.fulcrologic.fulcro.application :as fulcro.app]
-    [edn-query-language.core :as eql]
-    [com.fulcrologic.fulcro.algorithms.merge :as merge]
     [com.fulcrologic.fulcro.raw.components :as rc]
     [taoensso.timbre :as log]
     [clojure.test :refer [deftest is testing]]))
@@ -13,7 +11,6 @@
 (log/set-level! :warn)
 #?(:cljs (enable-console-print!))
 (set! *print-namespace-maps* false)
-
 
 (def user-comp (sut/nc {:query [:user/id :user/name {:user/friends '...}] :name ::user :ident :user/id}))
 (def bot-comp (sut/nc {:query [:bot/id :bot/name] :name ::bot :ident :bot/id}))

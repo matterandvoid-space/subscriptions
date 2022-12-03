@@ -35,13 +35,11 @@
 
 (run! sut/register-component-subs! [user-comp bot-comp comment-comp todo-comp list-comp human-comp])
 (comment
-  (<sub app [::list {:list/id :list-1 sut/query-key [ {:list/items list-member-q } ]}])
+  (<sub app [::list {:list/id :list-1 sut/query-key [{:list/items list-member-q}]}])
 
   (<sub app [::list {:list/id :list-1 sut/query-key [{:list/items
                                                       {:comment/id [:comment/id :comment/text {:comment/sub-comments '...}]
-                                                       :todo/id [:todo/id :todo/text]}
-                                                      }
-                                                     ]}])
+                                                       :todo/id    [:todo/id :todo/text]}}]}])
   (<sub app [::todo {:todo/id :todo-1 sut/query-key [:todo/author]}])
   (sut/eql-query-keys-by-type (sut/get-query todo-comp)
     (fn [join-ast] (-> join-ast :component sut/class->registry-key))))
@@ -166,9 +164,8 @@
       (is (=
             {:todo/id       :todo-3,
              :todo/comments [{:comment/sub-comments [[:comment/id :comment-2]], :comment/id :comment-1, :comment/text "FIRST COMMENT"}
-                             {:comment/sub-comments sut/missing-val,
-                              :comment/id           :comment-3,
-                              :comment/text         "THIRD COMMENT"}]}
+                             {:comment/id   :comment-3,
+                              :comment/text "THIRD COMMENT"}]}
             (<sub app [::todo {:todo/id :todo-3 sut/query-key [:todo/id {:todo/comments ['*]}]}]))))))
 
 (deftest recursive-join-queries
@@ -215,27 +212,22 @@
   (testing "props"
     (is (= {:todo/id :todo-1 :todo/text "todo 1"} (<sub app [::todo {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]}])))
     (is (=
-          #:todo{:comment  [:comment/id :comment-1],
-                 :comments sut/missing-val
-                 :author   [:bot/id :bot-1],
-                 :id       :todo-1,
-                 :text     "todo 1"}
+          #:todo{:comment [:comment/id :comment-1],
+                 :author  [:bot/id :bot-1],
+                 :id      :todo-1,
+                 :text    "todo 1"}
           (<sub app [::todo {:todo/id :todo-1 sut/query-key ['* :todo/text]}]))))
 
   (testing "entity subscription with no query returns all attributes"
     (is (=
-          {:list/items   [{:todo/comments sut/missing-val
-                           :todo/author   {:user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3]], :user/name "user 2", :user/id :user-2},
-                           :todo/comment  sut/missing-val
-                           :todo/text     "todo 2",
-                           :todo/id       :todo-2}
+          {:list/items   [{:todo/author {:user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3]], :user/name "user 2", :user/id :user-2},
+                           :todo/text   "todo 2",
+                           :todo/id     :todo-2}
                           {:comment/sub-comments [[:comment/id :comment-2]], :comment/id :comment-1, :comment/text "FIRST COMMENT"}],
            :list/members [{:comment/sub-comments [[:comment/id :comment-2]], :comment/id :comment-1, :comment/text "FIRST COMMENT"}
-                          {:todo/comments sut/missing-val
-                           :todo/author   {:user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3]], :user/name "user 2", :user/id :user-2},
-                           :todo/comment  sut/missing-val
-                           :todo/text     "todo 2",
-                           :todo/id       :todo-2}],
+                          {:todo/author {:user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3]], :user/name "user 2", :user/id :user-2},
+                           :todo/text   "todo 2",
+                           :todo/id     :todo-2}],
            :list/name    "first list",
            :list/id      :list-1}
           (<sub app [::list {:list/id :list-1}])))))

@@ -5,8 +5,7 @@
     [space.matterandvoid.subscriptions.core :as subs :refer [reg-sub-raw <sub sub-fn]]
     [space.matterandvoid.subscriptions.impl.eql-queries :as impl]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
-    [space.matterandvoid.subscriptions.impl.eql-protocols :as proto]
-    [taoensso.timbre :as log]))
+    [space.matterandvoid.subscriptions.impl.eql-protocols :as proto]))
 
 (def query-key impl/query-key)
 (def missing-val impl/missing-val)
@@ -27,25 +26,26 @@
       (d-db? v) v
       :else (throw (Exception. (str "Unsupported value passed to ->db: " (pr-str conn-or-db)))))))
 
+(defn map->id-ref [m] (first (filter (fn [[k]] (= (name k) "id")) (into {} m))))
+
 (def datalevin-data-source
   (reify proto/IDataSource
     (-attribute-subscription-fn [this id-attr attr]
       (fn [db_ args]
         (r/make-reaction
-          (fn []
-            (impl/missing-id-check! id-attr attr args)
-            (proto/-attr this db_ id-attr attr args)))))
-    (-ref->attribute [_ _ref] :db/id)
+         (fn []
+           (impl/missing-id-check! id-attr attr args)
+           (proto/-attr this db_ id-attr attr args)))))
+    (-ref->attribute [_ ref]
+      (if (map? ref) (first (map->id-ref ref)) :db/id))
     (-ref->id [_ ref]
-      ;(log/info "ref->id ref: " ref)
-      (cond (and (map? ref) (contains? ref :db/id))
-            (:db/id ref)
-            ;(eql/ident? ref)
-            ;(:db/id (d/touch (d/entity (->db conn-or-db) ref)))
+      (cond (map? ref)
+            (if-let [attr-ref (map->id-ref ref)]
+              (second attr-ref)
+              (:db/id ref))
             :else ref))
     (-entity-id [_ _ id-attr args] (get args id-attr))
     (-entity [_ conn-or-db id-attr args]
-      (log/debug "datalevin lookup -entity, id-attr: " id-attr " value: " (get args id-attr))
       (try
         (let [id-val (get args id-attr)]
           (if (number? id-val)
@@ -63,7 +63,6 @@
                   (catch clojure.lang.ExceptionInfo e))))))
         (catch ClassCastException e)))
     (-attr [this conn-or-db id-attr attr args]
-      ;(log/info "-attr: " id-attr " attr " attr " id: " (get args id-attr))
       (get (proto/-entity this conn-or-db id-attr args) attr))))
 
 (defn nc

@@ -1,6 +1,7 @@
 (ns space.matterandvoid.subscriptions.xtdb-eql-test
   (:require
     [space.matterandvoid.subscriptions.xtdb-eql :as sut]
+    [space.matterandvoid.subscriptions.impl.eql-queries :as i.e]
     [space.matterandvoid.subscriptions.core :as subs :refer [<sub]]
     [space.matterandvoid.subscriptions.impl.core :as subs.impl]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as r]
@@ -168,7 +169,7 @@
 ;; union join
 ;;   - to-one0
 ;;   - to-many
-(<sub db_ [::todo {:todo/id :todo-1 sut/query-key [:todo/id :todo/author]}])
+
 (deftest union-queries-test
   (testing "to-one union queries"
     (is (= {:todo/id :todo-1, :todo/author {:bot/name "bot 1", :bot/id :bot-1}}
@@ -207,7 +208,6 @@
             (<sub db_ [::list {:list/id :list-1 sut/query-key [{:list/items {:todo/id [:todo/id :todo/text]}}]}]))))))
 
 (deftest plain-join-queries
-
   (testing "to-one joins"
     (is (= {:todo/id      :todo-1,
             :todo/author  {:bot/id :bot-1, :bot/name "bot 1"},
@@ -227,10 +227,9 @@
              :todo/comments [{:comment/sub-comments [[:comment/id :comment-2]],
                               :xt/id                :comment-1
                               :comment/id           :comment-1, :comment/text "FIRST COMMENT"}
-                             {:comment/sub-comments sut/missing-val
-                              :xt/id                :comment-3
-                              :comment/id           :comment-3,
-                              :comment/text         "THIRD COMMENT"}]}
+                             {:xt/id        :comment-3
+                              :comment/id   :comment-3,
+                              :comment/text "THIRD COMMENT"}]}
             (<sub db_ [::todo {:todo/id :todo-3 sut/query-key [:todo/id {:todo/comments ['*]}]}]))))))
 
 (deftest recursive-join-queries
@@ -285,36 +284,34 @@
 
           (<sub db_ [::user {:user/id :user-1 sut/query-key [:user/name :user/id {:user/friends '...}]}])))))
 
+
+
 (deftest queries-test
   (testing "props"
     (is (= {:todo/id :todo-1, :todo/text "todo 1"}
           (<sub db_ [::todo {:todo/id :todo-1 sut/query-key [:todo/id :todo/text]}])))
     (is (=
-          {:todo/comments sut/missing-val
-           :todo/author   [:bot/id :bot-1],
-           :todo/comment  [:comment/id :comment-1],
-           :todo/text     "todo 1",
-           :todo/id       :todo-1}
+          {:todo/author  [:bot/id :bot-1],
+           :todo/comment [:comment/id :comment-1],
+           :todo/text    "todo 1",
+           :todo/id      :todo-1}
           (<sub db_ [::todo {:todo/id :todo-1 sut/query-key ['* :todo/text]}]))))
+
   (testing "entity subscription with no query returns all attributes"
-    (is (= {:list/items   [{:todo/comments sut/missing-val
-                            :todo/author   {:user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3] [:user/id :user-5]],
-                                            :user/name    "user 2",
-                                            :user/id      :user-2},
-                            :todo/comment  sut/missing-val,
-                            :todo/text     "todo 2", :todo/id :todo-2}
+    (is (= {:list/items   [{:todo/author {:user/friends [[:user/id :user-2] [:user/id :user-1] [:user/id :user-3] [:user/id :user-5]],
+                                          :user/name    "user 2",
+                                          :user/id      :user-2},
+                            :todo/text   "todo 2", :todo/id :todo-2}
                            {:comment/sub-comments [[:comment/id :comment-2]], :comment/id :comment-1, :comment/text "FIRST COMMENT"}],
             :list/members [{:comment/sub-comments [[:comment/id :comment-2]],
                             :comment/id           :comment-1,
                             :comment/text         "FIRST COMMENT"}
-                           {:todo/comments sut/missing-val,
-                            :todo/author   {:user/friends [[:user/id :user-2]
-                                                           [:user/id :user-1]
-                                                           [:user/id :user-3]
-                                                           [:user/id :user-5]],
-                                            :user/name    "user 2", :user/id :user-2},
-                            :todo/comment  sut/missing-val
-                            :todo/text     "todo 2", :todo/id :todo-2}],
+                           {:todo/author {:user/friends [[:user/id :user-2]
+                                                         [:user/id :user-1]
+                                                         [:user/id :user-3]
+                                                         [:user/id :user-5]],
+                                          :user/name    "user 2", :user/id :user-2},
+                            :todo/text   "todo 2", :todo/id :todo-2}],
             :list/name    "first list",
             :list/id      :list-1}
           (<sub db_ [::list {:list/id :list-1}])))))

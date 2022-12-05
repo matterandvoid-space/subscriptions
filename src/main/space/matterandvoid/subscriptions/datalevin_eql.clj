@@ -33,9 +33,9 @@
     (-attribute-subscription-fn [this id-attr attr]
       (fn [db_ args]
         (r/make-reaction
-         (fn []
-           (impl/missing-id-check! id-attr attr args)
-           (proto/-attr this db_ id-attr attr args)))))
+          (fn []
+            (impl/missing-id-check! id-attr attr args)
+            (proto/-attr this db_ id-attr attr args)))))
     (-ref->attribute [_ ref]
       (if (map? ref) (first (map->id-ref ref)) :db/id))
     (-ref->id [_ ref]
@@ -47,20 +47,18 @@
     (-entity-id [_ _ id-attr args] (get args id-attr))
     (-entity [_ conn-or-db id-attr args]
       (try
-        (let [id-val (get args id-attr)]
+        (let [db     (->db conn-or-db)
+              id-val (get args id-attr)]
           (if (number? id-val)
-            (d-touch (d-entity (->db conn-or-db) id-val))
-            (when id-val
-              (do
-                (try
-                  (if (eql/ident? id-val)
-                    (d-touch (d-entity (->db conn-or-db) id-val))
-                    ;; todo can check if id-val is a primitive type (allowed in value position, this way we don't have to use
-                    ;; the catch, can just return nil, should be slightly faster.
-                    (d-touch (d-entity (->db conn-or-db) [id-attr id-val])))
-                  (catch AssertionError e
-                    (d-touch (d-entity (->db conn-or-db) [id-attr id-val])))
-                  (catch clojure.lang.ExceptionInfo e))))))
+            (d-touch (d-entity db id-val))
+            (when (and id-val (or (eql/ident? id-val) (not (coll? id-val))))
+              (try
+                (if (eql/ident? id-val)
+                  (d-touch (d-entity db id-val))
+                  (d-touch (d-entity db [id-attr id-val])))
+                (catch AssertionError e
+                  (d-touch (d-entity db [id-attr id-val])))
+                (catch clojure.lang.ExceptionInfo e)))))
         (catch ClassCastException e)))
     (-attr [this conn-or-db id-attr attr args]
       (get (proto/-entity this conn-or-db id-attr args) attr))))

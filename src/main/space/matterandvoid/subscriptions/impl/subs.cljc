@@ -307,13 +307,12 @@
            (let [input-subscriptions (inputs-fn datasource)]
              (ratom/make-reaction
                (fn [] (compute-fn (deref-input-signals input-subscriptions query-id))))))
-
           ([datasource sub-args]
            (let [input-subscriptions (inputs-fn datasource sub-args)]
              (ratom/make-reaction
-               (fn [] (let [inputs (deref-input-signals input-subscriptions query-id)]
-                        #?(:clj  (lenient-call compute-fn inputs sub-args)
-                           :cljs (compute-fn inputs sub-args))))))))]
+               (fn []
+                 #?(:clj  (lenient-call compute-fn (deref-input-signals input-subscriptions query-id) sub-args)
+                    :cljs (compute-fn (deref-input-signals input-subscriptions query-id) sub-args)))))))]
     (with-meta
       (fn sub-fn
         ([datasource] (deref (subscription-fn datasource)))
@@ -379,17 +378,24 @@
 
 (defn make-raw-sub [get-input-db-signal meta-sub-kw full-name sub-f]
   (let [subscription-fn
-        (fn sub-fn
+        (fn internal-sub-fn
           ([datasource]
            (sub-f (get-input-db-signal datasource)))
           ([datasource args]
            (assert (or (nil? args) (map? args) (str "Invalid args passed to " full-name)))
            #?(:clj  (lenient-call sub-f (get-input-db-signal datasource) args)
-              :cljs (sub-f (get-input-db-signal datasource) args))))]
+              :cljs (sub-f (get-input-db-signal datasource) args))))
+
+        final-sub-fn
+        (fn
+          ([] (deref (subscription-fn {})))
+          ([datasource] (deref (subscription-fn datasource)))
+          ([datasource args] (deref (subscription-fn datasource args))))]
 
     (vary-meta
-      (sub-fn meta-sub-kw subscription-fn)
-      assoc (keyword (namespace meta-sub-kw) "sub-name") (keyword full-name))))
+      final-sub-fn
+      assoc (keyword (namespace meta-sub-kw) "sub-name") (keyword full-name)
+      meta-sub-kw subscription-fn)))
 
 (defmacro defsubraw
   "Creates a subscription function that takes the datasource ratom and optionally an args map and returns a Reaction

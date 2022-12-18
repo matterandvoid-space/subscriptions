@@ -218,6 +218,16 @@ Also see the examples directory in the source for working code.
       ($ :h4 "sorted todos: " (pr-str (:sorted-todo-list the-subs))))))
 ```
 
+Do not use subscriptions directly inside a function component's render body - you need to use one of the provided hooks.
+If you deref a subscription directly in a function component's render body then you will trigger a React `setState` call
+within the render function which will lead to subtle bugs in your application.
+The implementation of the provided hooks allow you to use subscriptions with React's concurrent rendering and other features
+without leading to "tearing" - or seeing incorrect/inconsistent values in your UI.
+
+For more details, see:
+
+https://reactjs.org/docs/strict-mode.html#detecting-unexpected-side-effects
+
 ### Use React Context to pass the datasource through the component tree
 
 The hooks `use-sub` and `use-sub-map` have single-arity versions which will look up the datasource using React [context](https://beta.reactjs.org/apis/react/createContext#creating-context).
@@ -591,6 +601,11 @@ For example, here we are attempting to lookup a ref/ident of an entity which is 
 ```
 
 For this use case a cursor would not work as the path is not available at first (it is `nil`), so using a Reaction is needed.
+
+_Please note_ that if you invoke other subscription functions within the `defsubraw` body you should pass the `db_` ratom itself
+and do not deref it.
+
+e.g. `(some-sub-fn db_)` and not: `(some-sub-fn @db_)`. doing the latter will not trigger reactivity and will lead to subtle bugs.
 
 ## `deflayer2-sub` macro
 

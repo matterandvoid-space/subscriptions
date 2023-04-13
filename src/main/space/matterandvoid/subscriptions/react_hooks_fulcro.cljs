@@ -10,7 +10,7 @@
 
 (defn use-context [c] (react/useContext c))
 
-(defn use-sub
+(defn use-sub-fn
   "A react hook that subscribes to a subscription, the return value of the hook is the return value of the
   subscription which will cause the consuming React function component to update when the subscription's value updates.
 
@@ -32,10 +32,10 @@
    (common/use-sub subs/subscribe datasource query equal?))
 
   ([datasource query]
-   (use-sub datasource query identical?))
+   (use-sub-fn datasource query identical?))
 
   ([query]
-   (use-sub (react/useContext subs/datasource-context) query identical?)))
+   (use-sub-fn (react/useContext subs/datasource-context) query identical?)))
 
 (defn use-reaction
   "Takes a Reagent Reaction and rerenders the UI component when the Reaction's value changes.

@@ -3,7 +3,7 @@
     [com.fulcrologic.fulcro.algorithms.tx-processing :as ftx]
     [com.fulcrologic.fulcro.algorithms.normalized-state :refer [dissoc-in]]
     [com.fulcrologic.fulcro.application :as fulcro.app]
-    [com.fulcrologic.fulcro.components :as c]
+    [com.fulcrologic.fulcro.raw.components :as c]
     #?(:cljs [goog.object :as obj])
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
@@ -196,7 +196,10 @@
 (def reaction-key "fulcro.subscriptions.reaction")
 
 (defn refresh-component! [#?(:cljs ^js this :clj this)]
-  (when (c/mounted? this)
+  (when
+    ;; todo fixme
+    false
+    ;(c/mounted? this)
     (log/debug "Refreshing component22" (c/component-name this))
     #?(:cljs (.forceUpdate this))))
 

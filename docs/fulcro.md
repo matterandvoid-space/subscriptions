@@ -52,89 +52,17 @@ In bullet points:
   onscreen are redrawn that need to be. This library makes targeted refresh tractable (well really reagent does that and Mike Thompson's
   incredible discovery/invention of subscriptions).
 
-# How?
 
-Using render middleware that renders each fulcro component in a reagent Reaction using `reagent.ratom/run-in-reaction` 
-When any data the render function is subscribed to (any ratom/reactions it derefed during render change)
-a callback fires that will re-render the component.
-When a component unmounts we remove the listener created by `run-in-reaction`.
+After years of attempting to use fulcro and seeing other UI rending libraries I realized that all of the complexity of using
+fulcro was in the UI half of the library. React hooks combined with subscriptions solve the UI half of the problem
+while removing all the complexity fulcro brought. Subscriptions are how you get denormalized data for components
+to render where components can be any React function component.
 
-Nothing else about using fulcro components has changed, they will still re-render following the usual fulcro usage.
+# Usage
 
-Example:
+For an example of how to use this with fulcro see:
 
-## Use with fulcro class components
-
-```clojure 
-(ns some.example
-  (:require 
-    [space.matterandvoid.subscriptions.fulcro :as subs :refer [defregsub reg-sub]]
-    [space.matterandvoid.subscriptions.fulcro-components :refer [with-reactive-subscriptions]]))
-    
-(defonce fulcro-app (subs/with-reactive-subscriptions (fulcro.app/fulcro-app {})))
-
-(defregsub list-idents (fn [db {:keys [list-id]}] (get db list-id)))
-
-;; anytime you have a list of idents in fulcro the subscription pattern is to
-;; have input signals that subscribe to layer 2 subscriptions
-
-(reg-sub ::todo-table :-> (fn [db] (-> db :todo/id)))
-
-;; now any subscriptions that use ::todo-table as an input signal will only update if todo-table's output changes.
-
-(defregsub todos-list :<- [::list-idents] :<- [::todo-table]
-  (fn [[idents table]]
-    (mapv #(get table (second %)) idents)))
-
-(defregsub todos-total :<- [::todos-list] :-> count)
-
-(defsc Todo [this {:todo/keys [text state]}]
-  {:query         [:todo/id :todo/text :todo/state]
-   :ident         :todo/id
-   :initial-state (fn [text] (make-todo (or text "")))}
-  (dom/div {}
-    (dom/div "Todo:" (dom/div text))
-    (dom/div "status: " (pr-str state))))
-
-(def ui-todo (c/computed-factory Todo {:keyfn :todo/id}))
-
-(defsc TodosTotal [this {:keys [list-id]}] {}
-  (dom/h3 "Total todos: " (todos-total this {:list-id list-id})))
-
-(def ui-todos-total (c/factory TodosTotal))
-
-(defn add-random-todo! [app]
-  (merge/merge-component! (c/any->app app) Todo (make-todo (str "todo-" (rand-int 1000))) :append [:root/todos]))
-  
-(defsc TodoList [this {:keys [list-id]}]
-  {:ident (fn [] [:component/id ::todo-list])
-   :query [:list-id]}
-  (let [todos (todos-list this {:list-id list-id})]
-    (dom/div {}
-      (dom/button {:style {:padding 20 :margin "0 1rem"} :onClick #(add-random-todo! this)} "Add")
-      (when (> (todos-total this {:list-id list-id}) 0)
-        (dom/button {:style {:padding 20} :onClick #(rm-random-todo! this)} "Remove"))
-      (ui-todos-total {:list-id list-id})
-      (map ui-todo todos))))
-
-(def ui-todo-list (c/computed-factory TodoList))
-
-(defsc Root [this {:root/keys [list-id]}]
-  {:initial-state {:root/list-id :root/todos}
-   :query         [:root/list-id]}
-  (ui-todo-list {:list-id list-id}))
-  
-(fulcro.app/mount! fulcro-app Root js/app)
-```
-
-the `subs/with-reactive-subscriptions` call assoc'es the `::fulcro.app/state-atom` to be a `reagent.ratom/atom`. 
-It also assigns the rendering algorithm used by the app to use the ident-optimized render. 
-The intention of this library is that all derived data is computed using subscriptions
-and rendered with their values - this way there are never any stale components on screen - just like in re-frame.
-
-## Use with fulcro hooks components
-
-See the `space.matterandvoid.subscriptions.react-hooks-fulcro` namespace and the doc on [react hooks](docs/react-hooks.md) usage.
+https://github.com/matterandvoid-space/todomvc-fulcro-subscriptions
 
 # Subscriptions support passing the fulcro application state map as a datasource
 
@@ -151,18 +79,9 @@ You can use Reagent RCursors for layer 2 subscriptions, these perform much bette
 
 If you're using the EQL subscriptions in this library with fulcro, layer 2 subscriptions are implemented with RCursors for you.
 
-## Do not use swap!
-
-In short: always mutate the fulcro state atom as usual: you must use `transact!` to have your UI stay up to date.
-
-For the best integration the fulcro rule applies: pretend there is no watch on the fulcro state atom.
-
-You're going to have a bad time if you try to use `swap!` because fulcro caches a component's props on the component instance
-so if a parent component uses a subscription but the child does not and instead renders its props - its parent will refresh 
-via the reaction firing, but the leaf/child will not because fulcro is rendering its cached props.
-
 # Future ideas
 
 Integrating with fulcro-inspect - probably by adding instrumentation inside of defregsub that happens based on a compiler
 flag, as well as during re-render - to allow inspecting how long subscriptions took to compute as well as which components
 they caused to be re-rendered.
+

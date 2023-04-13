@@ -3,7 +3,6 @@
   (:require
     [com.fulcrologic.fulcro.algorithm :as-alias fulcro.algo]
     [com.fulcrologic.fulcro.application :as fulcro.app]
-    [com.fulcrologic.fulcro.components :as c]
     [space.matterandvoid.subscriptions.impl.fulcro :as impl]
     [space.matterandvoid.subscriptions.impl.subs :as impl.subs]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
@@ -124,4 +123,9 @@
              :hydrate-root! identity
              ::fulcro.app/state-atom (ratom/atom @(::fulcro.app/state-atom app))))
 
-(def datasource-context (react/createContext nil))
+(def datasource-context
+  "React context containing the fulcro application that contains the root reactive atom.
+  Use: (let [fulcro-app (react/useContext subs/datasource-context)] ...)
+
+  Anywhere in your react tree to get the value."
+  (react/createContext nil))

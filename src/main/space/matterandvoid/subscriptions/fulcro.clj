@@ -99,10 +99,6 @@
   ([app] (impl/clear-handlers app))
   ([app id] (impl/clear-handlers app id)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; reactive refresh of components
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 (defn with-headless-fulcro
   "Takes a fulcro app, disables all UI rendering and replaces the state atom with a Reagent RAtom."
   [app]

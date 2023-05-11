@@ -49,3 +49,6 @@
   [reaction]
   (let [ref (react/useRef reaction)]
     (common/use-reaction (.-current ref))))
+
+(defn use-fulcro-app "Returns the currently bound datasource-context using react/useContext."
+  [] (react/useContext subs/datasource-context))

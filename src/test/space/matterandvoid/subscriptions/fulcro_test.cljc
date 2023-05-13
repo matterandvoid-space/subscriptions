@@ -4,7 +4,7 @@
     [space.matterandvoid.subscriptions.test-subs :as subs]
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [space.matterandvoid.subscriptions.fulcro :as sut]
-    [space.matterandvoid.subscriptions.fulcro-components :as sut2]))
+    ))
 
 #?(:cljs (enable-console-print!))
 (defonce counter_ (volatile! 0))
@@ -12,7 +12,7 @@
 (deref counter_)
 
 (def start-db {:first 500 :first-sub 500 :a "hi"})
-(defonce app (sut2/with-reactive-subscriptions (fulcro.app/fulcro-app {:initial-db start-db})))
+(defonce app (sut/with-headless-fulcro (fulcro.app/fulcro-app {:initial-db start-db})))
 
 (use-fixtures :each
   #?(:cljs {:after (fn [] (vreset! counter_ 0))}

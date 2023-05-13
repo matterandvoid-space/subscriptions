@@ -162,13 +162,13 @@ I haven't used datascript much so there may be better/more efficient integration
 
 There are react hooks in the `space.matterandvoid.subscriptions.react-hooks` namespace 
 
-- `use-sub`, which takes one subscription vector 
-- `use-sub-memo`, a macro which takes one subscription vector and wraps your subscrition vector in `react/useMemo` before subscribing.
+- `use-sub`, a macro which takes one subscription vector and wraps your subscrition vector in `react/useMemo` before subscribing.
+- `use-sub-fn`, which takes one subscription vector and does not memoize its arguments
 - `use-sub-map` a macro which takes a hashmap of keywords to subscription vectors intended to be destructured.
 - `use-reaction` which takes a Reagent Reaction, the output of the hook is the return value of the Reaction.
-- `use-reaction-ref` which takes a React Ref which contains a Reagent Reaction, the output of the hook is the return value of the Reaction.
 - `use-reaction-in-ref` which takes a Reagent Reaction and wraps it in a React Ref to avoid being recreated each render,
    the output of the hook is the return value of the Reaction.
+- `use-datasource` - returns the curently bound datasource from the React context. (called `use-fulcro-app` for the fulcro ns)
 
 The same hooks for fulcro use are in `space.matterandvoid.subscriptions.react-hooks-fulcro`
 

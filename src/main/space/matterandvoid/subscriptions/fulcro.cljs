@@ -1,7 +1,6 @@
 (ns space.matterandvoid.subscriptions.fulcro
   (:require-macros [space.matterandvoid.subscriptions.fulcro])
   (:require
-    [com.fulcrologic.fulcro.algorithm :as-alias fulcro.algo]
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [space.matterandvoid.subscriptions.impl.fulcro :as impl]
     [space.matterandvoid.subscriptions.impl.subs :as impl.subs]

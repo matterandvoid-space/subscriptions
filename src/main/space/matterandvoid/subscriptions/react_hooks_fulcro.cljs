@@ -1,5 +1,5 @@
 (ns space.matterandvoid.subscriptions.react-hooks-fulcro
-  (:require-macros [space.matterandvoid.subscriptions.react-hooks-fulcro])
+  (:require-macros [space.matterandvoid.subscriptions.react-hooks-fulcro :refer [use-sub use-sub-map]])
   (:require
     [com.fulcrologic.fulcro.application :as fulcro.app]
     [goog.object :as gobj]

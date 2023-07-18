@@ -1,17 +1,14 @@
 (ns space.matterandvoid.subscriptions.impl.fulcro
   (:require
-    [com.fulcrologic.fulcro.algorithms.tx-processing :as ftx]
     [com.fulcrologic.fulcro.algorithms.normalized-state :refer [dissoc-in]]
     [com.fulcrologic.fulcro.application :as fulcro.app]
-    #?(:cljs [goog.object :as obj])
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom]
     [space.matterandvoid.subscriptions.impl.loggers :refer [console]]
-    [space.matterandvoid.subscriptions.impl.subs :as subs]
-    [taoensso.timbre :as log]))
+    [space.matterandvoid.subscriptions.impl.subs :as subs]))
 
 (defn get-input-db-signal
   "Given the storage for the subscriptions return an atom containing a map
-  (this it the 'db' in re-frame parlance).
+  (this is the 'db' in re-frame parlance).
   this assumes you've set your fulcro app's state-atom to be reagent reactive atom."
   [app]
   ;; This is a kind of hack to allow passing in the fulcro state map to subscriptions
@@ -19,8 +16,8 @@
   ;; be annoying to pass the fulcro app to.
   (cond
     (fulcro.app/fulcro-app? app) (::fulcro.app/state-atom app)
-                                 (ratom/deref? app) app
-                                 :else (ratom/atom app)))
+    (ratom/deref? app) app
+    :else (ratom/atom app)))
 
 ;; for other proxy interfaces (other than fulcro storage) this has to be an atom of a map.
 ;; this is here for now just to inspect it at the repl

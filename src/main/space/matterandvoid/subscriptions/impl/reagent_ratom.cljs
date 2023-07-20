@@ -28,9 +28,20 @@
    are any options accepted by a Reaction and will be set on the newly created
    Reaction. Sets the newly created Reaction to the `key` on `obj`."
   [f obj key run opts] (reagent.ratom/run-in-reaction f obj key run opts))
-(defn add-on-dispose! [a-ratom f] (reagent.ratom/add-on-dispose! a-ratom f))
+
 (defn reaction? [r] (instance? reagent.ratom/Reaction r))
 (defn cursor? [r] (instance? reagent.ratom/RCursor r))
+
+(defn add-on-dispose!
+  "Allows adding a disposal callback for Reactions as well as Cursors."
+  [^clj a-ratom on-dispose]
+  (cond
+    (reaction? a-ratom)
+    (reagent.ratom/add-on-dispose! a-ratom on-dispose)
+
+    (cursor? a-ratom)
+    (set! (.-on-dispose a-ratom) on-dispose)))
+
 (defn dispose! [^clj a-ratom]
   (if (cursor? a-ratom)
     (if (.-on-dispose a-ratom)
@@ -38,6 +49,7 @@
       (when (.-reaction a-ratom)
         (reagent.ratom/dispose! (.-reaction a-ratom))))
     (reagent.ratom/dispose! a-ratom)))
+
 (defn ^boolean reactive-context? [] (reagent.ratom/reactive?))
 
 (defn reagent-id

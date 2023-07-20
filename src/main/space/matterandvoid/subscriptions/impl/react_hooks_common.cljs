@@ -28,18 +28,17 @@
   (let [reaction-key "reaction"
         reaction-obj (react/useRef #js{})]
     (react/useCallback
-     (fn setup-subscription [listener]
-       (ratom/run-in-reaction
-        (fn [] (when reaction @reaction))
-        (.-current reaction-obj)
-        reaction-key
-        listener
-        {:no-cache true})
-       (fn cleanup-subscription []
-         (when (and cleanup? (gobj/get (.-current reaction-obj) reaction-key))
-           (log/debug "disposing run-in-reaction reaction")
-           (ratom/dispose! (gobj/get (.-current reaction-obj) reaction-key)))))
-     #js [reaction])))
+      (fn setup-subscription [listener]
+        (ratom/run-in-reaction
+          (fn [] (when reaction @reaction))
+          (.-current reaction-obj)
+          reaction-key
+          listener
+          {:no-cache true})
+        (fn cleanup-subscription []
+          (when (and cleanup? (gobj/get (.-current reaction-obj) reaction-key))
+            (ratom/dispose! (gobj/get (.-current reaction-obj) reaction-key)))))
+      #js [reaction])))
 
 ;; Public API
 
@@ -77,11 +76,30 @@
 ;; - https://beta.reactjs.org/apis/react/useRef#referencing-a-value-with-a-ref
 ;; - https://beta.reactjs.org/apis/react/useRef#avoiding-recreating-the-ref-contents
 
+(defn update-ref-count! [op ^clj sub]
+  (set! (.-ref-count sub)
+    (op (or (.-ref-count sub) 0))))
+
+(def inc-ref-count! (partial update-ref-count! inc))
+(def dec-ref-count! (partial update-ref-count! dec))
+
+(defn cleanup-sub! [^clj sub]
+  (dec-ref-count! sub)
+  (when (zero? (.-ref-count sub))
+    (ratom/dispose! sub)))
+
 (defn use-sub
+  "Takes a subscribe function, a datasource a subscription vector and a predicate to determine when two subscription vectors are equal.
+  Runs the subscription returning its value to the calling component while also re-rendering the component when the subscription's
+  value changes."
   [subscribe datasource query equal?]
   ;; We save every subscription the component uses while mounted and then dispose them all at once.
-  ;; this way if a query changes and a new subscription is used we don't evict that subscription from the cache until the
-  ;; component unmounts.
+  ;; This uses simple reference counting such that if multiple components use the same subscription the subscription will
+  ;; only get disposed when the last one unmounts.
+  ;; This way if a query changes and a new subscription is used we don't evict that subscription from the cache until all
+  ;; components that use the subscription have unmounted
+  ;; The main use-case this has in mind is when arguments to a subscription are changing frequently, this avoid constantly
+  ;; destroying and recreating subscriptions for a tradeoff in more memory used while the component is mounted.
   (let [last-query (react/useRef query)
         ref        (react/useRef nil)
         subs-log   (react/useRef #js[])]
@@ -89,19 +107,21 @@
     (when-not (.-current ref)
       (let [sub (ratom/in-reactive-context (subscribe datasource query))]
         (.push (.-current subs-log) sub)
+        (inc-ref-count! sub)
         (set! (.-current ref) sub)))
 
     (when-not (equal? (.-current last-query) query)
       (set! (.-current last-query) query)
       (let [sub (ratom/in-reactive-context (subscribe datasource query))]
         (.push (.-current subs-log) sub)
+        (inc-ref-count! sub)
         (set! (.-current ref) sub)))
 
     (react/useEffect
       (fn mount []
         (fn unmount []
-          (doseq [q (.-current subs-log)]
-            (when q (ratom/dispose! q)))))
+          (doseq [sub (.-current subs-log)]
+            (cleanup-sub! sub))))
       #js[])
 
     (use-reaction (.-current ref) false)))

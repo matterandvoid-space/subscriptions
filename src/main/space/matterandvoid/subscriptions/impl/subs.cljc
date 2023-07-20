@@ -58,8 +58,7 @@
       ;(log/debug "CACHING REACTION with KEY: " cache-key)
       ;; when this reaction is no longer being used, remove it from the cache
 
-      (when (ratom/reaction? reaction-or-cursor) (ratom/add-on-dispose! reaction-or-cursor on-dispose))
-      (when (ratom/cursor? reaction-or-cursor) (set! (.-on-dispose reaction-or-cursor) on-dispose))
+      (ratom/add-on-dispose! reaction-or-cursor on-dispose)
       (swap! subscription-cache
         (fn [query-cache]
           (when ratom/debug-enabled?

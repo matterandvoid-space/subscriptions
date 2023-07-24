@@ -153,6 +153,20 @@
   "
   [sub-name ?path] `(impl/deflayer2-sub ::subscription ~sub-name ~?path))
 
+(defmacro defsub-indirect-lookup
+  "Takes a keyword and a subscription that return an id
+  Deals with the pattern where a layer-2 subscription's ID value is itself resolved via a subscription.
+
+  expands to:
+
+  (defsubraw <sub-name>
+    [db_]
+    (get-in @db_ [kw (id-sub db_)]))"
+  [sub-name kw id-sub]
+  `(defsubraw ~sub-name
+     [db_#]
+     (get-in @db_# [~kw (~id-sub db_#)])))
+
 (defn sub-fn
   "Takes a function that returns either a Reaction or RCursor. Returns a function that when invoked delegates to `f` and
    derefs its output. The returned function can be used in subscriptions."

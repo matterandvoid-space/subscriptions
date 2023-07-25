@@ -9,7 +9,7 @@
 
 #?(:clj
    (defmacro lenient-call
-     "Deal with arity stricness on JVM"
+     "Deal with arity strictness on JVM"
      [f datasource args]
      `(try (~f ~datasource ~args) (catch clojure.lang.ArityException ~'_ (~f ~datasource)))))
 
@@ -177,9 +177,9 @@
 (def args-merge-fn merge)
 
 (defn set-memoize-fn! [f] #?(:cljs (set! memoize-fn f)
-                             :clj  (alter-var-root #'memoize-fn (fn [_] f))))
+                             :clj (alter-var-root #'memoize-fn (fn [_] f))))
 (defn set-args-merge-fn! [f] #?(:cljs (set! args-merge-fn f)
-                                :clj  (alter-var-root #'args-merge-fn (fn [_] f))))
+                                :clj (alter-var-root #'args-merge-fn (fn [_] f))))
 
 (defn merge-update-args [subs-vec args*] (cond-> subs-vec (map? args*) (update 1 args-merge-fn args*)))
 
@@ -286,6 +286,15 @@
 ; subscription function helpers
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
+(defn specify-print-impl!
+  "Adds print implementation for subscription functions on JS platforms."
+  [sub-fn sub-name]
+  #?(:cljs (specify!
+             sub-fn
+             IPrintWithWriter
+             (-pr-writer [_o writer _] (-write writer (str "#subscription-fn[" sub-name "]"))))
+     :clj sub-fn))
+
 (defn sub-fn
   "Takes a function that returns either a Reaction or RCursor. Returns a function that when invoked delegates to `f` and
    derefs its output. The returned function can be used in subscriptions."
@@ -310,14 +319,16 @@
            (let [input-subscriptions (inputs-fn datasource sub-args)]
              (ratom/make-reaction
                (fn []
-                 #?(:clj  (lenient-call compute-fn (deref-input-signals input-subscriptions query-id) sub-args)
+                 #?(:clj (lenient-call compute-fn (deref-input-signals input-subscriptions query-id) sub-args)
                     :cljs (compute-fn (deref-input-signals input-subscriptions query-id) sub-args)))))))]
-    (with-meta
-      (fn sub-fn
-        ([datasource] (deref (subscription-fn datasource)))
-        ([datasource args] (deref (subscription-fn datasource args))))
-      {meta-sub-kw                                  subscription-fn
-       (keyword (namespace meta-sub-kw) "sub-name") query-id})))
+    (specify-print-impl!
+      (with-meta
+        (fn sub-fn
+          ([datasource] (deref (subscription-fn datasource)))
+          ([datasource args] (deref (subscription-fn datasource args))))
+        {meta-sub-kw                                  subscription-fn
+         (keyword (namespace meta-sub-kw) "sub-name") query-id})
+      query-id)))
 
 ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 ; deflayer2-sub
@@ -342,9 +353,12 @@
 
 (defn make-layer2-sub-fn
   [get-input-db-signal meta-sub-kw sub-name path]
-  (vary-meta
-    (sub-fn meta-sub-kw (make-layer2-sub-fn* get-input-db-signal sub-name path))
-    assoc (keyword (namespace meta-sub-kw) "sub-name") sub-name))
+
+  (specify-print-impl!
+    (vary-meta
+      (sub-fn meta-sub-kw (make-layer2-sub-fn* get-input-db-signal sub-name path))
+      assoc (keyword (namespace meta-sub-kw) "sub-name") sub-name)
+    (symbol sub-name)))
 
 #?(:clj
    (defmacro deflayer2-sub
@@ -382,7 +396,7 @@
            (sub-f (get-input-db-signal datasource)))
           ([datasource args]
            (assert (or (nil? args) (map? args) (str "Invalid args passed to " full-name)))
-           #?(:clj  (lenient-call sub-f (get-input-db-signal datasource) args)
+           #?(:clj (lenient-call sub-f (get-input-db-signal datasource) args)
               :cljs (sub-f (get-input-db-signal datasource) args))))
 
         final-sub-fn
@@ -391,10 +405,12 @@
           ([datasource] (deref (subscription-fn datasource)))
           ([datasource args] (deref (subscription-fn datasource args))))]
 
-    (vary-meta
-      final-sub-fn
-      assoc (keyword (namespace meta-sub-kw) "sub-name") (keyword full-name)
-      meta-sub-kw subscription-fn)))
+    (specify-print-impl!
+      (vary-meta
+        final-sub-fn
+        assoc (keyword (namespace meta-sub-kw) "sub-name") (keyword full-name)
+        meta-sub-kw subscription-fn)
+      full-name)))
 
 (defmacro defsubraw
   "Creates a subscription function that takes the datasource ratom and optionally an args map and returns a Reaction

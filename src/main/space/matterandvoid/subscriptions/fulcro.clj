@@ -154,7 +154,7 @@
   [sub-name ?path] `(impl/deflayer2-sub ::subscription ~sub-name ~?path))
 
 (defmacro defsub-indirect-lookup
-  "Takes a keyword and a subscription that return an id
+  "Takes a keyword and a subscription that returns an id
   Deals with the pattern where a layer-2 subscription's ID value is itself resolved via a subscription.
 
   expands to:

@@ -1,7 +1,6 @@
 (ns space.matterandvoid.subscriptions.impl.eql-queries
   "Automatically register subscriptions to fulfill EQL queries for fulcro components."
   (:require
-    #?(:cljs [goog.object :as gobj])
     [borkdude.dynaload :refer [dynaload]]
     [edn-query-language.core :as eql]
     [space.matterandvoid.subscriptions.impl.eql-protocols :as proto]

@@ -124,11 +124,16 @@
 (defn create-component-subs
   "Creates a subscription function that will fulfill the given Fulcro component's query.
   The component and any components in its query must have a name (cannot be anonymous).
+
   the `sub-joins-map` argument is a hashmap whose keys are the join properties of the component and whose value is a
   subscription function for normal joins, and a nested hashmap for unions of the union key to subscription.
+
   You do not need to provide a subscription function for recursive joins.
+
   You do not need to provide a subscription for Fulcro's form-state config join if you component includes that join in its query,
-  a subscription will be created for you for form-state/config."
+  a subscription will be created for you for form-state/config.
+
+  Call the subscription with the id value in the options map and provide an optional EQL query in the query map using the subs/query-key key."
   ([component] (create-component-subs component {}))
   ([component sub-joins-map]
    (let [sub-joins-map (cond-> sub-joins-map (query-contains-form-config? component) (assoc ::fs/config fulcro-form-state-config-sub))]

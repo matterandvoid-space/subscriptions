@@ -18,7 +18,7 @@
   ([datasource subscription-vector]
    `(do
       (assert (fulcro.app/fulcro-app? ~datasource)
-        (str "You must pass a Fulcro application to `use-sub-map` as the datasource, you passed: " (pr-str ~datasource)))
+        (str "You must pass a Fulcro application to `use-sub` as the datasource, you passed: " (pr-str ~datasource)))
       (common/use-sub-memo subs/subscribe ~datasource ~subscription-vector)))
 
   ([subscription-vector]

@@ -1,5 +1,12 @@
 # Use subscriptions with Fulcro
 
+This library only supports using subscriptions within normal React function components,
+making use of fulcro only for its state management functionality (normalization, transactions, and form state).
+
+There is no support for integrating subscriptions with `defsc` fulcro components and there is no planned support.
+
+---
+
 This document assumes knowledge of re-frame, especially subscriptions.
 
 If you do not currently have that knowledge, please take the time to acquire it.
@@ -81,7 +88,7 @@ If you're using the EQL subscriptions in this library with fulcro, layer 2 subsc
 
 # Future ideas
 
-Integrating with fulcro-inspect - probably by adding instrumentation inside of defregsub that happens based on a compiler
+Integrating with fulcro-inspect - probably by adding instrumentation inside of defsub that happens based on a compiler
 flag, as well as during re-render - to allow inspecting how long subscriptions took to compute as well as which components
 they caused to be re-rendered.
 

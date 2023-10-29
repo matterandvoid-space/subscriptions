@@ -104,7 +104,7 @@
         {props :prop joins :join} (group-by :type query-nodes)
         unions            (filter eql/union-children? joins)
         union-keys        (set-keys unions)
-        [recur-joins plain-joins] (split-with (comp recur? :query) joins)
+        {recur-joins true plain-joins false} (group-by (comp recur? :query) joins)
         plain-joins       (->> plain-joins
                             (remove #(contains? union-keys (:dispatch-key %)))
                             (map (juxt :dispatch-key join-ast->subscription -ast-node->id-prop))

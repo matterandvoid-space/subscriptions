@@ -89,3 +89,11 @@
     (cached-reaction f ratom path cursor nil)
     cursor))
 
+(defn get-state
+  "Returns the encapsulated state of the passed in Reaction or RCursor without triggering watches."
+  [^clj reaction-or-cursor]
+  (if (cursor? reaction-or-cursor)
+    (if-some [reaction (.-reaction reaction-or-cursor)]
+      (.-state reaction)
+      (get-in @(.-ratom reaction-or-cursor) (.-path reaction-or-cursor)))
+    (.-state reaction-or-cursor)))

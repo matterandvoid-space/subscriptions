@@ -51,10 +51,7 @@
   ([^clj reaction cleanup?]
    (assert (or (ratom/reaction? reaction) (ratom/cursor? reaction) (nil? reaction))
      "reaction should be an instance of reagent.ratom/Reaction or reagent.ratom/RCursor")
-   (let [get-snapshot (react/useCallback (fn []
-                                           (when reaction
-                                             ;; The snapshot does not use deref so as not to cause reactive re-rendering.
-                                             (if (ratom/cursor? reaction) (._peek reaction) (._peek-at reaction))))
+   (let [get-snapshot (react/useCallback (fn [] (when reaction (ratom/get-state reaction)))
                         #js[reaction])
          subscribe    (use-run-in-reaction reaction cleanup?)]
      (use-sync-external-store subscribe get-snapshot))))

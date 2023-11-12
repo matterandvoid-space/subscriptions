@@ -96,6 +96,33 @@
     not-empty
     boolean))
 
+(defn ->state-map
+  [?datasource]
+  (cond (fulcro.app/fulcro-app? ?datasource)
+        (fulcro.app/current-state ?datasource)
+        (ratom/deref? ?datasource) (deref ?datasource)
+        :else ?datasource))
+
+(defn expand-ident-sub
+  "Takes a layer2 subscription function and an eql subscription for a component.
+  Returns a function subscription that invokes the eql subscription for the ident returned from the provided `layer2-sub`."
+  [layer2-sub component-eql-sub]
+  (let [component      (-> component-eql-sub meta ::impl/component)
+        component-name (rc/class->registry-key component)
+        sub-cache-name (keyword (namespace component-name) (str (name component-name) "-expand-ident"))
+        sub            (fn expand-ident [fulcro-app args]
+                         (ratom/make-reaction
+                           (fn []
+                             (let [ident           (layer2-sub fulcro-app args)
+                                   state-map       (->state-map fulcro-app)
+                                   component-query (rc/get-query component state-map)]
+                               (when (and ident (second ident))
+                                 (let [[id-attr id-value] ident]
+                                   (component-eql-sub fulcro-app {query-key component-query, id-attr id-value})))))))]
+    (fulcro.subs/with-name
+      (sub-fn sub)
+      sub-cache-name)))
+
 (defn expand-ident-list-sub
   "Takes a layer2 subscription function and an eql subscription for a component.
   Returns a function subscription that invokes the eql subscription for each ident in the list of idents returned from the provided `layer2-sub`."
@@ -107,10 +134,7 @@
                          (ratom/make-reaction
                            (fn []
                              (let [idents          (layer2-sub fulcro-app args)
-                                   state-map       (cond (fulcro.app/fulcro-app? fulcro-app)
-                                                         (fulcro.app/current-state fulcro-app)
-                                                         (ratom/deref? fulcro-app) (deref fulcro-app)
-                                                         :else fulcro-app)
+                                   state-map       (->state-map fulcro-app)
                                    component-query (rc/get-query component state-map)]
                                (filterv some?
                                  (map (fn [[id-attr id-value]]

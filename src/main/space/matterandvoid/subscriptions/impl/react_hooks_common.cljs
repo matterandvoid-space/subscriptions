@@ -50,7 +50,7 @@
 
   ([^clj reaction cleanup?]
    (assert (or (ratom/reaction? reaction) (ratom/cursor? reaction) (nil? reaction))
-     "reaction should be an instance of reagent.ratom/Reaction or reagent.ratom/RCursor")
+     (str "reaction should be an instance of reagent.ratom/Reaction or reagent.ratom/RCursor " (pr-str reaction)))
    (let [get-snapshot (react/useCallback (fn [] (when reaction (ratom/get-state reaction)))
                         #js[reaction])
          subscribe    (use-run-in-reaction reaction cleanup?)]

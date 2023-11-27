@@ -114,8 +114,7 @@
                          (ratom/make-reaction
                            (fn []
                              (let [ident           (layer2-sub fulcro-app args)
-                                   state-map       (->state-map fulcro-app)
-                                   component-query (rc/get-query component state-map)]
+                                   component-query (rc/get-query component)]
                                (when (and ident (second ident))
                                  (let [[id-attr id-value] ident]
                                    (component-eql-sub fulcro-app {query-key component-query, id-attr id-value})))))))]
@@ -134,8 +133,7 @@
                          (ratom/make-reaction
                            (fn []
                              (let [idents          (layer2-sub fulcro-app args)
-                                   state-map       (->state-map fulcro-app)
-                                   component-query (rc/get-query component state-map)]
+                                   component-query (rc/get-query component)]
                                (filterv some?
                                  (map (fn [[id-attr id-value]]
                                         (when id-value

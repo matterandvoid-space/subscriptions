@@ -5,7 +5,7 @@
     [space.matterandvoid.subscriptions.impl.react-hooks-common :as common]))
 
 (defmacro use-sub
-  "Macro that expands expands to `use-sub`, memoizes the subscription vector so that the underlying subscription
+  "Macro that expands to `use-sub`, memoizes the subscription vector so that the underlying subscription
   is reused across re-renders by React. If your subscription vector contains an arguments map literal, it is memoized with dependencies
   being the values of the map. If you pass a symbol as the arguments the symbol will be used as the dependency for useMemo;
   thus, you are expected to memoize the arguments yourself in that case.

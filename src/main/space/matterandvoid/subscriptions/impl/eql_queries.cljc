@@ -362,7 +362,7 @@
           ;=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
           ;; how this works - we have an entity map from the db
-          ;; for the recursion point we lookup the value in the db which will be normalized
+          ;; for the recursion point we look up the value in the db which will be normalized
           ;; the task is to determine given that normalized value is it a single id or is it a to-many id?
 
           ;--------------------------------------------------------------------------------

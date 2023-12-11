@@ -6,6 +6,7 @@
     [edn-query-language.core :as eql]
     [space.matterandvoid.subscriptions.fulcro :as fulcro.subs :refer [<sub reg-sub-raw sub-fn]]
     [space.matterandvoid.subscriptions.impl.eql-protocols :as proto]
+    [taoensso.timbre :as log]
     [space.matterandvoid.subscriptions.impl.eql-queries :as impl]
     [space.matterandvoid.subscriptions.impl.reagent-ratom :as ratom :refer [cursor]]))
 
@@ -13,6 +14,12 @@
 (def missing-val impl/missing-val)
 (def walk-fn-key impl/walk-fn-key)
 (def xform-fn-key impl/xform-fn-key)
+
+(defn valid-datasource? [?ds]
+  (or
+    (fulcro.app/fulcro-app? ?ds)
+    (ratom/deref? ?ds)
+    (map? ?ds)))
 
 (defn ->db
   "Subscriptions support passing: a fulcro app, the fulcro state atom, or the state hashmap itself.
@@ -107,17 +114,17 @@
   "Takes a layer2 subscription function and an eql subscription for a component.
   Returns a function subscription that invokes the eql subscription for the ident returned from the provided `layer2-sub`."
   [layer2-sub component-eql-sub]
-  (let [component      (-> component-eql-sub meta ::impl/component)
+  (let [component (-> component-eql-sub meta ::impl/component)
         component-name (rc/class->registry-key component)
         sub-cache-name (keyword (namespace component-name) (str (name component-name) "-expand-ident"))
-        sub            (fn expand-ident [fulcro-app args]
-                         (ratom/make-reaction
-                           (fn []
-                             (let [ident           (layer2-sub fulcro-app args)
-                                   component-query (rc/get-query component)]
-                               (when (and ident (second ident))
-                                 (let [[id-attr id-value] ident]
-                                   (component-eql-sub fulcro-app {query-key component-query, id-attr id-value})))))))]
+        sub (fn expand-ident [fulcro-app args]
+              (ratom/make-reaction
+                (fn []
+                  (let [ident (layer2-sub fulcro-app args)
+                        component-query (rc/get-query component)]
+                    (when (and ident (second ident))
+                      (let [[id-attr id-value] ident]
+                        (component-eql-sub fulcro-app {query-key component-query, id-attr id-value})))))))]
     (fulcro.subs/with-name
       (sub-fn sub)
       sub-cache-name)))
@@ -126,22 +133,44 @@
   "Takes a layer2 subscription function and an eql subscription for a component.
   Returns a function subscription that invokes the eql subscription for each ident in the list of idents returned from the provided `layer2-sub`."
   [layer2-sub component-eql-sub]
-  (let [component      (-> component-eql-sub meta ::impl/component)
+  (let [component (-> component-eql-sub meta ::impl/component)
         component-name (rc/class->registry-key component)
         sub-cache-name (keyword (namespace component-name) (str (name component-name) "-expand-ident-list"))
-        sub            (fn expand-ident-list [fulcro-app args]
-                         (ratom/make-reaction
-                           (fn []
-                             (let [idents          (layer2-sub fulcro-app args)
-                                   component-query (rc/get-query component)]
-                               (filterv some?
-                                 (map (fn [[id-attr id-value]]
-                                        (when id-value
-                                          (component-eql-sub fulcro-app {query-key component-query, id-attr id-value})))
-                                   idents))))))]
+        sub (fn expand-ident-list [fulcro-app args]
+              (ratom/make-reaction
+                (fn []
+                  (let [idents (layer2-sub fulcro-app args)
+                        component-query (rc/get-query component)]
+                    (filterv some?
+                      (map (fn [[id-attr id-value]]
+                             (when id-value
+                               (component-eql-sub fulcro-app {query-key component-query, id-attr id-value})))
+                        idents))))))]
     (fulcro.subs/with-name
       (sub-fn sub)
       sub-cache-name)))
+
+(defn create-eql-facade
+  "Allows invoking an eql subscription by passing:
+  (sub-fn app-db id-value eql-query)
+  or
+  (sub-fn app-db id-value eql-query {:extra-args :here `xform-fn (fn[v] ,,,)})
+
+  as well as the verbose syntax:
+  (sub-fn app-db {your-id-attr id-value subs/eql-query-key eql-query ,, other-map-args,,})"
+  [id-attr eql-sub-fn]
+  (with-meta
+    (fn eql-facade
+      ([fulcro-app opts]
+       (assert (valid-datasource? fulcro-app) "Invalid datasource passed to eql subscription")
+       (eql-sub-fn fulcro-app opts))
+      ([fulcro-app id-value query]
+       (assert (valid-datasource? fulcro-app) "Invalid datasource passed to eql subscription")
+       (eql-sub-fn fulcro-app {query-key query, id-attr id-value}))
+      ([fulcro-app id-value query args-map]
+       (assert (valid-datasource? fulcro-app) "Invalid datasource passed to eql subscription")
+       (eql-sub-fn fulcro-app (assoc args-map query-key query, id-attr id-value))))
+    (meta eql-sub-fn)))
 
 (defn create-component-subs
   "Creates a subscription function that will fulfill the given Fulcro component's query.
@@ -158,8 +187,10 @@
   Call the subscription with the id value in the options map and provide an optional EQL query in the query map using the subs/query-key key."
   ([component] (create-component-subs component {}))
   ([component sub-joins-map]
-   (let [sub-joins-map (cond-> sub-joins-map (query-contains-form-config? component) (assoc ::fs/config fulcro-form-state-config-sub))]
-     (impl/create-component-subs ::fulcro.subs/sub-name <sub sub-fn fulcro-data-source component sub-joins-map))))
+   (let [[id-prop] (get-ident component {})
+         sub-joins-map (cond-> sub-joins-map (query-contains-form-config? component) (assoc ::fs/config fulcro-form-state-config-sub))
+         eql-sub-fn (impl/create-component-subs ::fulcro.subs/sub-name <sub sub-fn fulcro-data-source component sub-joins-map)]
+     (create-eql-facade id-prop eql-sub-fn))))
 
 (defn register-component-subs!
   "Registers subscriptions that will fulfill the given fulcro component's query.
